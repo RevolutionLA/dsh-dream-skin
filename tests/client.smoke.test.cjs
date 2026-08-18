@@ -315,6 +315,62 @@ test('setWallpaper resets kind to image so a picked photo beats a stale gradient
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), 'data:image/jpeg;base64,AAAA');
 });
 
+test('saved third-party skin survives repeated delayed host adoption (sticky restore)', async () => {
+	// Regression: ThemeRuntime only persists system/light/dark to the host settings
+	// scope, so an asynchronous host adoption (connection reset / settings reload)
+	// resets a saved third-party skin like "midnight" to "system". The upstream
+	// once-only reassert could not cover adoptions arriving after it, or repeated
+	// re-adoptions. The sticky restore must re-apply the saved skin on every
+	// fallback to a built-in preference, but never after the user clears it.
+	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'midnight' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+
+	const handlers = [];
+	let pref = 'system';
+	const setCalls = [];
+	const theme = {
+		register() { return () => {}; },
+		setTheme(id) { pref = id; setCalls.push(id); },
+		getTheme() { return { preference: pref, active: { id: 'dark', colorScheme: 'dark', tokens: {} }, themes: [], revision: 1 }; },
+		overrideTokens() { return () => {}; }
+	};
+	const ctx = {
+		theme,
+		slots: { inject() {}, register() { return {}; } },
+		locale: { register() {}, bind() { return (key) => key; } },
+		on(ev, fn) { if (ev === 'theme/change') handlers.push(fn); return () => {}; },
+		effect(t) { const d = t(); if (typeof d === 'function') d(); }
+	};
+	// Emit a theme/change as the ThemeRuntime does after adopting the host scope.
+	const emit = (preference) => {
+		pref = preference;
+		for (const fn of handlers) fn({ preference, active: { id: 'dark', colorScheme: 'dark', tokens: {} }, revision: 2 });
+	};
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+	assert.doesNotThrow(() => e.apply(ctx));
+	await tick();
+	const midnightCalls = () => setCalls.filter((id) => id === 'midnight').length;
+	assert.ok(midnightCalls() >= 1, 'saved midnight skin restored at boot');
+	const bootCount = midnightCalls();
+
+	// First delayed host adoption falls back to "system" — the saved skin must be re-applied.
+	emit('system');
+	await tick();
+	assert.equal(midnightCalls(), bootCount + 1, 'skin re-applied after the first adoption');
+
+	// A second re-adoption must be corrected too (the once-only reassert regressed here).
+	emit('system');
+	await tick();
+	assert.equal(midnightCalls(), bootCount + 2, 'skin re-applied after a repeated adoption');
+
+	// A deliberate Default selection clears the saved id; nothing may be restored.
+	h.localStorage.removeItem('dsh-dream-skin:skin');
+	emit('system');
+	await tick();
+	assert.equal(midnightCalls(), bootCount + 2, 'no restore after the user cleared the skin');
+});
+
 test('all locale dictionaries are complete and keep placeholders', () => {
 	// Every shipped dictionary must have exactly the zh key set (no missing /
 	// extra keys) and must keep the {name} / {error} / {errors} placeholders.
