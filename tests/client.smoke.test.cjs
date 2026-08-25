@@ -837,6 +837,71 @@ test('issue #29: wallpaper wash uses the target skin tokens, not BUILTIN_BASE fa
 		'light wash must not fall back to BUILTIN_BASE white');
 });
 
+test('issue #29: skin-following gradient shades from raw theme tokens, not its own composed override', () => {
+	// Real ThemeRuntime folds override layers into snapshot.active. A wallpaper
+	// wash must resolve the registered raw theme from snapshot.themes; otherwise
+	// its previous white/default wash feeds back into the next skin selection.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	let themes = [
+		{ id: 'light', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': '#fff', '--dsw-specific-sidebar-fill': '#fff' } },
+		{ id: 'dark', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#151517', '--dsw-specific-sidebar-fill': '#151517' } }
+	];
+	let preference = 'system';
+	let revision = 0;
+	const changeHandlers = [];
+	const overrides = new Map();
+	const snapshot = () => {
+		const activeId = preference === 'system' ? 'light' : preference;
+		const raw = themes.find((theme) => theme.id === activeId);
+		const tokens = { ...raw.tokens };
+		for (const layer of overrides.values()) {
+			for (const [name, modes] of Object.entries(layer.tokens)) tokens[name] = modes[raw.colorScheme];
+		}
+		return { preference, active: { ...raw, tokens }, themes: [...themes], revision };
+	};
+	const publish = () => {
+		revision += 1;
+		const value = snapshot();
+		for (const handler of changeHandlers) handler(value);
+	};
+	const theme = {
+		register(definition) {
+			themes = [...themes, definition];
+			publish();
+			return () => {};
+		},
+		setTheme(id) { preference = id; publish(); },
+		getTheme() { return snapshot(); },
+		overrideTokens(source, tokens) {
+			const layer = { tokens };
+			overrides.set(source, layer);
+			publish();
+			return () => {
+				if (overrides.get(source) !== layer) return;
+				overrides.delete(source);
+				publish();
+			};
+		}
+	};
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	const ctx = { ...baseCtx, theme };
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') changeHandlers.push(fn); return () => {}; };
+	assert.doesNotThrow(() => e.apply(ctx));
+	const skinBags = h.actionBags['dream-skin'];
+
+	// First selection from the default light theme must already use rose, not white.
+	skinBags.setSkin('rose');
+	let wash = overrides.get('dsh-dream-skin:wallpaper').tokens;
+	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
+
+	// The round-trip must not feed either prior wash back into the final rose wash.
+	skinBags.setSkin('midnight');
+	skinBags.setSkin('rose');
+	wash = overrides.get('dsh-dream-skin:wallpaper').tokens;
+	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
+});
+
 test('saved skin survives a page refresh (fresh apply re-stores from localStorage)', () => {
 	// Regression for issue #8: selecting a skin must survive a plain page refresh.
 	// On refresh the SAME origin's localStorage is still present, but the plugin is
