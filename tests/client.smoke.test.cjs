@@ -939,6 +939,12 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 		// (already washed) tokens back into the next skin.
 		const eventValue = {
 			...value,
+			// A host-scope adoption can transiently surface the built-in preference
+			// in the same turn that the third-party selection is being restored.
+			// The already-persisted Dream Skin id is authoritative for its wash.
+			preference: ['system', 'light', 'dark'].includes(value.preference)
+				? value.preference
+				: 'system',
 			active: { colorScheme: value.active.colorScheme, tokens: value.active.tokens }
 		};
 		for (const handler of [...handlers]) handler(eventValue);
