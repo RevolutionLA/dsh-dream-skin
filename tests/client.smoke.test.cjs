@@ -902,7 +902,7 @@ test('issue #29: skin-following gradient shades from raw theme tokens, not its o
 	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
 });
 
-test('production facade keeps wallpaper, popup opacity, and accent visible together across a skin round-trip', () => {
+test('production facade keeps wallpaper, popup opacity, and accent visible together across a skin round-trip', async () => {
 	const h = buildSandbox({ seed: {
 		'dsh-dream-skin:skin': 'rose',
 		'dsh-dream-skin:wallpaper-kind': 'gradient',
@@ -993,8 +993,13 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	}
 
 	const skin = h.actionBags['dream-skin'];
+	let presentedTokens = null;
+	// ui-layout can subscribe after a dynamic package. Its outer callback must not
+	// overwrite the nested override snapshot after a theme selection.
+	handlers.push((value) => { presentedTokens = value.active.tokens; });
 	skin.setSkin('midnight');
 	skin.setSkin('rose');
+	await new Promise((resolve) => setTimeout(resolve, 10));
 	const tokens = theme.getTheme().active.tokens;
 	assert.match(tokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
 		'rose wallpaper wash survives the round-trip');
@@ -1004,6 +1009,8 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 		'custom accent remains active after the wallpaper re-shade');
 	assert.equal(activeLayerRemovals, 0,
 		'same-source replacement never publishes an intermediate unshaded theme');
+	assert.match(presentedTokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
+		'the presenter ends on the deferred rose wash instead of the outer stale snapshot');
 });
 
 test('saved skin survives a page refresh (fresh apply re-stores from localStorage)', () => {
