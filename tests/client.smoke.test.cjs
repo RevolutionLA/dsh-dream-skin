@@ -921,6 +921,7 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	let revision = 0;
 	const handlers = [];
 	let packageLayer = null;
+	let activeLayerRemovals = 0;
 	const snapshot = () => {
 		const activeId = preference === 'system' ? 'light' : preference;
 		const raw = themes.find((theme) => theme.id === activeId);
@@ -961,6 +962,7 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 			publish();
 			return () => {
 				if (packageLayer !== layer) return;
+				activeLayerRemovals += 1;
 				packageLayer = null;
 				publish();
 			};
@@ -1000,6 +1002,8 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 		'popup opacity remains active after the wallpaper re-shade');
 	assert.equal(tokens['--dsw-alias-brand-primary'], '#123456',
 		'custom accent remains active after the wallpaper re-shade');
+	assert.equal(activeLayerRemovals, 0,
+		'same-source replacement never publishes an intermediate unshaded theme');
 });
 
 test('saved skin survives a page refresh (fresh apply re-stores from localStorage)', () => {
