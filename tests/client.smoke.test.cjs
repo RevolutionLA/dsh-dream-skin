@@ -1090,8 +1090,8 @@ test('modal-opacity row registers, persists, applies the CSS fill, and drives po
 
 test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal ancestor)', () => {
 	// Regression guard for the settings-modal-trapping bug: the premium material
-	// injector must add backdrop-filter only to LEAF cards (composer, warning,
-	// popover) and NEVER to large columns/sidebar that could be ancestors of a
+	// injector must add backdrop-filter only to LEAF cards (warning, popover)
+	// and NEVER to large columns/sidebar that could be ancestors of a
 	// position:fixed modal. apply() must not throw, and the injected stylesheet
 	// must contain the safe leaf selectors and not the unsafe container one.
 	let appended = null;
@@ -1114,8 +1114,17 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 
 	assert.ok(appended && appended.textContent, 'a material <style> node was appended');
 	const css = appended.textContent;
-	assert.ok(css.includes('.uV2eYG_card'), 'composer card is a (safe) blur target');
 	assert.ok(css.includes('backdrop-filter'), 'uses backdrop-filter');
+	// The inline-warning card keeps the material blur — it hosts no fixed
+	// popover, so backdrop-filter cannot trap anything there.
+	assert.ok(css.includes('.bqrRRG_card'), 'inline-warning card is a (safe) blur target');
+	// The composer card must NOT be a blur target: it hosts the fixed-positioned
+	// stop/send button Tooltips. backdrop-filter (like filter/transform) turns an
+	// element into a containing block, so those tooltips anchor to the card
+	// instead of the viewport — they spill to the bottom-right corner and shove
+	// the composer out of layout. The composer keeps its translucent token fill;
+	// only the blur layer is dropped for it.
+	assert.ok(!/\.uV2eYG_card[^A-Za-z0-9_-]*\{[^}]*backdrop-filter/.test(css), 'composer card must NOT be a blur target (hosts fixed Tooltips)');
 	// The unsafe big containers MUST NOT be blurred (regression): those host the
 	// settings modal, and blurring them broke fixed positioning.
 	assert.ok(!/centerCol/.test(css), 'must NOT blur the main center column');
