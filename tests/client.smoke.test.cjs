@@ -933,7 +933,15 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	const publish = () => {
 		revision += 1;
 		const value = snapshot();
-		for (const handler of [...handlers]) handler(value);
+		// The production dynamic-package event facade may expose the composed
+		// active presentation without a usable third-party id. The preference and
+		// registry remain authoritative, and the plugin must not feed the composed
+		// (already washed) tokens back into the next skin.
+		const eventValue = {
+			...value,
+			active: { colorScheme: value.active.colorScheme, tokens: value.active.tokens }
+		};
+		for (const handler of [...handlers]) handler(eventValue);
 	};
 	const theme = {
 		register(definition) { themes = [...themes, definition]; publish(); return () => {}; },
