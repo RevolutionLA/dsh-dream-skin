@@ -47,7 +47,8 @@ GitHub 上 [Fei-Away/Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-S
 - 插件 = **双面插件**：host 半边插入 loader 入口；浏览器半边为 `dsh.client` bundle。
 - 主题注册：`ctx.theme.register({ id, colorScheme, tokens })`，token 为**标量字符串**（每个色系一份）。
 - 叠加层：`ctx.theme.overrideTokens(source, { '--token': { light, dark } })`，override 层要求**`{ light, dark }` 成对**
-  字符串（与注册主题的标量 token 不同）；accent / 壁纸着色 / 未来调优层可**多层叠加正交共存**。
+  字符串（与注册主题的标量 token 不同）。正式动态插件运行器会把同一 package 的 source 归一成一个来源，
+  所以 accent、壁纸着色与弹窗透明度必须先在插件内合并，再提交为单个 appearance 覆盖层。
 - 设置插槽：注册独立分节 `ctx.slots.inject('settings.section', ...)`（「Theme / 外观」），5 个功能行挂
   `settings.dreamSkin.item` 插槽下。
 - 持久化边界：浏览器第三方只能用 `localStorage`（DSH `WEB_SETTINGS_NAMESPACES` 是硬编码白名单，第三方 namespace

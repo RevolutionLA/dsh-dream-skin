@@ -808,7 +808,7 @@ test('issue #29: wallpaper wash uses the target skin tokens, not BUILTIN_BASE fa
 		register() { return () => {}; },
 		setTheme(id) { cur = id; if (changeHandler) changeHandler({ preference: cur, active: activeFor(), themes: [], revision: 2 }); },
 		getTheme() { return { preference: cur, active: activeFor(), themes: [], revision: 1 }; },
-		overrideTokens(source, tokens) { if (source === 'dsh-dream-skin:wallpaper') wallpaperOverrides.push(tokens); return () => {}; }
+		overrideTokens(source, tokens) { if (source === 'dsh-dream-skin:appearance') wallpaperOverrides.push(tokens); return () => {}; }
 	};
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	const ctx = { ...baseCtx, theme };
@@ -892,14 +892,100 @@ test('issue #29: skin-following gradient shades from raw theme tokens, not its o
 
 	// First selection from the default light theme must already use rose, not white.
 	skinBags.setSkin('rose');
-	let wash = overrides.get('dsh-dream-skin:wallpaper').tokens;
+	let wash = overrides.get('dsh-dream-skin:appearance').tokens;
 	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
 
 	// The round-trip must not feed either prior wash back into the final rose wash.
 	skinBags.setSkin('midnight');
 	skinBags.setSkin('rose');
-	wash = overrides.get('dsh-dream-skin:wallpaper').tokens;
+	wash = overrides.get('dsh-dream-skin:appearance').tokens;
 	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
+});
+
+test('production facade keeps wallpaper, popup opacity, and accent visible together across a skin round-trip', () => {
+	const h = buildSandbox({ seed: {
+		'dsh-dream-skin:skin': 'rose',
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #fdf2f6 0%, #f0d2dc 100%)',
+		'dsh-dream-skin:wallpaper-opacity': '0.8',
+		'dsh-dream-skin:wallpaper-follows-skin': '0',
+		'dsh-dream-skin:modal-opacity': '0.5',
+		'dsh-dream-skin:accent': '#123456'
+	} });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	let themes = [
+		{ id: 'light', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': '#fff', '--dsw-specific-sidebar-fill': '#f9fafb', '--dsw-specific-menu': '#fff', '--dsw-alias-bg-overlay': '#fff', '--dsw-alias-brand-primary': '#000' } },
+		{ id: 'dark', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#151517', '--dsw-specific-sidebar-fill': '#0f0f0f', '--dsw-specific-menu': '#292929', '--dsw-alias-bg-overlay': '#353638', '--dsw-alias-brand-primary': '#fff' } }
+	];
+	let preference = 'system';
+	let revision = 0;
+	const handlers = [];
+	let packageLayer = null;
+	const snapshot = () => {
+		const activeId = preference === 'system' ? 'light' : preference;
+		const raw = themes.find((theme) => theme.id === activeId);
+		const tokens = { ...raw.tokens };
+		if (packageLayer !== null) {
+			for (const [name, modes] of Object.entries(packageLayer.tokens)) tokens[name] = modes[raw.colorScheme];
+		}
+		return { preference, active: { ...raw, tokens }, themes: [...themes], revision };
+	};
+	const publish = () => {
+		revision += 1;
+		const value = snapshot();
+		for (const handler of [...handlers]) handler(value);
+	};
+	const theme = {
+		register(definition) { themes = [...themes, definition]; publish(); return () => {}; },
+		setTheme(id) { if (preference === id) return; preference = id; publish(); },
+		getTheme() { return snapshot(); },
+		overrideTokens(_source, tokens) {
+			// dsh-cordis-client-runner deliberately pins every source from one
+			// dynamic package to the same package id. This is the production seam.
+			const layer = { tokens };
+			packageLayer = layer;
+			publish();
+			return () => {
+				if (packageLayer !== layer) return;
+				packageLayer = null;
+				publish();
+			};
+		}
+	};
+	const registrations = [];
+	const baseCtx = makeApplyContext(h);
+	const ctx = {
+		...baseCtx,
+		theme,
+		effect(register) { register(); },
+		on(ev, fn) { if (ev === 'theme/change') handlers.push(fn); return () => {}; },
+		slots: {
+			inject(_name, factory) { factory(); },
+			register(desc) { registrations.push(desc); return {}; }
+		}
+	};
+	assert.doesNotThrow(() => e.apply(ctx));
+	for (const desc of registrations) {
+		if (typeof desc.inject !== 'function') continue;
+		const storeSpec = desc.store && desc.store.spec;
+		const state = storeSpec ? storeSpec.init() : undefined;
+		const actions = storeSpec && typeof storeSpec.actions.sync === 'function'
+			? { sync: (...args) => storeSpec.actions.sync(state, ...args) }
+			: {};
+		const bag = desc.inject(actions);
+		if (bag && typeof bag === 'object') (h.actionBags || (h.actionBags = {}))[desc.id] = bag;
+	}
+
+	const skin = h.actionBags['dream-skin'];
+	skin.setSkin('midnight');
+	skin.setSkin('rose');
+	const tokens = theme.getTheme().active.tokens;
+	assert.match(tokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
+		'rose wallpaper wash survives the round-trip');
+	assert.match(tokens['--dsw-specific-menu'], /rgba\(247,\s*240,\s*243,\s*0\.5\)/,
+		'popup opacity remains active after the wallpaper re-shade');
+	assert.equal(tokens['--dsw-alias-brand-primary'], '#123456',
+		'custom accent remains active after the wallpaper re-shade');
 });
 
 test('saved skin survives a page refresh (fresh apply re-stores from localStorage)', () => {
@@ -959,7 +1045,7 @@ test('modal-opacity row registers, persists, applies the CSS fill, and drives po
 	assert.doesNotThrow(() => e.apply(ctx));
 
 	// At boot the saved/ default popup opacity stacks the token override once.
-	assert.ok(overrideLog.some((o) => o.source === 'dsh-dream-skin:popup-opacity'), 'popup token override applied at boot');
+	assert.ok(overrideLog.some((o) => o.source === 'dsh-dream-skin:appearance' && o.tokens['--dsw-specific-menu']), 'popup token override applied at boot');
 
 	const bags = h.actionBags;
 	assert.ok(bags['dream-skin-modal-opacity'], 'modal-opacity row action bag captured');
@@ -970,7 +1056,7 @@ test('modal-opacity row registers, persists, applies the CSS fill, and drives po
 	// The token override is re-applied at 50% alpha (0.5) on the popup surfaces,
 	// so 50% is visibly different from 0% / 100% — the exact bug the reporter hit.
 	const last = overrideLog[overrideLog.length - 1];
-	assert.equal(last.source, 'dsh-dream-skin:popup-opacity', 'slider re-applies the popup override layer');
+	assert.equal(last.source, 'dsh-dream-skin:appearance', 'slider re-applies the combined appearance override layer');
 	assert.ok(last.tokens['--dsw-specific-menu'], 'menu surface token overridden');
 	assert.ok(last.tokens['--dsw-alias-bg-overlay'], 'overlay/popover surface token overridden');
 	assert.equal(last.tokens['--dsw-specific-menu'].dark, 'rgba(16, 16, 20, 0.5)', 'dark menu fill scaled to 50%');
