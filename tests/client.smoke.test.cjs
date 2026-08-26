@@ -560,6 +560,59 @@ test('saved third-party skin survives repeated delayed host adoption (sticky res
 	assert.equal(midnightCalls(), bootCount + 2, 'no restore after the user cleared the skin');
 });
 
+test('saved third-party skin survives more than eight successful locale reloads', async () => {
+	// Regression for issue #36: changing the locale makes DSH briefly re-adopt
+	// the built-in `system` preference. The restore guard is a consecutive-failure
+	// budget, so every successful return to the saved skin must reset it. Without
+	// that reset the ninth locale change permanently falls back to Default.
+	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'mist' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+
+	const themeHandlers = [];
+	let pref = 'system';
+	const snapshot = () => ({
+		preference: pref,
+		active: { id: pref, colorScheme: 'light', tokens: {} },
+		themes: [],
+		revision: 1
+	});
+	const publish = () => {
+		for (const fn of themeHandlers) fn(snapshot());
+	};
+	const theme = {
+		register() { return () => {}; },
+		setTheme(id) {
+			if (pref === id) return;
+			pref = id;
+			publish();
+		},
+		getTheme() { return snapshot(); },
+		overrideTokens() { return () => {}; }
+	};
+	const ctx = {
+		theme,
+		slots: {
+			inject(n, f) { if (typeof f === 'function') f(); },
+			register() { return {}; }
+		},
+		locale: { register() {}, bind() { return (key) => key; } },
+		on(ev, fn) { if (ev === 'theme/change') themeHandlers.push(fn); return () => {}; },
+		effect(t) { t(); }
+	};
+	const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+	e.apply(ctx);
+	await tick();
+	assert.equal(pref, 'mist', 'saved skin restored at boot');
+
+	for (let round = 1; round <= 12; round += 1) {
+		pref = 'system';
+		publish();
+		await tick();
+		assert.equal(pref, 'mist', `saved skin restored after locale reload ${round}`);
+	}
+});
+
 test('issue #11: saved skin survives an agent-preset change that re-adopts the host theme', async () => {
 	// Regression for issue #11: switching the agent preset in Settings → General
 	// makes DSH reload/re-adopt the host `ui-theme.preference` scope (which only
