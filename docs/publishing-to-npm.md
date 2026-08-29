@@ -66,7 +66,7 @@ dsh plugin --profile web add dsh-dream-skin
 ## 五、常见注意事项
 
 - **镜像源**：发布必须 `--registry https://registry.npmjs.org`。
-- **版本号**：从 `8.28.0` 起改用**日期式版本** `M.D.X`（月.日.当日第几个版本）。例如 8 月 28 日首版 `8.28.0`、当日再发 `8.28.1`、次日 `8.29.0`。当前最新为 `8.28.0`（首发 0.2.0 → 0.4.15）。
+- **版本号**：从 `8.28.0` 起改用**日期式版本** `M.D.X`（月.日.当日第几个版本）。例如 8 月 28 日首版 `8.28.0`、当日再发 `8.28.1`、次日 `8.29.0`。当前最新为 `8.29.0`（首发 0.2.0 → 0.4.15）。
 - **peerDependencies**：以 `^0.1.0-rc.6` 对齐 DSH 当前版本；DSH 升级到正式版后记得跟进。
 - **LICENSE / README**：npm 页会展示仓库提交的内容，建议发布前同步。
 - **files 白名单**：已含主 README、`docs/i18n/` 多语言 README 与 `docs/previews`、`docs/screenshots`、`docs/examples`、`docs/themes-spec.md`，

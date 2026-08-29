@@ -91,7 +91,7 @@ function makeRequire() {
 	return (s) => {
 		if (s === 'react/jsx-runtime') return { jsx: () => 0, jsxs: () => 0 };
 		if (s === 'react') return REACT;
-		if (s === '@deepseek-ai/dsh-client-runtime/client') return RT;
+		if (s === '@deepseek-ai/dsh-client-store') return RT;
 		throw new Error('unexpected require: ' + s);
 	};
 }
