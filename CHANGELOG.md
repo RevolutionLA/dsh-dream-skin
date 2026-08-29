@@ -2,6 +2,20 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本。
 
+## [8.29.0] - 2026-08-29
+
+> **DSH master 兼容修复（issue #41，PR #42，来自 @Max-Null）。** 把 `defineStore` 的 require 目标从 `@deepseek-ai/dsh-client-runtime/client`（master 上已拆分移除）改为 `@deepseek-ai/dsh-client-store`，修复新版 DSH 上 `Failed to load plugins` 的全壳启动失败。
+
+### 修复
+- **`require("@deepseek-ai/dsh-client-runtime/client")` missed the module table（issue #41，PR #42）**：DSH master（post-0.1.2-alpha.1）把旧 `dsh-client-runtime` 拆分为 `dsh-client-modules` / `dsh-client-store` / `dsh-client-locale` 等，冻结模块表（`PLATFORM_MODULES`）只剩 `react` / `@deepseek-ai/dsh-client-store` / `@deepseek-ai/dsh-client-ui-*` 等。预编译 bundle 对 `@deepseek-ai/dsh-client-runtime/client` 的裸 require 无法满足，浏览器侧直接报 `missed the module table`，并因任意 loader-entry 导入失败而中止整个 shell 启动（`Failed to load plugins`）。现把 `lib/client.js` 中 6 处 `defineStore` 的 require 目标改为 `@deepseek-ai/dsh-client-store`（导出同一 `defineStore` 契约）。`react` 等外部依赖在 master 上仍是平台 seed，无需改动。已由作者在 DSH master + `dsh web` 实机验证：shell 零错误启动、设置面板完整渲染 8 套皮肤 / 强调色 / 壁纸 / 主题包。
+
+### 变更
+- **peerDependencies**：新增 `@deepseek-ai/dsh-client-store`，同时保留 `@deepseek-ai/dsh-client-runtime`，兼顾 DSH master 与稳定版。
+- **版本号**：按日期式规则，今天（8 月 29 日）首版为 `8.29.0`（覆盖 PR 中按 28 日计的 `8.28.1`）。
+
+### 完善
+- **测试适配**：smoke/persistence 的 `makeRequire` mock 改为匹配 `@deepseek-ai/dsh-client-store`，回归门保持 **34/34 通过**。
+
 ## [8.28.0] - 2026-08-28
 
 > **版本号大变革 + 设置导航图标（PR #40）。** 正式切换为日期式版本号（`M.D.X`），并以社区同款方案把本插件「Theme/皮肤」设置行从默认齿轮替换为 Lucide palette（调色板）图标。
