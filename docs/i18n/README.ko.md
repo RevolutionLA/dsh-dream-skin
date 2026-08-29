@@ -272,7 +272,7 @@ dsh web   # restores the official appearance
 
 | 항목 | 값 |
 |------|-------|
-| DeepSeek Harness (`dsh`) | `0.1.0-rc.6` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) |
+| DeepSeek Harness (`dsh`) | **하나의 빌드로 두 세대의 호스트 모두 지원**: 안정版 `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) 및 DSH master (분할 후 모듈 테이블) |
 | Node.js | `>=18` |
 | 브라우저 | 최신 Chromium / WebKit (네이티브 CSS variables & `matchMedia`) |
 

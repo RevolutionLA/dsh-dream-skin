@@ -1,6 +1,20 @@
 # Changelog
 
-记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本。
+记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
+
+## [8.30.1] - 2026-08-30
+
+> **8.30.0 的健壮性与声明修复（蓝军审查跟进）。** 行为与 8.30.0 完全兼容，建议所有用户直接升级本版。
+
+### 修复
+- **peerDependenciesMeta 全量 `optional`**：`@deepseek-ai/dsh-client-store` 只存在于 master 宿主内部、从未发布到 npm（实测 404），在 `auto-install-peers=true` 的包管理器环境下会导致安装失败；其余 peer 平台包在 npm 上的版本也与 `^0.1.0-rc.6` 区间不匹配（如 `dsh-client-runtime@0.0.1-rc.1`）。现全部声明为 optional——它们本就由宿主在运行时供给（浏览器模块表 / cordis），npm 侧无需安装，语义更诚实。
+
+### 完善
+- **fallback 收紧**：`defineStore` 的双目标解析现在只在 require 错误消息含 `missed the module table`（各代宿主表 miss 的稳定文案）时才回落稳定版旧名；其他错误（如未来 master 上 store 工厂自身崩溃）原样抛出，不再被静默吞掉后报误导性的 "runtime/client 找不到"。新增回归用例：非表 miss 错误必须 rethrow。
+- **persistence 对称覆盖**：持久化套件新增稳定版宿主（store seed 缺失）路径用例，boot 采纳宿主键值经回落模块照常工作。
+- **文档**：README（中文 + 7 语言）兼容性表格更新为「同一构建兼容稳定版（≤ 0.1.1-rc.x）与 master」，并注明双目标解析机制与 optional peers。
+- **已知契约假设（记录备查）**：`dsh.client.inject` 中的 `@deepseek-ai/dsh-client-runtime` 在 master 宿主上不存在，当前被宿主宽容忽略（8.29.0 起实测）；移除它会破坏稳定版注入，保留是权衡后的决定——宿主若收紧该宽容，需按宿主版本拆分 manifest。
+- **版本日期规则澄清**：日期按维护者本地时区（UTC+8）计。8.30.0 的 npm 时间戳 `2026-08-29T18:01Z` 即本地 8 月 30 日凌晨，规则未失守；本版 8.30.1 为 8 月 30 日第二版。
 
 ## [8.30.0] - 2026-08-30
 

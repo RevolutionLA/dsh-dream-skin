@@ -187,6 +187,18 @@ test('issue #43: stable-DSH fallback — module table has no dsh-client-store, r
 	assert.ok(runtime.specs.length > 0, 'defineStore specs registered through the fallback module');
 });
 
+test('issue #43 hardening: non-table-miss errors from the store module are rethrown, not silently swallowed', () => {
+	// A falling store factory (or any non-"missed the module table" failure) must
+	// surface as-is — the fallback exists only for module-table drift.
+	const h = buildSandbox();
+	assert.throws(() => h.factory((s) => {
+		if (s === 'react/jsx-runtime') return { jsx: () => 0, jsxs: () => 0 };
+		if (s === 'react') return REACT;
+		if (s === '@deepseek-ai/dsh-client-store') throw new Error('store factory exploded');
+		throw new Error('unexpected require: ' + s);
+	}), /store factory exploded/);
+});
+
 test('issue #18: every skin themes the bubble / selector surfaces (no default-blue leak)', () => {
 	// DSH maps message bubbles to --dsw-specific-bubble (default --dsw-static-deepseek-50,
 	// a brand light-blue) and the composer option button to --dsw-specific-selector (default

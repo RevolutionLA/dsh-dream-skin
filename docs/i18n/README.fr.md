@@ -274,7 +274,7 @@ dsh web   # restores the official appearance
 
 | Élément | Valeur |
 |------|-------|
-| DeepSeek Harness (`dsh`) | `0.1.0-rc.6` (peerDependencies épinglées sur `^0.1.0-rc.6`) |
+| DeepSeek Harness (`dsh`) | **Un seul build pour deux générations d'hôte** : stable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies épinglées sur `^0.1.0-rc.6`) et DSH master (table de modules post-division) |
 | Node.js | `>=18` |
 | Navigateur | Chromium / WebKit moderne (variables CSS natives & `matchMedia`) |
 

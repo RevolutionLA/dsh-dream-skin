@@ -257,7 +257,7 @@ dsh web   # restores the official appearance
 
 | 項目 | 値 |
 |------|-------|
-| DeepSeek Harness（`dsh`） | `0.1.0-rc.6`（peerDependencies は `^0.1.0-rc.6` に固定） |
+| DeepSeek Harness（`dsh`） | **同一ビルドで両世代のホストに対応**：安定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peerDependencies は `^0.1.0-rc.6` に固定）と DSH master（分割後のモジュールテーブル） |
 | Node.js | `>=18` |
 | ブラウザ | モダンな Chromium / WebKit（ネイティブ CSS 変数 & `matchMedia`） |
 

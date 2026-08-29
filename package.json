@@ -1,6 +1,6 @@
 {
   "name": "dsh-dream-skin",
-  "version": "8.30.0",
+  "version": "8.30.1",
   "description": "DeepSeek Harness 换肤插件（Dream Skin for DSH）：8 套 iOS / Linear 式清透冷调的高质感主题 + 弥散光壁纸 + 每皮肤智能背景 + 强调色 + 主题包分享，把换肤做成材质与配色克制的高级感工艺，而非贴图 — in the spirit of Codex Dream Skin, elevated.",
   "license": "MIT",
   "type": "module",
@@ -81,6 +81,16 @@
     "@deepseek-ai/dsh-client-ui-settings-general": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-theme": "^0.1.0-rc.6",
     "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": { "optional": true },
+    "@deepseek-ai/dsh-client-locale": { "optional": true },
+    "@deepseek-ai/dsh-client-runtime": { "optional": true },
+    "@deepseek-ai/dsh-client-store": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-settings": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-settings-general": { "optional": true },
+    "@deepseek-ai/dsh-client-ui-theme": { "optional": true },
+    "react": { "optional": true }
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2"

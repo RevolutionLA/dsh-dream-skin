@@ -87,11 +87,17 @@ function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {} } = {}) {
 
 const REACT = { useRef: () => ({ current: {} }), useMemo: (f) => (typeof f === 'function' ? f() : f), useState: (init) => [init, () => {}] };
 const RT = { defineStore: (d) => ({ spec: d, create() {} }) };
-function makeRequire() {
+function makeRequire({ storeMissing = false } = {}) {
 	return (s) => {
 		if (s === 'react/jsx-runtime') return { jsx: () => 0, jsxs: () => 0 };
 		if (s === 'react') return REACT;
-		if (s === '@deepseek-ai/dsh-client-store') return RT;
+		if (s === '@deepseek-ai/dsh-client-store') {
+			// storeMissing simulates a stable host (issue #43): the master-only
+			// seed is absent and the table-miss Error is what the loader throws.
+			if (storeMissing) throw new Error('client-modules: require("' + s + '") missed the module table');
+			return RT;
+		}
+		if (s === '@deepseek-ai/dsh-client-runtime/client') return RT;
 		throw new Error('unexpected require: ' + s);
 	};
 }
@@ -163,4 +169,13 @@ test('degrades gracefully when host channel is unavailable', async (t) => {
 	assert.doesNotThrow(() => e.apply(ctx));
 	// Reads/writes still work purely in localStorage — apply returned and set up rows.
 	assert.ok(true, 'apply() did not throw with unavailable host channel');
+});
+
+test('stable-DSH fallback path (store seed missing) still boots and adopts host keys', async (t) => {
+	const h = buildSandbox({ hostValue: { 'dsh-dream-skin:skin': 'midnight' } });
+	const e = h.factory(makeRequire({ storeMissing: true }));
+	const ctx = makeApplyContext(h);
+	e.apply(ctx);
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'midnight', 'host-adopted skin persisted via the fallback path');
 });

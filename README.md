@@ -264,11 +264,14 @@ dsh web   # 重启后恢复官方外观
 
 | 项 | 值 |
 |------|-----|
-| DeepSeek Harness (`dsh`) | `0.1.0-rc.6`（peerDependencies 以 `^0.1.0-rc.6` 对齐） |
+| DeepSeek Harness (`dsh`) | **同一构建兼容两代宿主**：稳定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peer 以 `^0.1.0-rc.6` 对齐）与 DSH master（`dsh-client-runtime` 拆分后的新模块表） |
 | Node.js | `>=18` |
 | 浏览器 | 现代 Chromium / WebKit（依赖原生 CSS 变量与 `matchMedia`） |
 
-> 升级 DSH 到新版本时，请同步更新 `package.json` 里的 peerDependencies。
+> **兼容机制**：客户端 bundle 对设置 store 的宿主模块做运行时双目标解析——先试 master 的
+> `@deepseek-ai/dsh-client-store`，查表落空（`missed the module table`）才回落稳定版的
+> `@deepseek-ai/dsh-client-runtime/client`，其余错误原样抛出。所有 peer 平台包均声明为
+> `optional`（由宿主运行时供给，npm 上无需安装）。
 
 ---
 

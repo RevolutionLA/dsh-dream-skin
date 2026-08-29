@@ -21,3 +21,6 @@ research/
 
 # development: local fork clone
 /awesome-dsh-plugin/
+
+# local design preview / diagnostics pages
+/preview/
