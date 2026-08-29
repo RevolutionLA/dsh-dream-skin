@@ -2,6 +2,17 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本。
 
+## [8.30.0] - 2026-08-30
+
+> **稳定版兼容修复（issue #43）。** `defineStore` 的宿主模块解析改为「先试 master 新名、落空回落稳定版旧名」的双目标 require，同一份预编译构建同时兼容 DSH 稳定版（≤ 0.1.1-rc.x）与 master，不再随宿主版本二选一。
+
+### 修复
+- **`require("@deepseek-ai/dsh-client-store") missed the module table（issue #43）**：8.29.0 为兼容 DSH master（`dsh-client-runtime` 已拆分为 `dsh-client-modules` / `dsh-client-store` / `dsh-client-locale`，平台模块表冻结为新 seed 名）把 require 目标改成了 `@deepseek-ai/dsh-client-store`，但稳定版（0.1.0-rc.6、0.1.1-rc.2 等）的模块表里没有这个名字——loader-entry 导入失败随即中止整个 shell 启动，浏览器侧全屏 `Failed to load plugins`（npm latest 当时已是 8.29.0，稳定版用户开箱即坏）。现把 `lib/client.js` 的该处 require 改为运行时双目标解析：先 `require("@deepseek-ai/dsh-client-store")`（master seed 命中），捕获落空错误后回落 `require("@deepseek-ai/dsh-client-runtime/client")`（稳定版 seed 命中，与 8.28.0 行为一致）；加载器查表落空抛的是普通 `Error`，可安全捕获。master 路径沿用 8.29.0 的实机验证，稳定版路径与 8.28.0 一致，`dsh.client.inject` 与 peerDependencies 双声明均不变。
+
+### 完善
+- **回归测试**：smoke 套件新增 issue #43 用例——模拟稳定版宿主（`dsh-client-store` require 抛表错、仅提供 `dsh-client-runtime/client`），断言 bundle 正常求值、表面完整且 `defineStore` 经回落模块注册成功。回归门 **35/35 通过**。
+- **版本号**：按日期式规则，今天（8 月 30 日）首版为 `8.30.0`。
+
 ## [8.29.0] - 2026-08-29
 
 > **DSH master 兼容修复（issue #41，PR #42，来自 @Max-Null）。** 把 `defineStore` 的 require 目标从 `@deepseek-ai/dsh-client-runtime/client`（master 上已拆分移除）改为 `@deepseek-ai/dsh-client-store`，修复新版 DSH 上 `Failed to load plugins` 的全壳启动失败。

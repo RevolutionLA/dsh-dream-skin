@@ -159,6 +159,34 @@ test('bundle factory evaluates and exports the expected surface', () => {
 	assert.ok('SETTINGS_NS' in e);
 });
 
+test('issue #43: stable-DSH fallback — module table has no dsh-client-store, resolves via dsh-client-runtime/client', () => {
+	// Simulates a stable host (≤ 0.1.1-rc.x): requiring the master-only
+	// `@deepseek-ai/dsh-client-store` seed throws a table-miss Error and the
+	// pre-split `@deepseek-ai/dsh-client-runtime/client` is what the platform
+	// provides. The bundle must still evaluate, expose its full surface and
+	// register its defineStore specs through the fallback module.
+	const h = buildSandbox();
+	const runtime = makeRuntime();
+	const e = h.factory((s) => {
+		if (s === 'react/jsx-runtime') return { jsx: () => 0, jsxs: () => 0 };
+		if (s === 'react') return REACT;
+		if (s === '@deepseek-ai/dsh-client-store') {
+			throw new Error('client-modules: require("' + s + '") missed the module table');
+		}
+		if (s === '@deepseek-ai/dsh-client-runtime/client') return runtime.RT;
+		throw new Error('unexpected require: ' + s);
+	});
+	assert.equal(typeof e.apply, 'function');
+	assert.ok(Array.isArray(e.inject));
+	assert.ok(Array.isArray(e.SKINS));
+	assert.ok(e.SKINS.length > 0);
+	assert.ok('SETTINGS_NS' in e);
+	// defineStore specs materialize during apply (slot registration), so run the
+	// full apply path to prove the stores are created through the fallback module.
+	e.apply(makeApplyContext(h));
+	assert.ok(runtime.specs.length > 0, 'defineStore specs registered through the fallback module');
+});
+
 test('issue #18: every skin themes the bubble / selector surfaces (no default-blue leak)', () => {
 	// DSH maps message bubbles to --dsw-specific-bubble (default --dsw-static-deepseek-50,
 	// a brand light-blue) and the composer option button to --dsw-specific-selector (default
