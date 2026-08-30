@@ -391,7 +391,7 @@ Issues와 PR을 환영합니다! [기여 가이드](../../CONTRIBUTING.md)를 �
 > 매일 자동 업데이트(GitHub Actions). 왼쪽 축: **누적 다운로드 수**(청록); 오른쪽 축: **Star 수**(보라) — 규모가 크게 달라 각각 독립된 이중 축을 사용합니다.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=2" alt="dsh-dream-skin 매일 Star × 누적 다운로드 수 성장 곡선" width="900"/>
+  <img src="../../docs/stats.png?v=3" alt="dsh-dream-skin 매일 Star × 누적 다운로드 수 성장 곡선" width="900"/>
 </p>
 
 *데이터는 24시간마다 자동 수집됩니다: 다운로드 수는 [npm 공식 API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), Star 수는 [GitHub API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers)에서 가져옵니다.*

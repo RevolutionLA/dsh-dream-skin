@@ -91,8 +91,5 @@
     "@deepseek-ai/dsh-client-ui-settings-general": { "optional": true },
     "@deepseek-ai/dsh-client-ui-theme": { "optional": true },
     "react": { "optional": true }
-  },
-  "devDependencies": {
-    "@resvg/resvg-js": "^2.6.2"
   }
 }

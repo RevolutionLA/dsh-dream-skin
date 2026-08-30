@@ -1,0 +1,10 @@
+{
+  "name": "dsh-dream-skin-chart-deps",
+  "private": true,
+  "version": "1.0.0",
+  "description": "An isolated dependency scope for the README growth-chart PNG renderer. Kept separate from the root package.json on purpose: the root project declares optional peer dependencies (e.g. @deepseek-ai/dsh-client-*) that do not exist on the public npm registry, so a plain `npm ci` at the repo root fails (E404) and would silently break the daily chart job. Chart rendering needs exactly one third-party package (@resvg/resvg-js), so this tiny locked scope installs only that.",
+  "type": "module",
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

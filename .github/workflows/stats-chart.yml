@@ -38,8 +38,15 @@ jobs:
       - name: Install CJK fonts
         run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
 
-      - name: Install deps (resvg-js for SVG->PNG)
+      # 只在图表渲染的独立依赖作用域里装 resvg，绝不跑仓库根的 npm ci：
+      # 根 package.json 声明了一些 npm 上不存在的可选 peer 依赖（如
+      # @deepseek-ai/dsh-client-store@^0.1.0-rc.6），根目录 `npm ci` 会以 E404
+      # 崩溃（8/29 的每日任务就是因此停下、图停更在 8/27）。collect / render
+      # 只用 Node 内置模块，只有 SVG->PNG 需要第三方包，所以把它隔离到
+      # scripts/chart/（独立 package.json + lockfile，只含 @resvg/resvg-js）。
+      - name: Install render deps (isolated scope)
         run: npm ci
+        working-directory: scripts/chart
 
       - name: Collect stats
         env:
@@ -49,7 +56,7 @@ jobs:
       - name: Render chart (SVG) and export PNG
         run: |
           node scripts/render-stats-svg.mjs
-          node scripts/svg-to-png.mjs
+          node scripts/chart/svg-to-png.mjs
         shell: bash
 
       - name: Commit & push if changed

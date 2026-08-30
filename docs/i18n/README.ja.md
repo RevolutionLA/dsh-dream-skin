@@ -355,7 +355,7 @@ Issue と PR は大歓迎です！[コントリビューションガイド](../.
 > 毎日自動更新（GitHub Actions）。左軸：**累計ダウンロード数**（青）；右軸：**Star 数**（紫）——桁が大きく異なるため、それぞれ独立した双軸を使用しています。
 
 <p align="center">
-  <img src="../../docs/stats.png?v=2" alt="dsh-dream-skin 毎日の Star × 累計ダウンロード数 成長カーブ" width="900"/>
+  <img src="../../docs/stats.png?v=3" alt="dsh-dream-skin 毎日の Star × 累計ダウンロード数 成長カーブ" width="900"/>
 </p>
 
 *データは 24 時間ごとに自動取得：ダウンロード数は [npm 公式API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin)、Star 数は [GitHub API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers) から取得しています。*

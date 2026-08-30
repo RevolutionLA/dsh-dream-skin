@@ -380,7 +380,7 @@ bundle（`@deepseek-ai/dsh-client-runtime/client`、…）。
 > 每天自动更新（GitHub Actions）。左轴：**累计下载量**（青色）；右轴：**Star 数**（紫色）——两个量级不同，因此使用独立的双纵轴。
 
 <p align="center">
-  <img src="docs/stats.png?v=2" alt="dsh-dream-skin 每日 Star × 累计下载量成长曲线" width="900"/>
+  <img src="docs/stats.png?v=3" alt="dsh-dream-skin 每日 Star × 累计下载量成长曲线" width="900"/>
 </p>
 
 *数据每 24 小时自动采集一次：下载量来自 [npm 官方 API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin)，Star 来自 [GitHub API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers)。*

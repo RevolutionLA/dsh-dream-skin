@@ -391,7 +391,7 @@ Ein Sicherheitsproblem gefunden? Öffne kein öffentliches Issue — siehe die [
 > Täglich automatisch aktualisiert (GitHub Actions). Linke Achse: **kumulierte Downloads** (türkis); rechte Achse: **Sternezahl** (violett) — sehr unterschiedliche Größenordnungen, daher zwei unabhängige Y-Achsen.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=2" alt="Tägliche Wachstumskurve Star × kumulierte Downloads von dsh-dream-skin" width="900"/>
+  <img src="../../docs/stats.png?v=3" alt="Tägliche Wachstumskurve Star × kumulierte Downloads von dsh-dream-skin" width="900"/>
 </p>
 
 *Die Daten werden alle 24 Stunden gesammelt: Downloads über die [offizielle npm-API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), Sterne über die [GitHub-API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*
