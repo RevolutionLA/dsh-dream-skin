@@ -5,6 +5,7 @@
 <div align="center">
 
 # dsh-dream-skin 🔮
+[![DSH Insights health](https://dsh-insights.com/badge/RevolutionLA/dsh-dream-skin.svg)](https://dsh-insights.com/p/RevolutionLA/dsh-dream-skin/)
 
 **为 DeepSeek Harness 换上一张克制、清透、有质感的「脸」。**
 
