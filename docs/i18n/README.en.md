@@ -386,6 +386,14 @@ Found a security issue? Don't open a public issue — see the [Security Policy](
 
 ---
 
+## 🧰 More from the same author
+
+- **[adversarial-review](https://github.com/RevolutionLA/adversarial-review)** — Tri-role adversarial code review skill for AI coding agents: Blue Team (hostile audit) → Third Party (independent audit) → neutral adjudication. **Especially useful before writing a plugin or cutting a release.**
+- **[AscendMate](https://github.com/RevolutionLA/AscendMate)** — Handbook for Ascend NPU servers: environment setup, fine-tuning, inference deployment, operator development.
+- **[ascend-assistant](https://github.com/RevolutionLA/ascend-assistant)** — Agent Skill for operating and troubleshooting Ascend servers.
+
+---
+
 ## 📈 Growth chart
 
 > Updated automatically every day (GitHub Actions). Left axis: **cumulative downloads** (teal); right axis:
