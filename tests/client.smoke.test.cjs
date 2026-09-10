@@ -53,7 +53,12 @@ function buildSandbox(overrides = {}) {
 		btoa, atob, unescape: unescapeB, escape: escapeB, encodeURIComponent, decodeURIComponent,
 		TextEncoder, TextDecoder,
 		URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
-		Blob: class {}, FileReader: class {}, Image: function () {}, setTimeout, clearTimeout, alert: () => {},
+		Blob: class {}, FileReader: class {},
+		// Image stub: assigning `src` resolves the preload synchronously as a
+		// success, so the plugin's "preload before committing a scheduled
+		// wallpaper refresh" path is exercised (and completes) inside the test.
+		Image: function () { this.onload = null; this.onerror = null; let _src = ''; Object.defineProperty(this, 'src', { get: () => _src, set: (v) => { _src = v; if (typeof this.onload === 'function') this.onload(); } }); },
+		setTimeout, clearTimeout, alert: () => {},
 		MutationObserver: class { observe() {} disconnect() {} },
 		...overrides,
 	};
@@ -63,7 +68,7 @@ function buildSandbox(overrides = {}) {
 	for (const k of ['document', 'localStorage', 'btoa', 'atob']) sandbox.window[k] = sandbox[k];
 	const context = vm.createContext(sandbox);
 	vm.runInContext(CODE + '\nwindow.__LOGGED__=1;', context);
-	return { factory, loc, localStorage, registered: [], slots: { count: 0 } };
+	return { factory, loc, localStorage, document, registered: [], slots: { count: 0 } };
 }
 
 function makeApplyContext(harness, { captureActions = false } = {}) {
@@ -109,7 +114,16 @@ function makeApplyContext(harness, { captureActions = false } = {}) {
 			bind() { return (key) => key; } // identity translator for alerts in tests
 		},
 		on() { return () => {}; },
-		effect(t) { const d = t(); if (typeof d === 'function') d(); }
+		// Real host semantics: effect(fn) registers the disposer returned by fn
+		// and runs it on UNMOUNT — not immediately. (Running it inline used to
+		// hide lifecycle bugs: a scheduler armed inside apply() was torn down at
+		// once, which is exactly what blue-team R5 is about.) The disposers are
+		// collected on the harness so a test can unmount explicitly.
+		effect(t) {
+			const d = t();
+			if (typeof d === 'function') (harness.disposers || (harness.disposers = [])).push(d);
+			return () => {};
+		}
 	};
 }
 
@@ -187,16 +201,42 @@ test('issue #43: stable-DSH fallback — module table has no dsh-client-store, r
 	assert.ok(runtime.specs.length > 0, 'defineStore specs registered through the fallback module');
 });
 
-test('issue #43 hardening: non-table-miss errors from the store module are rethrown, not silently swallowed', () => {
-	// A falling store factory (or any non-"missed the module table" failure) must
-	// surface as-is — the fallback exists only for module-table drift.
-	const h = buildSandbox();
-	assert.throws(() => h.factory((s) => {
+test('issue #43 / blue-team R3: when no store seed resolves, the factory degrades to a dumb module (never throws)', () => {
+	// The host does not isolate loader-entry factories: a throw here would take
+	// the whole shell down ("Failed to load plugins"). So total seed failure
+	// (store missing, no stable fallback either) must degrade to a no-op module
+	// — never rethrow. The original error is surfaced once via console.warn.
+	const warns = [];
+	const h = buildSandbox({ console: { warn: (m) => warns.push(String(m)), log() {}, error() {} } });
+	const e = h.factory((s) => {
 		if (s === 'react/jsx-runtime') return { jsx: () => 0, jsxs: () => 0 };
 		if (s === 'react') return REACT;
-		if (s === '@deepseek-ai/dsh-client-store') throw new Error('store factory exploded');
-		throw new Error('unexpected require: ' + s);
-	}), /store factory exploded/);
+		throw new Error('client-modules: require("' + s + '") missed the module table');
+	});
+	// Dumb surface: apply is a callable no-op, SKINS is empty, no throw.
+	assert.equal(typeof e.apply, 'function', 'apply still exported as a function');
+	assert.deepEqual(e.SKINS, [], 'dumb module exposes no skins');
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply() of the dumb module is a no-op');
+	assert.ok(warns.some((w) => w.includes('plugin disabled')), 'one console.warn explains the degrade');
+});
+
+test('issue #43 / blue-team R3 twin: a missing REACT seed also degrades to the dumb module (the core R3 scenario)', () => {
+	// The blue team flagged that the store-only case above leaves R3's PRIMARY
+	// scenario untested: before the fix, `react` / `react/jsx-runtime` were bare
+	// top-level requires OUTSIDE any try — a react seed rename was exactly the
+	// "one seed generation change = whole shell white-screens" path. If a future
+	// refactor drops `_react` from the null check, this twin keeps CI honest.
+	const warns = [];
+	const h = buildSandbox({ console: { warn: (m) => warns.push(String(m)), log() {}, error() {} } });
+	const e = h.factory((s) => {
+		if (s === 'react/jsx-runtime') throw new Error('client-modules: require("' + s + '") missed the module table');
+		if (s === 'react') throw new Error('client-modules: require("' + s + '") missed the module table');
+		return {}; // store resolves fine — the react seed is what breaks
+	});
+	assert.equal(typeof e.apply, 'function', 'apply exported as a no-op function');
+	assert.deepEqual(e.SKINS, [], 'no skins registered without react');
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply() must not throw');
+	assert.ok(warns.some((w) => w.includes('plugin disabled')), 'degrade is announced once');
 });
 
 test('issue #18: every skin themes the bubble / selector surfaces (no default-blue leak)', () => {
@@ -463,6 +503,224 @@ test('url wallpaper: unsafe schemes are refused, safe ones persist, stored junk 
 	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)), 'stored unsafe URL must not break apply()');
 });
 
+test('issue #45: scheduled URL-wallpaper refresh is due-based, keeps the stored URL clean and never grows history', () => {
+	// Blue-team R5/R6 follow-up. The scheduler is armed from apply() (not from the
+	// settings row), due-ness comes from the persisted lastFiredAt (so restarting
+	// DSH cannot reset the phase), the stored wallpaper URL stays the user's clean
+	// URL (cache-busting is render-only), and history is never touched.
+	let intervalCb = null;
+	const h = buildSandbox({
+		window: {
+			setInterval: (cb) => { intervalCb = cb; return 123; },
+			clearInterval: () => { intervalCb = null; }
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply(ctx));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	// The scheduler is armed by apply() itself, independently of the settings row.
+	assert.ok(intervalCb !== null, 'refresh scheduler armed from apply()');
+
+	// Default state: refresh off.
+	assert.equal(JSON.parse(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh') || '{"on":0}').on, 0, 'refresh default off');
+
+	// Set a URL wallpaper, then enable refresh at 24h.
+	adv.setUrl('https://uapis.cn/api/v1/image/bing-daily');
+	adv.setRefresh(true, 24);
+	const cfg = JSON.parse(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'));
+	assert.equal(cfg.on, 1, 'refresh enabled persisted');
+	assert.equal(cfg.hours, 24, 'refresh hours persisted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'stored URL stays clean');
+
+	// Due-ness is time-based (R5). The plugin caches storage reads and runs its
+	// boot catch-up during apply(), so each case uses a FRESH sandbox seeded with a
+	// given lastFiredAt and we compare the stamp BEFORE vs AFTER apply(): a due
+	// schedule refreshes during boot, an up-to-date one does not.
+	const bootFrom = (lastFiredAt, label) => {
+		let cb = null;
+		const hs = buildSandbox({
+			seed: {
+				'dsh-dream-skin:wallpaper-kind': 'url',
+				'dsh-dream-skin:wallpaper-url': 'https://uapis.cn/api/v1/image/bing-daily',
+				'dsh-dream-skin:wallpaper-follows-skin': '0',
+				'dsh-dream-skin:wallpaper-refresh': JSON.stringify({ on: 1, hours: 24, lastFiredAt })
+			},
+			window: {
+				setInterval: (fn) => { cb = fn; return 7; },
+				clearInterval: () => { cb = null; }
+			}
+		});
+		const es = hs.factory(makeRequire(makeRuntime().RT));
+		es.apply(makeApplyContext(hs, { captureActions: true }));
+		const after = JSON.parse(hs.localStorage.getItem('dsh-dream-skin:wallpaper-refresh')).lastFiredAt;
+		return {
+			label,
+			fired: after !== lastFiredAt,
+			after,
+			storedUrl: hs.localStorage.getItem('dsh-dream-skin:wallpaper-url'),
+			history: JSON.parse(hs.localStorage.getItem('dsh-dream-skin:wallpaper-history') || '[]').length,
+			tick: cb
+		};
+	};
+
+	// Freshly refreshed (1 minute ago) with a 24 h interval: NOT due at boot.
+	assert.equal(bootFrom(Date.now() - 60 * 1000, 'fresh').fired, false, 'not due one minute after a refresh');
+
+	// Last refreshed 25 h ago: due — boot catch-up refreshes it (this is the case
+	// that used to reset the phase on every DSH restart).
+	const due = bootFrom(Date.now() - 25 * 60 * 60 * 1000, 'overdue');
+	assert.equal(due.fired, true, 'due again after the interval elapsed');
+	assert.equal(due.storedUrl, 'https://uapis.cn/api/v1/image/bing-daily', 'no ?t= pollution in the stored URL');
+	assert.equal(due.history, 0, 'auto-refresh must not grow wallpaper history');
+
+	// Never refreshed (lastFiredAt=0): due immediately at boot.
+	assert.equal(bootFrom(0, 'never').fired, true, 'a never-fired schedule is due immediately at boot');
+
+	// The scheduler arms a wake-up tick + visibility catch-up in every case.
+	assert.equal(typeof due.tick, 'function', 'scheduler tick armed after boot');
+
+	// Disabling refresh persists off.
+	adv.setRefresh(false, 24);
+	const disabled = JSON.parse(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'));
+	assert.equal(disabled.on, 0, 'refresh disabled persisted');
+});
+
+test('blue-team R13: pressing apply with an empty URL input must not wipe an existing URL wallpaper', () => {
+	// The URL box is uncontrolled (defaultValue) and its local state starts empty,
+	// so a stray "Apply" click used to send "" -> trimmed=null -> the current URL
+	// wallpaper was cleared. It must now be a no-op, while a real clear still works
+	// through the dedicated button.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	e.apply(ctx);
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	adv.setUrl('https://example.com/w.jpg');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://example.com/w.jpg');
+
+	// Accidental apply with nothing typed: keep the wallpaper.
+	adv.setUrl('');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://example.com/w.jpg', 'empty apply kept the wallpaper');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'url', 'kind still url after the stray apply');
+
+	// Explicit clear still clears.
+	adv.clearAll();
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), null, 'explicit clear still works');
+});
+
+test('third-party T1: the cache-busting stamp lands in the QUERY, never inside a #fragment', () => {
+	// A `?t=` appended after `#` is part of the fragment, never sent to the server,
+	// so the browser keeps serving the cached image and scheduled refresh silently
+	// becomes a no-op for every link carrying a fragment. Assert the stamp sits in
+	// the query (before `#`) on the value handed to CSS, and that the persisted URL
+	// stays pristine (R6).
+	const h = buildSandbox({
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/daily.jpg?v=2#photo',
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			// lastFiredAt in the past => the boot catch-up performs a real refresh.
+			'dsh-dream-skin:wallpaper-refresh': JSON.stringify({ on: 1, hours: 24, lastFiredAt: 1 })
+		},
+		window: { setInterval: () => 9, clearInterval: () => {} }
+	});
+	// Record every background-image the plugin writes to the wallpaper layer.
+	const backgrounds = [];
+	const origCreate = h.document.createElement;
+	h.document.createElement = () => {
+		const el = origCreate();
+		Object.defineProperty(el.style, 'backgroundImage', {
+			set(v) { backgrounds.push(v); },
+			get() { return backgrounds[backgrounds.length - 1] || ''; },
+			configurable: true
+		});
+		return el;
+	};
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+
+	const stamped = backgrounds.map((v) => (/url\("([^"]+)"\)/.exec(v) || [])[1]).filter(Boolean).find((u) => u.includes('t='));
+	assert.ok(stamped, `a stamped URL should have been rendered (saw: ${JSON.stringify(backgrounds)})`);
+	const tPos = stamped.indexOf('t=');
+	const hashPos = stamped.indexOf('#');
+	assert.ok(tPos < hashPos, `cache-buster must precede the fragment (got ${stamped})`);
+	assert.ok(/[?&]t=\d+/.test(stamped.slice(0, hashPos)), `stamp must be a query parameter (got ${stamped})`);
+	// The fragment is preserved untouched at the end.
+	assert.ok(stamped.endsWith('#photo'), `fragment preserved (got ${stamped})`);
+	// R6: the STORED url is still the user's clean URL.
+	assert.equal(
+		h.localStorage.getItem('dsh-dream-skin:wallpaper-url'),
+		'https://cdn.example.com/daily.jpg?v=2#photo',
+		'fragment-carrying URL is stored verbatim'
+	);
+});
+
+test('third-party T3: clearing the wallpaper resets the refresh config so a new URL cannot inherit the old phase', () => {
+	const h = buildSandbox({
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://a.example.com/old.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			// A stamp far in the past: without the T3 fix a newly applied URL would
+			// read this, consider itself overdue and refresh immediately.
+			'dsh-dream-skin:wallpaper-refresh': JSON.stringify({ on: 1, hours: 24, lastFiredAt: 1 })
+		},
+		window: { setInterval: () => 9, clearInterval: () => {} }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	adv.clearAll();
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), null, 'clearing drops the stale refresh config');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), null, 'clearing drops the URL');
+
+	// A brand-new schedule therefore starts from a clean slate.
+	adv.setUrl('https://b.example.com/new.jpg');
+	adv.setRefresh(true, 24);
+	const cfg = JSON.parse(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'));
+	assert.equal(cfg.on, 1, 'new schedule enabled');
+	// It must NOT carry the deleted wallpaper's ancient phase (1). A first fire for
+	// the new URL is legitimate — what matters is that it is a fresh timestamp, not
+	// an inherited one that would make the schedule fire at the wrong time.
+	assert.notEqual(cfg.lastFiredAt, 1, 'new schedule did not inherit the deleted wallpaper phase');
+	assert.ok(cfg.lastFiredAt === 0 || cfg.lastFiredAt > 1e12, `lastFiredAt is either unset or a fresh epoch ms (got ${cfg.lastFiredAt})`);
+});
+
+test('third-party T2: a refused refresh toggle must not be persisted', () => {
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	e.apply(ctx);
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	// kind is "image" here: enabling refresh is refused (alert) and must NOT write.
+	adv.setRefresh(true, 24);
+	const raw = h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh');
+	const on = raw === null ? 0 : JSON.parse(raw).on;
+	assert.equal(on, 0, 'refused toggle left the stored config disabled');
+});
+
+test('blue-team R19: a skin id already taken by another plugin is skipped, not thrown over', () => {
+	// ThemeRuntime.register throws on a duplicate id, and this call is NOT covered
+	// by the factory-level fallback (that only guards seed resolution). Yielding
+	// degrades the worst case to "one skin missing" instead of an escaping throw.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	// Simulate a third-party plugin having registered a colliding id first.
+	ctx.theme.getTheme = () => ({ preference: 'system', themes: [{ id: e.SKINS[0].id }], active: { id: 'dark', colorScheme: 'dark', tokens: {} }, revision: 1 });
+	const registered = [];
+	ctx.theme.register = (def) => { registered.push(def.id); return () => {}; };
+
+	assert.doesNotThrow(() => e.apply(ctx), 'apply() must not throw on an id collision');
+	assert.ok(!registered.includes(e.SKINS[0].id), 'the colliding skin is skipped');
+	assert.equal(registered.length, e.SKINS.length - 1, 'every other skin still registers');
+});
+
 test('setWallpaper resets kind to image so a picked photo beats a stale gradient/URL', () => {
 	// Regression: setWallpaper only wrote the data-URL key; if a gradient or URL
 	// had been set before, wallpaperBackgroundCss() kept returning the gradient/
@@ -493,7 +751,7 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 		const body = src.slice(start, end);
 		const keys = [...body.matchAll(/"([a-zA-Z0-9.]+)":\s*"/g)].map((m) => m[1]);
 		dicts[lang] = new Set(keys);
-		assert.equal(keys.length, 47, `${lang} has ${keys.length} keys (expected 47)`);
+		assert.equal(keys.length, 50, `${lang} has ${keys.length} keys (expected 50)`);
 	}
 	const zhKeys = dicts.zh;
 	for (const lang of langs.slice(1)) {

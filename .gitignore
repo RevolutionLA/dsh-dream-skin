@@ -24,3 +24,6 @@ research/
 
 # local design preview / diagnostics pages
 /preview/
+
+# internal review notes (kept locally, deliberately NOT published to GitHub or npm)
+/docs/review/

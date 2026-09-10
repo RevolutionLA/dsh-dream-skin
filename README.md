@@ -265,14 +265,19 @@ dsh web   # 重启后恢复官方外观
 
 | 项 | 值 |
 |------|-----|
-| DeepSeek Harness (`dsh`) | **同一构建兼容两代宿主**：稳定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peer 以 `^0.1.0-rc.6` 对齐）与 DSH master（`dsh-client-runtime` 拆分后的新模块表） |
+| DeepSeek Harness (`dsh`) | **同一构建兼容两代宿主**：稳定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peer 以 `^0.1.0-rc.6` 对齐）与 DSH master（`dsh-client-runtime` 拆分后的新模块表）。兼容性以**运行时能力探测**保证，不依赖 `engines.dsh`（见下） |
 | Node.js | `>=18` |
 | 浏览器 | 现代 Chromium / WebKit（依赖原生 CSS 变量与 `matchMedia`） |
 
-> **兼容机制**：客户端 bundle 对设置 store 的宿主模块做运行时双目标解析——先试 master 的
-> `@deepseek-ai/dsh-client-store`，查表落空（`missed the module table`）才回落稳定版的
-> `@deepseek-ai/dsh-client-runtime/client`，其余错误原样抛出。所有 peer 平台包均声明为
-> `optional`（由宿主运行时供给，npm 上无需安装）。
+> **兼容机制（v9.10.0 起）**：客户端 bundle 把**全部平台 seed** 放在受控 `try` 内按候选顺序探测——`react` / `react/jsx-runtime`，以及设置 store 的 master 名 `@deepseek-ai/dsh-client-store` → 稳定版名 `@deepseek-ai/dsh-client-runtime/client`。判定依据是「require 成功返回」，**不匹配宿主内部错误文案**。若某天宿主全部 seed 换代，插件会**降级为不注册任何 UI 的哑模块**并打一条 `console.warn`，而不会抛错——因此**不会**再出现 issue #43 那种整个 DSH Web 全屏 `Failed to load plugins`（宿主对 loader-entry 工厂不做隔离，一个工厂抛错即可拖垮整个 shell）。
+>
+> **关于 `engines.dsh`**：曾尝试声明 `engines.dsh` 作为生态兼容信号，但因 semver 只在与自身 `major.minor.patch` 三元组相同的轨道上放行预发布版本，单一范围无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`，会把本项目明确支持的版本判为「不兼容」，反而广播错误信号；而宿主目前也不读取该字段。故**不声明**，以上述运行时探测为准。
+>
+> 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布，其 peer 以宽范围声明以适配宿主换代。
+
+**版本 9.10.0（2026-09-10）**：三方评审（蓝军 → 第三方独立复核 → 蓝军采纳裁定）闭环版。修复第三方复核发现的 3 处整改缺陷——带 `#fragment` 的链接上定时刷新静默失效、被拒开关仍落盘、清壁纸后新壁纸继承旧刷新相位；并补上**皮肤 id 撞名让位**加固（第三方主题插件先注册同名主题时不再让 `apply()` 抛错）。回归门 **44/44**。
+
+**版本 9.9.0（2026-09-09）**：显著加固了「宿主升级绝不报错」的保障（平台模块全量降级兜底）；高级壁纸「图片链接」新增可选的**定时自动更新**（按周期刷新，必应每日壁纸等自动滚动，支持关机重开后的补触发）；修复定时刷新 UI 与空输入误清壁纸等问题。详见 [CHANGELOG](CHANGELOG.md)。
 
 ---
 
