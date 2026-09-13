@@ -65,7 +65,7 @@
   <tr>
     <td align="center"><a href="docs/previews/midnight.png"><img src="docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 午夜黑</td>
     <td align="center"><a href="docs/previews/ivory.png"><img src="docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS 扁平</td>
-    <td align="center"><a href="docs/previews/mist.png"><img src="docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 液态玻璃</td>
+    <td align="center"><a href="docs/previews/mist.png"><img src="docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 干净明亮</td>
     <td align="center"><a href="docs/previews/rose.png"><img src="docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 蔷薇粉</td>
   </tr>
 </table>
@@ -80,7 +80,7 @@
 | `ember` | 🔥 余烬橙 | 温暖克制的琥珀橙 |
 | `midnight` | 🌚 午夜黑 | 极简纯黑，OLED 沉浸 |
 | `ivory` | 📐 iOS 扁平 | 极简平白，iOS 系统灰 + 克制的蓝 |
-| `mist` | 🧊 液态玻璃 | 清透毛玻璃，半透明 + 模糊 |
+| `mist` | 🧊 干净明亮 | 清透明亮的玻璃质感，半透明 + 模糊 |
 | `rose` | 🌸 Material 粉 | 明快彩粉，谷歌 Material 扁平彩色 |
 
 ---
@@ -151,6 +151,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------|------|
 | 🎨 **8 套主题预设（Mirage 幻梦）** | 在 **设置 → 外观（Theme）** 一键切换，浅色 / 深色兼顾 |
 | 🖼️ **自定义壁纸** | 上传本地图（自动压缩 ≤2MB），调节**透明度 / 模糊** |
+| 🧊 **玻璃材质（毛玻璃 / 液态玻璃）** | 一键切换玻璃质感，透明度滑杆**越右越透**；模糊一个旋钮同时驱动壁纸与玻璃表面 |
+| 🖼️ **开箱即用的出厂配置** | 首次安装即带完整美化配置：星云皮肤 + 内置壁纸 + 调好的玻璃数值，装完重启就能用 |
+| 🌤️ **必应每日壁纸（预置）** | 高级壁纸预填必应每日一图接口，点「应用链接」即可；也支持任意图片 URL + 定时自动更新 |
 | 🔤 **内层不透明** | 卡片、输入框、消息气泡不被壁纸盖住，可读性优先 |
 | ↩️ **默认还原** | 一键回到 DSH 内置外观（跟随系统） |
 | 💾 **本地持久化** | 皮肤与壁纸存 `localStorage`，刷新 / 重开浏览器不丢 |
@@ -274,6 +277,8 @@ dsh web   # 重启后恢复官方外观
 > **关于 `engines.dsh`**：曾尝试声明 `engines.dsh` 作为生态兼容信号，但因 semver 只在与自身 `major.minor.patch` 三元组相同的轨道上放行预发布版本，单一范围无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`，会把本项目明确支持的版本判为「不兼容」，反而广播错误信号；而宿主目前也不读取该字段。故**不声明**，以上述运行时探测为准。
 >
 > 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布，其 peer 以宽范围声明以适配宿主换代。
+
+**版本 9.13.0（2026-09-13）**：**玻璃材质系统**发布——毛玻璃/液态玻璃双材质一键切换（纯样式选择，不动任何滑杆数值）、composer 输入框独立透明度、**开箱即用的出厂配置**（星云皮肤 + 内置壁纸 + 调好的玻璃数值）。发布前经三方对抗评审闭环，修掉全部评审发现——最关键的一条：出厂配置在桌面端重启场景下可能反向覆写宿主持久文件、销毁用户配置（现已结构性杜绝：出厂写永不推送宿主 + 持久溯源快照）。同时出厂不再默认开启第三方 API 定时轮询（必应壁纸定时更新改为显式开启）。回归门 **50/50**。
 
 **版本 9.10.0（2026-09-10）**：三方评审（蓝军 → 第三方独立复核 → 蓝军采纳裁定）闭环版。修复第三方复核发现的 3 处整改缺陷——带 `#fragment` 的链接上定时刷新静默失效、被拒开关仍落盘、清壁纸后新壁纸继承旧刷新相位；并补上**皮肤 id 撞名让位**加固（第三方主题插件先注册同名主题时不再让 `apply()` 抛错）。回归门 **44/44**。
 

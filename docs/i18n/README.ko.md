@@ -67,7 +67,7 @@
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Liquid Glass</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 클리어 브라이트</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
   </tr>
 </table>
@@ -82,7 +82,7 @@
 | `ember` | 🔥 Ember Amber | 따뜻하고 절제된 앰버 오렌지 |
 | `midnight` | 🌚 Midnight OLED | 미니멀한 순수 블랙, 몰입감 있는 OLED |
 | `ivory` | 📐 iOS Flat | 미니멀한 플랫 화이트, iOS 시스템 그레이 + 절제된 블루 |
-| `mist` | 🧊 Liquid Glass | 맑은 프로스트 글라스, 반투명 + 블러 |
+| `mist` | 🧊 클리어 브라이트 | 맑고 밝은 유리 질감, 반투명 + 블러 |
 | `rose` | 🌸 Material Pink | 밝고 선명한 핑크, Google Material 플랫 컬러 |
 
 ---
@@ -153,6 +153,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **기본 내장 preset 8종 (Mirage)** | **Settings → Theme / Appearance**에서 즉시 전환, light & dark |
 | 🖼️ **커스텀 wallpaper** | 로컬 이미지 선택 (자동 압축 ≤2MB), **opacity / blur** 조절 |
+| 🧊 **글래스 재질(새틴 / 리퀴드)** | 원클릭으로 유리 질감을 전환합니다. 투명도 슬라이더는 **오른쪽일수록 투명**, 흐림은 배경화면과 유리 표면을 함께 조절 |
+| 🖼️ **설치 즉시 완성된 모습** | 첫 설치부터 네뷸라 스킨 + 내장 배경화면 + 조정된 값이 적용되어 재시작만 하면 바로 사용 가능 |
+| 🌤️ **Bing 오늘의 사진(사전 설정)** | 고급 배경화면에 Bing 일일 사진 API가 미리 입력되어 있습니다. 「적용」만 누르면 사용 가능하며 임의의 이미지 URL + 자동 갱신도 지원 |
 | 🔤 **불투명한 내부 표면** | 카드, 입력창, 메시지 버블이 항상 읽기 쉽게 유지됩니다 — 바랜 느낌 없음 |
 | ↩️ **기본값 복원** | 한 번의 클릭으로 DSH 기본 모습 (시스템 팔로우)으로 복귀 |
 | 💾 **로컬 저장** | skin & wallpaper가 `localStorage`에 저장되어 새로고침 후에도 유지됩니다 |

@@ -67,7 +67,7 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Liquid Glass</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Klar hell</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
   </tr>
 </table>
@@ -82,7 +82,7 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
 | `ember` | 🔥 Ember Amber | warmes, zurückhaltendes Amber-Orange |
 | `midnight` | 🌚 Midnight OLED | minimalistisches reines Schwarz, immersives OLED |
 | `ivory` | 📐 iOS Flat | minimalistisches flaches Weiß, iOS-Systemgrau + zurückhaltendes Blau |
-| `mist` | 🧊 Liquid Glass | klares Milchglas, transluzent + unscharf |
+| `mist` | 🧊 Klar hell | knackig-helle Glasoptik, transluzent + unscharf |
 | `rose` | 🌸 Material Pink | helles, leuchtendes Pink, flache Google-Material-Farben |
 
 ---
@@ -153,6 +153,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **8 enthaltene Presets (Mirage)** | Sofort umschalten unter **Settings → Theme / Appearance**, hell & dunkel |
 | 🖼️ **Benutzerdefiniertes Wallpaper** | Wähle ein lokales Bild (automatisch komprimiert ≤2MB), stelle **Deckkraft / Unschärfe** ein |
+| 🧊 **Glas-Materialien (Milchglas / Flüssig)** | Ein Klick wechselt den Glas-Charakter; Transparenz-Regler: **rechts = durchsichtiger**; EIN Unschärferegler steuert Hintergrund und alle Glasflächen |
+| 🖼️ **Fertiger Look ab Installation** | Die Erstinstallation kommt komplett gestylt: Nebula-Skin + mitgeliefertes Hintergrundbild + abgestimmte Werte — neustarten und losgehen |
+| 🌤️ **Bing-Tagesbild (voreingestellt)** | Der erweiterte Hintergrund enthält die Bing-Tagesbild-API bereits vorausgefüllt — „Übernehmen" genügt; jede beliebige Bild-URL mit Auto-Update funktioniert ebenfalls |
 | 🔤 **Undurchsichtige innere Flächen** | Karten, Eingabefelder und Nachrichtenblasen bleiben lesbar — nie ausgewaschen |
 | ↩️ **Standard-Wiederherstellung** | Mit einem Klick zurück zum eingebauten DSH-Erscheinungsbild (System folgen) |
 | 💾 **Lokale Speicherung** | Skin & Wallpaper werden in `localStorage` gespeichert und überleben ein Neuladen |

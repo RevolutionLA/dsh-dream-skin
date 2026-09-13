@@ -67,7 +67,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Liquid Glass</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Brillo limpio</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
   </tr>
 </table>
@@ -82,7 +82,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 | `ember` | 🔥 Ember Amber | naranja ámbar cálido y sobrio |
 | `midnight` | 🌚 Midnight OLED | negro puro minimalista, OLED inmersivo |
 | `ivory` | 📐 iOS Flat | blanco plano minimalista, gris de sistema iOS + azul sobrio |
-| `mist` | 🧊 Liquid Glass | vidrio esmerilado claro, translúcido + desenfocado |
+| `mist` | 🧊 Brillo limpio | acabado de vidrio nítido y luminoso, translúcido + desenfocado |
 | `rose` | 🌸 Material Pink | rosa vivo y brillante, colores planos de Google Material |
 
 ---
@@ -153,6 +153,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **8 presets incluidos (Mirage)** | Cambia al instante desde **Settings → Theme / Appearance**, claro y oscuro |
 | 🖼️ **Wallpaper personalizado** | Elige una imagen local (autocomprimida ≤2MB), ajusta **opacidad / desenfoque** |
+| 🧊 **Materiales de cristal (Esmerilado / Líquido)** | Un clic cambia el carácter del vidrio; los controles de transparencia leen **derecha = más transparente**; UN mando de desenfoque guía el fondo y todas las superficies de cristal |
+| 🖼️ **Aspecto listo al instalar** | La primera instalación ya viene estilizada: piel Nebula + fondo incluido + valores ajustados; reinicia y listo |
+| 🌤️ **Foto diaria de Bing (predefinida)** | El fondo avanzado incluye la API de la foto diaria de Bing pre-rellenada: pulsa «Aplicar» y funciona; también acepta cualquier URL de imagen con actualización automática |
 | 🔤 **Superficies internas opacas** | Tarjetas, campos de entrada y burbujas de mensaje siguen siendo legibles — nunca lavados |
 | ↩️ **Restaurar el predeterminado** | Vuelve al aspecto integrado de DSH (sigue al sistema) con un clic |
 | 💾 **Persistencia local** | Skin y wallpaper guardados en `localStorage`, sobrevive a la recarga |

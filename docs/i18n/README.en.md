@@ -67,7 +67,7 @@ The two ways are layered and independent: a preset decides the "material &amp; b
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Liquid Glass</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Clear Bright</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
   </tr>
 </table>
@@ -82,7 +82,7 @@ The two ways are layered and independent: a preset decides the "material &amp; b
 | `ember` | 🔥 Ember Amber | warm restrained amber orange |
 | `midnight` | 🌚 Midnight OLED | minimal pure black, immersive OLED |
 | `ivory` | 📐 iOS Flat | minimal flat white, iOS system gray + restrained blue |
-| `mist` | 🧊 Liquid Glass | clear frosted glass, translucent + blurred |
+| `mist` | 🧊 Clear Bright | crisp, bright glass feel, translucent + blurred |
 | `rose` | 🌸 Material Pink | bright vivid pink, Google Material flat colors |
 
 ---
@@ -153,6 +153,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **8 bundled presets (Mirage)** | Switch instantly under **Settings → Theme / Appearance**, light & dark |
 | 🖼️ **Custom wallpaper** | Pick a local image (auto-compressed ≤2MB), tune **opacity / blur** |
+| 🧊 **Glass materials (Frosted / Liquid)** | One click switches the glass character; transparency sliders read **right = more see-through**; ONE blur knob drives both the wallpaper and every glass surface |
+| 🖼️ **Shipped look out of the box** | First install comes fully styled: Nebula skin + bundled wallpaper + tuned glass numbers — restart and it is ready |
+| 🌤️ **Bing daily wallpaper (pre-filled)** | Advanced wallpaper ships with the Bing daily photo API pre-filled — hit "Apply" to use; any image URL + auto-refresh works too |
 | 🔤 **Opaque inner surfaces** | Cards, inputs, message bubbles stay readable — never washed out |
 | ↩️ **Default restore** | Back to DSH's built-in appearance (follow system) in one click |
 | 💾 **Local persistence** | Skin & wallpaper stored in `localStorage`, survives reload |

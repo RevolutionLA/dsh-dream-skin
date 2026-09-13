@@ -37,13 +37,17 @@ function makeEl() {
  * @param opts.hostValue - object the GET boot call should return (or 'unavailable').
  * @param opts.onSet - optional callback receiving each SET patch.
  */
-function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {} } = {}) {
+function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {}, firstBoot = false } = {}) {
 	const body = makeEl();
 	const document = { body, createElement: () => makeEl(), createTextNode: () => ({}), querySelector: () => null, querySelectorAll: () => [], head: makeEl() };
 	const loc = { origin: 'http://x', pathname: '/', search: '', hash: '' };
 	const store = new Map();
 	// seed keys are the FULL localStorage keys (they already carry dsh-dream-skin: prefix)
 	for (const [k, v] of Object.entries(seed)) store.set(k, String(v));
+	// Round-6: exercise the "existing user" path — factory one-shot pre-marked.
+	// firstBoot: true simulates a DESKTOP RESTART (blue-team B1): fresh origin =
+	// empty localStorage, no marker, host file holding the durable user state.
+	if (!firstBoot) store.set('dsh-dream-skin:factory-applied', '1');
 	const localStorage = {
 		getItem: (k) => (store.has(k) ? store.get(k) : null),
 		setItem: (k, v) => store.set(k, String(v)),
@@ -143,6 +147,97 @@ test('boot adopts host keys for untouched preferences (durable values win)', asy
 	// The host values should have been written into localStorage (adopted).
 	assert.equal(h.getItem('dsh-dream-skin:skin'), 'midnight', 'host-adopted skin persisted to localStorage');
 	assert.equal(h.getItem('dsh-dream-skin:wallpaper-opacity'), '0.5', 'host-adopted opacity persisted to localStorage');
+});
+
+test('blue-team B1: desktop restart (empty localStorage, durable host file) keeps the user config', async (t) => {
+	// Desktop app = fresh origin on every restart: empty localStorage, no
+	// factory marker. The factory look may seed the FIRST PAINT, but the
+	// durable host values must WIN once the probe settles — the user's rose
+	// skin and own wallpaper opacity must come back, and the factory seeds
+	// must never be pushed over the host file.
+	const h = buildSandbox({
+		firstBoot: true,
+		hostValue: {
+			'dsh-dream-skin:skin': 'rose',
+			'dsh-dream-skin:wallpaper-opacity': '0.7',
+			'dsh-dream-skin:material-preset': 'liquid'
+		}
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	// > 200ms debounce: this guard must STILL hold after the push gate
+	// releases — deleting the gate (or the factory-seed push filter) must
+	// turn this test red, so the wait must cover the debounce window
+	// (blue-team T3: a 50ms wait here kept the gate unguarded).
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'rose', 'durable skin wins over the factory seed');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-opacity'), '0.7', 'durable opacity wins over the factory seed');
+	assert.equal(h.getItem('dsh-dream-skin:material-preset'), 'liquid', 'durable material wins over the factory seed');
+	// The factory look must not have been PUSHED as the user's own config —
+	// neither via the gate's flush nor the debounce.
+	assert.equal(h.sent.sets.length, 0, 'factory seeds are NOT pushed over the host file');
+});
+
+test('blue-team B1: restart with empty host file does not bake factory seeds in', async (t) => {
+	// First-ever boot with an empty host file AND empty localStorage: factory
+	// seeds must stay localStorage-only until the user actually changes
+	// something — otherwise a desktop restart would write the shipped look
+	// into dream-skin.json as if the user chose it.
+	const h = buildSandbox({ firstBoot: true, hostValue: {} });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	// > 200ms debounce: the push gate flush + debounce must BOTH stay silent
+	// for a pure-factory boot (blue-team T3/A2 — a 50ms wait let the gate
+	// leak factory seeds into the host file undetected).
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'nebula', 'first launch paints the factory look');
+	assert.equal(h.sent.sets.length, 0, 'pure-factory boot pushes nothing to the host file');
+});
+
+test('blue-team T1: same-origin reload does NOT bake factory seeds into the host file', async (t) => {
+	// Reload vector: after the first launch seeded localStorage, a same-origin
+	// reload early-returns from applyFactoryDefaults (marker present) — no
+	// session seal runs, yet the empty host file must still NOT trigger a
+	// migration push of the untouched factory values.
+	const h = buildSandbox({ firstBoot: true, hostValue: {} });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	assert.equal(h.sent.sets.length, 0, 'pre: first launch pushed nothing');
+	// Second boot on the SAME origin: localStorage intact (factory values +
+	// marker + provenance snapshot), host file still empty.
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'nebula', 'factory look still active after reload');
+	assert.equal(h.sent.sets.length, 0, 'reload with untouched factory values must NOT push to the host file');
+	// The user then changes ONE value: only now may the host file be seeded,
+	// and the provenance of the touched key must be released.
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const accentBag = (h.actionBags || {})['dream-skin-accent'];
+	accentBag.setAccent('#123456');
+	await new Promise((resolve) => setTimeout(resolve, 400));
+	assert.ok(h.sent.sets.length >= 1, 'a real user write IS pushed');
+	const lastPatch = h.sent.sets[h.sent.sets.length - 1];
+	assert.equal(lastPatch['dsh-dream-skin:accent'], '#123456', 'user value pushed');
+	assert.equal(lastPatch['dsh-dream-skin:skin'], undefined, 'untouched factory skin value stays out of the host file');
+});
+
+test('blue-team B2: upgrader who only touched the sidebar keeps their look (no factory seeding)', async (t) => {
+	// An existing user whose ONLY stored preference is the sidebar opacity —
+	// a key the old sentinel list missed — must not be force-seeded with the
+	// full factory look (nebula + horse wallpaper + 1h third-party polling).
+	const h = buildSandbox({ firstBoot: true, hostValue: {} });
+	// Simulate the upgrader: only the sidebar key, no marker.
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	h.localStorage.setItem('dsh-dream-skin:sidebar-opacity', '0.42');
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.equal(h.getItem('dsh-dream-skin:sidebar-opacity'), '0.42', 'upgrader sidebar value kept');
+	assert.equal(h.getItem('dsh-dream-skin:skin'), null, 'no factory skin forced on the upgrader');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper'), null, 'no factory wallpaper forced on the upgrader');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-refresh'), null, 'no factory refresh config forced on the upgrader');
+	assert.equal(h.getItem('dsh-dream-skin:material-preset'), null, 'no factory material forced on the upgrader');
 });
 
 test('writes push to the host channel after a debounce', async (t) => {

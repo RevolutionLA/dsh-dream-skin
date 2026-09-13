@@ -1,95 +1,111 @@
 {
-  "name": "dsh-dream-skin",
-  "version": "9.10.0",
-  "description": "DeepSeek Harness 换肤插件（Dream Skin for DSH）：8 套 iOS / Linear 式清透冷调的高质感主题 + 弥散光壁纸 + 每皮肤智能背景 + 强调色 + 主题包分享，把换肤做成材质与配色克制的高级感工艺，而非贴图 — in the spirit of Codex Dream Skin, elevated.",
-  "license": "MIT",
-  "type": "module",
-  "main": "lib/index.js",
-  "types": "lib/types/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./lib/types/index.d.ts",
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "types": "./lib/types/client/index.d.ts",
-      "default": "./lib/client.js"
-    },
-    "./package.json": "./package.json"
-  },
-  "files": [
-    "lib/index.js",
-    "lib/client.js",
-    "lib/types",
-    "cordis.patch.yml",
-    "README.md",
-    "docs/i18n",
-    "docs/previews",
-    "docs/screenshots",
-    "docs/examples",
-    "docs/themes-spec.md",
-    "docs/design-philosophy.md"
-  ],
-  "author": "dsh-dream-skin contributors",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/RevolutionLA/dsh-dream-skin.git"
-  },
-  "bugs": {
-    "url": "https://github.com/RevolutionLA/dsh-dream-skin/issues"
-  },
-  "homepage": "https://github.com/RevolutionLA/dsh-dream-skin#readme",
-  "keywords": [
-    "deepseek-harness",
-    "dsh",
-    "dsh-plugin",
-    "plugin",
-    "theme",
-    "skin",
-    "wallpaper",
-    "web-ui",
-    "换肤"
-  ],
-  "engines": {
-    "node": ">=18"
-  },
-  "scripts": {
-    "test": "node --test tests/*.test.cjs"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "inject": [
-        "@deepseek-ai/dsh-client-runtime",
-        "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-theme",
-        "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-settings-general"
-      ],
-      "platform": "web",
-      "immediately": true
-    }
-  },
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-store": "*",
-    "@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-settings-general": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-client-ui-theme": "^0.1.0-rc.6",
-    "react": "^18.2.0"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/cordis": { "optional": true },
-    "@deepseek-ai/dsh-client-locale": { "optional": true },
-    "@deepseek-ai/dsh-client-runtime": { "optional": true },
-    "@deepseek-ai/dsh-client-store": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-settings": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-settings-general": { "optional": true },
-    "@deepseek-ai/dsh-client-ui-theme": { "optional": true },
-    "react": { "optional": true }
-  }
+	"name": "dsh-dream-skin",
+	"version": "9.13.0",
+	"description": "DeepSeek Harness 换肤插件（Dream Skin for DSH）：8 套 iOS / Linear 式清透冷调的高质感主题 + 弥散光壁纸 + 每皮肤智能背景 + 强调色 + 主题包分享，把换肤做成材质与配色克制的高级感工艺，而非贴图 — in the spirit of Codex Dream Skin, elevated.",
+	"license": "MIT",
+	"type": "module",
+	"main": "lib/index.js",
+	"types": "lib/types/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./lib/types/index.d.ts",
+			"default": "./lib/index.js"
+		},
+		"./client": {
+			"types": "./lib/types/client/index.d.ts",
+			"default": "./lib/client.js"
+		},
+		"./package.json": "./package.json"
+	},
+	"files": [
+		"lib/index.js",
+		"lib/client.js",
+		"lib/types",
+		"cordis.patch.yml",
+		"README.md",
+		"docs/i18n",
+		"docs/previews",
+		"docs/screenshots",
+		"docs/examples",
+		"docs/themes-spec.md",
+		"docs/design-philosophy.md"
+	],
+	"author": "dsh-dream-skin contributors",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/RevolutionLA/dsh-dream-skin.git"
+	},
+	"bugs": {
+		"url": "https://github.com/RevolutionLA/dsh-dream-skin/issues"
+	},
+	"homepage": "https://github.com/RevolutionLA/dsh-dream-skin#readme",
+	"keywords": [
+		"deepseek-harness",
+		"dsh",
+		"dsh-plugin",
+		"plugin",
+		"theme",
+		"skin",
+		"wallpaper",
+		"web-ui",
+		"换肤"
+	],
+	"engines": {
+		"node": ">=18"
+	},
+	"scripts": {
+		"test": "node --test tests/*.test.cjs"
+	},
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"inject": [
+				"@deepseek-ai/dsh-client-runtime",
+				"@deepseek-ai/dsh-client-locale",
+				"@deepseek-ai/dsh-client-ui-theme",
+				"@deepseek-ai/dsh-client-ui-settings",
+				"@deepseek-ai/dsh-client-ui-settings-general"
+			],
+			"platform": "web",
+			"immediately": true
+		}
+	},
+	"peerDependencies": {
+		"@deepseek-ai/cordis": "^4.0.1",
+		"@deepseek-ai/dsh-client-locale": "^0.1.0-rc.6",
+		"@deepseek-ai/dsh-client-runtime": "^0.1.0-rc.6",
+		"@deepseek-ai/dsh-client-store": "*",
+		"@deepseek-ai/dsh-client-ui-settings": "^0.1.0-rc.6",
+		"@deepseek-ai/dsh-client-ui-settings-general": "^0.1.0-rc.6",
+		"@deepseek-ai/dsh-client-ui-theme": "^0.1.0-rc.6",
+		"react": "^18.2.0"
+	},
+	"peerDependenciesMeta": {
+		"@deepseek-ai/cordis": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-locale": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-runtime": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-store": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-ui-settings": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-ui-settings-general": {
+			"optional": true
+		},
+		"@deepseek-ai/dsh-client-ui-theme": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		}
+	}
 }

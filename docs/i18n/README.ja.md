@@ -64,7 +64,7 @@
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Liquid Glass</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · クリアブライト</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
   </tr>
 </table>
@@ -79,7 +79,7 @@
 | `ember` | 🔥 Ember Amber | 温かみのある控えめな琥珀色 |
 | `midnight` | 🌚 Midnight OLED | ミニマルな純黒、没入感のある OLED |
 | `ivory` | 📐 iOS Flat | ミニマルなフラットホワイト、iOS システムグレー + 控えめなブルー |
-| `mist` | 🧊 Liquid Glass | 澄んだすりガラス、半透明 + ぼかし |
+| `mist` | 🧊 クリアブライト | 明るくすっきりしたガラス質感、半透明 + ぼかし |
 | `rose` | 🌸 Material Pink | 明るく鮮やかなピンク、Google Material のフラットカラー |
 
 ---
@@ -146,6 +146,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **プリセット8種を同梱（Mirage）** | **設定 → テーマ / 外観** で即座に切り替え、ライト & ダーク対応 |
 | 🖼️ **カスタム壁紙** | ローカル画像を選択（自動圧縮 ≤2MB）、**不透明度 / ぼかし** を調整 |
+| 🧊 **ガラス素材（すりガラス / リキッド）** | ワンクリックでガラスの質感を切替。透明度スライダーは**右ほど透け**、ぼかしは壁紙とガラス面をまとめて調整 |
+| 🖼️ **初回から完成された見た目** | インストール直後からネビュラスキン + 同梱壁紙 + 調整済みの数値で即使用可能 |
+| 🌤️ **Bing 一日一枚（プリセット）** | 高度な壁紙に Bing 毎日壁紙 API を事前入力。「適用」を押すだけで使用可能。任意の画像 URL + 自動更新にも対応 |
 | 🔤 **不透明な内部サーフェス** | カード、入力欄、メッセージバブルは常に読みやすい — 色褪せない |
 | ↩️ **デフォルト復元** | ワンクリックで DSH 標準の外観（システム追従）に戻す |
 | 💾 **ローカル永続化** | スキンと壁紙を `localStorage` に保存、リロード後も保持 |

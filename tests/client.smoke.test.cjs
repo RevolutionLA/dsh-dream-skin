@@ -36,6 +36,11 @@ function buildSandbox(overrides = {}) {
 	const store = new Map();
 	// seed localStorage from overrides.seed
 	if (overrides.seed) for (const [k, v] of Object.entries(overrides.seed)) store.set(k, String(v));
+	// Round-6: tests exercise the "existing user" path — the factory-defaults
+	// one-shot is pre-marked as already applied so first-boot seeding does not
+	// overwrite what individual tests assert about. First-launch behavior has
+	// its own dedicated tests (round-6 factory block).
+	store.set('dsh-dream-skin:factory-applied', '1');
 	const localStorage = {
 		getItem: (k) => (store.has(k) ? store.get(k) : null),
 		setItem: (k, v) => store.set(k, String(v)),
@@ -99,6 +104,11 @@ function makeApplyContext(harness, { captureActions = false } = {}) {
 					const storeActions = {};
 					if (storeSpec && typeof storeSpec.actions.sync === 'function') {
 						const state = storeSpec.init();
+						// Expose the live store state so tests can assert SYNC semantics
+						// (e.g. the legacy modal setOpacity must keep the glass store in
+						// step) — localStorage assertions alone can't see store sync and
+						// would stay green even if every syncGlass() call were deleted.
+						(harness.storeStates || (harness.storeStates = {}))[desc.id] = state;
 						storeActions.sync = (...args) => storeSpec.actions.sync(state, ...args);
 					}
 					const rowActions = desc.inject(storeActions);
@@ -751,7 +761,7 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 		const body = src.slice(start, end);
 		const keys = [...body.matchAll(/"([a-zA-Z0-9.]+)":\s*"/g)].map((m) => m[1]);
 		dicts[lang] = new Set(keys);
-		assert.equal(keys.length, 50, `${lang} has ${keys.length} keys (expected 50)`);
+		assert.equal(keys.length, 63, `${lang} has ${keys.length} keys (expected 63)`);
 	}
 	const zhKeys = dicts.zh;
 	for (const lang of langs.slice(1)) {
@@ -1512,6 +1522,13 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// --dsw-alias-bg-overlay), NOT by an injected !important rule — so the material
 	// stylesheet must not carry a hardcoded menu repoint that would fight the slider.
 	assert.ok(!css.includes('--dsw-specific-menu: var(--dsw-alias-bg-layer-2) !important'), 'menu fill is NOT hardcoded in CSS (token-driven so the slider controls it)');
+	// Blue-team B2 (round 3): the composer glass recipe must keep its fallbacks —
+	// the token fill line first, then the @supports gate that transparents the
+	// card body, and the OPAQUE composer-base token so the fill weight is the
+	// composer slider's alone (the wallpaper slider must not thin it).
+	assert.ok(css.includes('.uV2eYG_card {') && css.includes('var(--dsw-specific-input-major)'), 'composer card keeps the token-fill fallback line');
+	assert.ok(css.includes('@supports') && /@supports[^{]*color-mix[^{]*\{[^}]*\.uV2eYG_card[^}]*background: transparent/.test(css.replace(/\n/g, ' ')), '@supports gate transparents the composer card body');
+	assert.ok(css.includes('--dsh-dream-skin-composer-base'), 'composer fill mixes the OPAQUE composer-base token (no alpha compounding)');
 	// The user-questions option card must get a high-opacity readable fill (it
 	// shares input-major with the translucent composer, so it needs its own
 	// solid background or option text becomes illegible).
@@ -1521,4 +1538,404 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// MODAL_FILL_VAR custom property with a readable fallback, not a hardcoded 94%.
 	assert.ok(css.includes('--dsh-dream-skin-modal-fill'), 'option card fill is user-adjustable via CSS variable');
 	assert.ok(css.includes(', 94%'), 'adjustable fill keeps the readable default fallback');
+});
+
+test('glass row: material presets, composer opacity and popup opacity persist and sync', () => {
+	// Blue-team B4/B5/B9 follow-up: the glass-effect row's actions must persist
+	// every value they promise, keep the preset chip in step with the sliders
+	// (a slider move is a fine-tune WITHIN the material — the material marker
+	// stays; a preset write updates the composer value), and the legacy modal
+	// setOpacity must keep the glass store in sync.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply(ctx));
+	const glass = h.actionBags['dream-skin-glass'];
+	assert.ok(glass, 'glass row action bag captured');
+
+	// Material preset "frosted" (the factory default): round-5 semantics — the
+	// chip is a PURE STYLE switch, it persists the id but writes NO slider keys.
+	assert.doesNotThrow(() => glass.setMaterialPreset('frosted'));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'preset id persisted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'chip never writes wallpaper opacity');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'), null, 'chip never writes wallpaper blur');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), null, 'chip never writes composer opacity');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), null, 'chip never writes popup opacity');
+
+	// "liquid" only flips the id — slider keys STILL untouched.
+	glass.setMaterialPreset('liquid');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'liquid', 'liquid id persisted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'liquid chip still writes no values');
+
+	// Frosted again: same guarantee (two materials only — no "default/none").
+	glass.setMaterialPreset('frosted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'frosted id restored');
+
+	// An unknown preset id is refused (the previously chosen preset stays).
+	glass.setMaterialPreset('bogus');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'unknown preset refused, previous choice kept');
+
+	// A slider move is a fine-tune WITHIN the material: values persist, the
+	// material chips stay put (no preset-marker drop since round 2).
+	glass.setOpacity(80);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.8', 'slider value persisted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'slider tune keeps the material');
+	glass.setBlur(20);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'), '20', 'blur slider persisted');
+
+	// Composer opacity slider persists (clamped).
+	glass.setComposerOpacity(150);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '1', 'composer clamped to 1');
+	glass.setComposerOpacity(30);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.3', 'composer opacity persisted');
+
+	// Popup opacity via the glass row persists.
+	glass.setModalOpacity(50);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.5', 'modal opacity persisted through the glass row');
+
+	// The legacy modal row's setOpacity keeps the shared state in step (B9) —
+	// asserted against the LIVE store state, not just localStorage: deleting
+	// every syncGlass()/sync() call must make this test fail (T4).
+	const glassState = h.storeStates['dream-skin-glass'];
+	assert.ok(glassState, 'glass store state exposed by the harness');
+	const legacyModal = h.actionBags['dream-skin-modal-opacity'];
+	assert.ok(legacyModal && typeof legacyModal.setOpacity === 'function', 'legacy modal bag kept for compatibility');
+	legacyModal.setOpacity(70);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.7', 'legacy setOpacity still persists');
+	assert.equal(glassState.modalOpacity, 0.7, 'legacy setOpacity synced the glass store (B9/T4)');
+	assert.equal(h.storeStates['dream-skin-modal-opacity'].opacity, 0.7, 'legacy setOpacity synced its own modal store');
+});
+
+test('composer opacity drives the CSS fill variable', () => {
+	// B4: the composer (chat input) opacity slider must set the
+	// --dsh-dream-skin-composer-fill CSS variable at boot and on change.
+	const styleProps = {};
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains() { return false; }, appendChild() {}, append(c) { this.children.push(c); } },
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		documentElement: { style: { setProperty(k, v) { styleProps[k] = v; } } }
+	};
+	const h = buildSandbox({ document: documentMock, seed: { 'dsh-dream-skin:composer-opacity': '0.4' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply(ctx));
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '40%', 'saved composer fill re-applied at boot');
+	h.actionBags['dream-skin-glass'].setComposerOpacity(90);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '90%', 'slider updates the CSS variable');
+
+	// Round-10: the glass blur variable is owned by the USER'S blur slider and
+	// scaled per MATERIAL (liquid = thin glass ×0.25). A chip click never
+	// changes the STORED slider value — but the applied var is material-scaled.
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '14px', 'boot applies the default blur fallback');
+	h.actionBags['dream-skin-glass'].setMaterialPreset('liquid');
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '3.5px', 'liquid scales the glass blur (thin glass, x0.25)');
+	h.actionBags['dream-skin-glass'].setBlur(0);
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '0px', 'blur slider drives the glass var (0 allowed by explicit user choice)');
+
+	// Blue-team D5 (revised): NO value migration at boot — the chip means
+	// material IDENTITY, not exact numbers, so a user's stored values must
+	// never be overwritten. A fresh install still gets the frosted glass blur
+	// (applyMaterialBlur derives it from the active preset) and the chip
+	// defaults to frosted via the store sync.
+	const h2 = buildSandbox({ document: documentMock });
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	e2.apply(makeApplyContext(h2, { captureActions: true }));
+	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'no migration clobbers user/stock values');
+	assert.equal(h2.storeStates['dream-skin-glass'].materialPreset, 'frosted', 'fresh install chip defaults to frosted');
+	// Legacy "default" ids from earlier builds read back as frosted too.
+	const h3 = buildSandbox({ document: documentMock, seed: { 'dsh-dream-skin:material-preset': 'default' } });
+	const e3 = h3.factory(makeRequire(makeRuntime().RT));
+	e3.apply(makeApplyContext(h3, { captureActions: true }));
+	assert.equal(h3.storeStates['dream-skin-glass'].materialPreset, 'frosted', 'legacy "default" id reads back as frosted');
+});
+
+test('packShareUrl round-trip: built-in skins share, decode and validate; packs keep their id', () => {
+	// Blue-team B3: a built-in skin's synthesized manifest must round-trip
+	// through validatePack, and a receiver recognizing it as built-in must
+	// select the skin instead of importing a frozen dream-pack: copy.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const share = h.actionBags['dream-skin-packs'];
+
+	// Build a synthetic abyss manifest the same way packShareUrl does, then
+	// import it through the real share-URL path in a fresh sandbox.
+	const manifest = {
+		id: 'abyss',
+		name: 'abyss',
+		author: 'dsh-dream-skin',
+		version: '1.0.0',
+		description: '',
+		colorScheme: 'dark',
+		tokens: e.SKINS.find((s) => s.id === 'abyss').tokens
+	};
+	const payload = JSON.stringify({ format: 'dsh-dream-skin/pack', version: 1, manifest });
+	const b64 = Buffer.from(unescape(encodeURIComponent(payload)), 'binary').toString('base64');
+
+	// A fresh sandbox importing this link must SELECT abyss, not create
+	// dream-pack:abyss (no frozen duplicate).
+	const h2 = buildSandbox({ hash: '#dream-skin-pack=' + b64 });
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	let pref = 'system';
+	const ctx2 = makeApplyContext(h2);
+	ctx2.theme.setTheme = (id) => { pref = id; };
+	e2.apply(ctx2);
+	assert.equal(pref, 'abyss', 'built-in skin share selects the real skin');
+	assert.equal(h2.localStorage.getItem('dsh-dream-skin:skin'), 'abyss', 'selection persisted');
+	const packs2 = JSON.parse(h2.localStorage.getItem('dsh-dream-skin:packs') || '[]');
+	assert.equal(packs2.filter((p) => p.id === 'dream-pack:abyss').length, 0, 'NO frozen dream-pack:abyss duplicate');
+
+	// A REAL pack manifest (non-builtin id) still imports normally.
+	const packManifest = {
+		id: 'mytheme',
+		name: 'My Theme',
+		author: 'someone',
+		version: '1.0.0',
+		description: '',
+		colorScheme: 'dark',
+		tokens: {
+			'--dsw-alias-bg-base': '#101014',
+			'--dsw-alias-bg-layer-1': '#1b1e28',
+			'--dsw-alias-brand-primary': '#5e6ad2',
+			'--dsw-alias-label-primary': '#f4f5f7',
+			'--dsw-alias-label-secondary': '#a5adb8',
+			'--dsw-alias-border-l1': '#222222',
+			'--dsw-alias-border-l2': '#444444'
+		}
+	};
+	const packPayload = JSON.stringify({ format: 'dsh-dream-skin/pack', version: 1, manifest: packManifest });
+	const packB64 = Buffer.from(unescape(encodeURIComponent(packPayload)), 'binary').toString('base64');
+	const h3 = buildSandbox({ hash: '#dream-skin-pack=' + packB64 });
+	const e3 = h3.factory(makeRequire(makeRuntime().RT));
+	e3.apply(makeApplyContext(h3));
+	assert.ok(h3.localStorage.getItem('dsh-dream-skin:packs').includes('dream-pack:mytheme'), 'real packs still import with the dream-pack: prefix');
+
+	// A reserved built-in HOST id (system/light/dark) as manifest.id is rejected.
+	const evilPayload = JSON.stringify({ format: 'dsh-dream-skin/pack', version: 1, manifest: { ...packManifest, id: 'system' } });
+	const evilB64 = Buffer.from(unescape(encodeURIComponent(evilPayload)), 'binary').toString('base64');
+	const h4 = buildSandbox({ hash: '#dream-skin-pack=' + evilB64 });
+	const e4 = h4.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e4.apply(makeApplyContext(h4)));
+	assert.equal(JSON.parse(h4.localStorage.getItem('dsh-dream-skin:packs') || '[]').length, 0, 'reserved manifest.id rejected');
+
+	// An oversized hash payload is refused at the boot gate (B12).
+	const bigTokens = { ...packManifest.tokens, pad: 'x'.repeat(1024 * 1024 + 10) };
+	const bigPayload = JSON.stringify({ format: 'dsh-dream-skin/pack', version: 1, manifest: { ...packManifest, tokens: bigTokens } });
+	const bigB64 = Buffer.from(unescape(encodeURIComponent(bigPayload)), 'binary').toString('base64');
+	const h5 = buildSandbox({ hash: '#dream-skin-pack=' + bigB64 });
+	const e5 = h5.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e5.apply(makeApplyContext(h5)));
+	assert.equal(JSON.parse(h5.localStorage.getItem('dsh-dream-skin:packs') || '[]').length, 0, 'oversized share payload refused');
+	assert.ok(share && typeof share.surprise === 'function', 'packs row actions intact');
+});
+
+test('round-5: switching materials NEVER moves any slider value (user decision)', () => {
+	// User decision (round 5): the material chip is a PURE STYLE switch. After
+	// the user tunes the sliders, frosted <-> liquid round-trips must leave
+	// every stored value exactly as they left it.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.actionBags['dream-skin-glass'];
+
+	// User tunes like they did: opacity 50% (stored 0.5), blur 5px, composer 0.9.
+	glass.setOpacity(50);
+	glass.setBlur(5);
+	glass.setComposerOpacity(90);
+	glass.setMaterialPreset('frosted');
+	const tuned = {
+		o: h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'),
+		b: h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'),
+		c: h.localStorage.getItem('dsh-dream-skin:composer-opacity')
+	};
+	assert.equal(tuned.o, '0.5', 'pre: tuned opacity stored');
+	assert.equal(tuned.b, '5', 'pre: tuned blur stored');
+	assert.equal(tuned.c, '0.9', 'pre: tuned composer stored');
+
+	// Round-trip frosted -> liquid -> frosted (-> liquid -> frosted): every
+	// stored value MUST be untouched by the chips.
+	glass.setMaterialPreset('liquid');
+	glass.setMaterialPreset('frosted');
+	glass.setMaterialPreset('liquid');
+	glass.setMaterialPreset('frosted');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), tuned.o, 'opacity survives material round-trips');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'), tuned.b, 'blur survives material round-trips');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), tuned.c, 'composer survives material round-trips');
+
+	// UI store: values unchanged, material id updated.
+	const st = h.storeStates['dream-skin-glass'];
+	assert.equal(st.opacity, 0.5, 'store opacity untouched by chips');
+	assert.equal(st.blur, 5, 'store blur untouched by chips');
+	assert.equal(st.composerOpacity, 0.9, 'store composer untouched by chips');
+	assert.equal(st.materialPreset, 'frosted', 'store material id follows the chip');
+});
+
+test('round-5: glass blur var follows the blur slider, not the material', () => {
+	// Round-5: ONE blur knob. GLASS_BLUR_VAR must reflect the user's stored
+	// blur (whatever the material), with the material only owning the TONE var.
+	const styleProps = {};
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains() { return false; }, appendChild() {}, append(c) { this.children.push(c); } },
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		documentElement: { style: { setProperty(k, v) { styleProps[k] = v; } } },
+		addEventListener() {}, removeEventListener() {}
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.actionBags['dream-skin-glass'];
+
+	// No blur stored yet: the DEFAULT fallback applies.
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '14px', 'default blur fallback applied');
+
+	// The blur slider drives the glass var.
+	glass.setBlur(23);
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '23px', 'blur slider drives the glass var');
+
+	// Switching material must NOT change the STORED slider values (user decision,
+	// round-5) — but the applied glass blur var IS material-scaled (round-10:
+	// liquid = thin glass, ×0.25); only the tone var flips alongside.
+	glass.setMaterialPreset('liquid');
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '5.8px', 'liquid scales the applied blur (23 x 0.25), stored value untouched');
+	assert.ok(styleProps['--dsh-dream-skin-glass-tone'], 'tone var set by the material chip');
+
+	// Clamping: out-of-range slider values clamp to 60 BEFORE material scaling
+	// (still on liquid: 60 x 0.25 = 15 applied).
+	glass.setBlur(500);
+	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '15px', 'glass blur clamped to 60px, then material-scaled');
+});
+
+test('round-6: first launch applies factory defaults (shipped look)', () => {
+	// Fresh profile WITHOUT the factory-applied marker: first boot must paint
+	// the full shipped look (nebula skin, bundled wallpaper, tuned numbers,
+	// bing-daily URL) and stamp the one-shot marker.
+	const h = buildSandbox();
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied'); // simulate true first launch
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), 'nebula', 'factory skin applied on first launch');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'factory wallpaper kind applied');
+	assert.ok((h.localStorage.getItem('dsh-dream-skin:wallpaper') || '').startsWith('data:image/jpeg;base64,'), 'bundled horse painting applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'bing-daily default URL visible');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.19', 'factory wallpaper opacity applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.4', 'factory composer opacity applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'factory material applied (frosted IS the shipped look, blue-team B5)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), '{"on":0,"hours":24}', 'factory refresh schedule OFF (blue-team B7: third-party polling is opt-in)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:factory-applied'), '1', 'one-shot marker stamped');
+});
+
+test('round-6: factory defaults are one-shot — cleared wallpaper stays cleared', () => {
+	// Existing user (marker pre-stamped by the sandbox): they had set their own
+	// wallpaper, then cleared it. A reboot must NOT resurrect the bundled one.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), null, 'pre: no factory seeding when the one-shot marker is present');
+	// Reboot (apply again): factory defaults must stay dormant.
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), null, 'cleared wallpaper is NOT resurrected by factory defaults');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'factory numbers stay dormant for existing users');
+});
+
+test('round-7 F1: upgrader without marker is NOT factory-seeded (per-key gap)', () => {
+	// Blue-team F1: the factory-applied marker is new in this build, so every
+	// existing user lacks it. An upgrader with even ONE stored plugin key
+	// (e.g. a URL wallpaper they chose themselves) must keep exactly what they
+	// have — no factory nebula/horse/1h-refresh silently switched on.
+	const h = buildSandbox();
+	// Simulate a pre-upgrade user: own URL wallpaper choice, no marker, and
+	// crucially NO stored refresh config / opacity numbers.
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	h.localStorage.setItem('dsh-dream-skin:wallpaper-kind', 'url');
+	h.localStorage.setItem('dsh-dream-skin:wallpaper-url', 'https://example.com/my-random-api');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), null, 'upgrader skin untouched');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://example.com/my-random-api', 'upgrader URL kept');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), null, 'factory 1h refresh NOT switched on for upgrader');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'factory numbers NOT written for upgrader');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), null, 'factory material NOT written for upgrader');
+	// The marker gets stamped so later boots skip the check entirely.
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:factory-applied'), '1', 'marker stamped for the upgrader too');
+});
+
+test('round-8: liquid material switches the glass tint to neutral white', () => {
+	// User: liquid glass read TEA-colored (skin base x high saturation). The
+	// tint var must be material-driven: liquid = #ffffff, frosted = skin base.
+	const styleProps = {};
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains() { return false; }, appendChild() {}, append(c) { this.children.push(c); } },
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		documentElement: { style: { setProperty(k, v) { styleProps[k] = v; } }, setAttribute() {} },
+		addEventListener() {}, removeEventListener() {}
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.actionBags['dream-skin-glass'];
+
+	glass.setMaterialPreset('liquid');
+	assert.equal(styleProps['--dsh-dream-skin-glass-tint'], '#ffffff', 'liquid glass fills neutral white (no tea tint)');
+
+	glass.setMaterialPreset('frosted');
+	assert.equal(styleProps['--dsh-dream-skin-glass-tint'], 'var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))', 'frosted keeps the skin-base tint');
+});
+
+test('round-17: liquid slider drives glass thickness (extra backdrop blur)', () => {
+	// User decision (round-13, re-implemented round-17): on liquid, the
+	// transparency slider means glass THICKNESS — more opaque = more backdrop
+	// blur (+0..24px). The old SVG displacement experiment was removed
+	// (Chromium drops backdrop-filter:url() whole; a filter:url() replica
+	// erased the DOM text behind the pane).
+	const styleProps = {};
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains() { return false; }, appendChild(c) { this.children.push(c); }, append(c) { this.children.push(c); } },
+		createElement: () => ({ style: {}, dataset: {}, textContent: '', remove() {} }),
+		createTextNode: () => ({}),
+		getElementById: () => null,
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		documentElement: {
+			style: { setProperty(k, v) { styleProps[k] = v; } },
+			setAttribute() {}
+		},
+		addEventListener() {}, removeEventListener() {}
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.actionBags['dream-skin-glass'];
+
+	// Thickness mapping: opacity 0.5 -> +12px of extra backdrop blur; the
+	// composer fill var is still published (frosted path uses it).
+	glass.setMaterialPreset('liquid');
+	glass.setComposerOpacity(50);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '50%', 'fill var still published (frosted path uses it)');
+	assert.equal(styleProps['--dsh-dream-skin-liquid-thickness'], '12px', 'opacity 0.5 maps to +12px glass thickness');
+
+	// Max opacity = thickest glass (+24px); zero transparency = thin (0px).
+	glass.setComposerOpacity(100);
+	assert.equal(styleProps['--dsh-dream-skin-liquid-thickness'], '24px', 'opacity 1.0 maps to +24px glass thickness');
+	glass.setComposerOpacity(0);
+	assert.equal(styleProps['--dsh-dream-skin-liquid-thickness'], '0px', 'opacity 0 maps to 0px (thin clear glass)');
+
+	// The liquid CSS rule must consume the thickness var via backdrop-filter
+	// (real backdrop sampling — text behind stays fogged, wallpaper blur stacks).
+	const styleEl = documentMock.head.children.find((c) => c.textContent && c.textContent.includes('liquid-thickness'));
+	assert.ok(styleEl, 'liquid thickness var consumed in material CSS');
+	assert.ok(styleEl.textContent.includes('backdrop-filter'), 'liquid rule uses backdrop-filter (not filter:url)');
+	assert.ok(!styleEl.textContent.includes('url(#dsh-liquid-refract)'), 'SVG refraction experiment fully removed');
 });

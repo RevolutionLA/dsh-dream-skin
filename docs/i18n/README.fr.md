@@ -67,7 +67,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
   <tr>
     <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Minuit OLED</td>
     <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Verre liquide</td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Clair net</td>
     <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Rose Material</td>
   </tr>
 </table>
@@ -82,7 +82,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 | `ember` | 🔥 Ambre braise | orange ambré chaud et sobre |
 | `midnight` | 🌚 Minuit OLED | noir pur minimaliste, OLED immersif |
 | `ivory` | 📐 iOS Flat | blanc plat minimaliste, gris système iOS + bleu sobre |
-| `mist` | 🧊 Verre liquide | verre dépoli transparent, translucide + flouté |
+| `mist` | 🧊 Clair net | rendu de verre net et lumineux, translucide + flouté |
 | `rose` | 🌸 Rose Material | rose vif et éclatant, couleurs plates Google Material |
 
 ---
@@ -153,6 +153,9 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 |------------|-------------|
 | 🎨 **8 presets inclus (Mirage)** | Changez instantanément sous **Paramètres → Thème / Apparence**, clair & sombre |
 | 🖼️ **Wallpaper personnalisé** | Choisissez une image locale (compressée automatiquement ≤2 Mo), réglez **opacité / flou** |
+| 🧊 **Matériaux de verre (Dépoli / Liquide)** | Un clic change le caractère du verre ; les curseurs de transparence se lisent **droite = plus transparent** ; UN réglage de flou pilote le fond et toutes les surfaces de verre |
+| 🖼️ **Apparence prête à l'installation** | La première installation arrive déjà habillée : thème Nebula + fond intégré + valeurs ajustées — redémarrez et c'est prêt |
+| 🌤️ **Photo du jour Bing (pré-remplie)** | Le fond avancé est pré-rempli avec l'API photo du jour de Bing : cliquez « Appliquer » et c'est actif ; toute URL d'image + rafraîchissement automatique fonctionne aussi |
 | 🔤 **Surfaces internes opaques** | Cartes, champs de saisie, bulles de message restent lisibles — jamais délavés |
 | ↩️ **Restauration par défaut** | Revenir à l'apparence native de DSH (suivre le système) en un clic |
 | 💾 **Persistance locale** | Skin & wallpaper stockés dans `localStorage`, survivent au rechargement |
