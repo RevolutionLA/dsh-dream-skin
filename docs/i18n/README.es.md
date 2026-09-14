@@ -59,31 +59,21 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Deep Blue</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Aurora Green</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Nebula Purple</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ember Amber</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Deep Blue<br/><sub>índigo profundo y sereno, sobrio y silencioso</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Aurora Green<br/><sub>verde azulado frío, translúcido y nítido, tono frío natural</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Nebula Purple<br/><sub>azul violeta profundo y difuminado, brumoso y misterioso</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ember Amber<br/><sub>naranja ámbar cálido y sobrio</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Brillo limpio</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Midnight OLED<br/><sub>negro puro minimalista, OLED inmersivo</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>blanco plano minimalista, gris de sistema iOS + azul sobrio</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Brillo limpio<br/><sub>acabado de vidrio nítido y luminoso, translúcido + desenfocado</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>rosa vivo y brillante, colores planos de Google Material</sub></td>
   </tr>
 </table>
 
-### 📋 Los presets de un vistazo
-
-| id | style | rasgo |
-|------|--------|------|
-| `abyss` | 🕶️ Deep Blue | índigo profundo y sereno, sobrio y silencioso |
-| `aurora` | 🌌 Aurora Green | verde azulado frío, translúcido y nítido, tono frío natural |
-| `nebula` | 🪐 Nebula Purple | azul violeta profundo y difuminado, brumoso y misterioso |
-| `ember` | 🔥 Ember Amber | naranja ámbar cálido y sobrio |
-| `midnight` | 🌚 Midnight OLED | negro puro minimalista, OLED inmersivo |
-| `ivory` | 📐 iOS Flat | blanco plano minimalista, gris de sistema iOS + azul sobrio |
-| `mist` | 🧊 Brillo limpio | acabado de vidrio nítido y luminoso, translúcido + desenfocado |
-| `rose` | 🌸 Material Pink | rosa vivo y brillante, colores planos de Google Material |
+> Tonos claros y oscuros cubiertos: `mist`, `ivory` y `rose` son claros, el resto oscuros. ¿No te convencen los
+> presets? Sigue leyendo la **Forma #2**.
 
 ---
 
@@ -132,18 +122,28 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ## 🏆 Por qué merece una estrella (frente a las alternativas)
 
-| Capacidad | El nuestro | Otros skinning de DSH | Codex-Dream-Skin (escritorio) |
-|------|:---:|:---:|:---:|
-| Temas nativos por tokens — sin inyección, sin parches al instalador | ✅ | ✅ | ❌ (inyección CDP) |
-| **Material y color fríos translúcidos estilo iOS/Linear** | ✅ | ❌ (estilo anime) | ❌ |
-| **Diffused glow premium y sobrio por skin** | ✅ | parcial | ❌ |
-| Wallpaper personalizado + opacidad/desenfoque | ✅ | parcial | ✅ |
-| **Importación/exportación de theme packs + enlaces para compartir** | ✅ | ❌ | ✅ (packs zip) |
-| **Sobrescritura de Accent por usuario** | ✅ | ❌ | parcial |
-| **Wallpaper 2.0 (URL / gradiente / sugerencia por skin / atenuación automática)** | ✅ | ❌ | ✅ |
-| Biblioteca local de packs + favoritos + sorpréndeme | ✅ | ❌ | parcial |
-| Validación + rollback | ✅ | parcial | ✅ |
-| **Web GUI en el navegador, multiplataforma de forma nativa** | ✅ | ✅ | ❌ (necesita la App de escritorio) |
+> Mirando a los competidores: los plugins similares o trasladan una paleta ya hecha (bonita, pero con un solo
+> interruptor), o se encierran en una única estética, o se dedican solo a traer wallpapers externos. Nosotros hicimos
+> del skinning un **sistema completo de materiales y colores ajustables** — la meta no es "más llamativo", sino
+> "más preciso, más sobrio, más durable a la vista", como un cristal pulido una y otra vez.
+> **El gusto + la ajustabilidad son nuestro foso defensivo.**
+
+| Capacidad | El nuestro | [dsh-catppuccin-theme](https://github.com/) (paleta portada) | [dsh-theme-mineradio](https://github.com/) (estética única) | [dsh-wallpaper-engine](https://github.com/) (puente de wallpapers) |
+|------|:---:|:---:|:---:|:---:|
+| **8 diseños originales** (no una paleta portada: tokens propios + diffused glow) | ✅ | ❌ (4 paletas oficiales de Catppuccin) | ❌ (1 estética champán-dorado) | ❌ |
+| **Doble material vidrio esmerilado / líquido** con un clic | ✅ | parcial (sensación de vidrio fija) | ❌ | ❌ |
+| **Deslizadores de opacidad independientes para el input / popups** | ✅ | ❌ | ❌ | ❌ |
+| **Configuración de fábrica lista al instalar** (reinicia tras instalar y ya se ve bien) | ✅ | ❌ | ✅ (en sí es un producto acabado) | ❌ |
+| Wallpaper personalizado + opacidad/desenfoque | ✅ | ❌ | ❌ | ✅ (capacidad central) |
+| **Wallpaper 2.0** (URL / presets de gradiente / sugerencia por skin / atenuación automática / Bing diario + refresco programado) | ✅ | ❌ | ❌ | parcial (depende de wallpapers de WE) |
+| **Accent por usuario** (capa de superposición, la skin intacta) | ✅ | ❌ | ❌ | ❌ |
+| **Importar/exportar theme packs + enlaces para compartir** (JSON, distribución sin código) | ✅ | ❌ | ❌ | ❌ |
+| Biblioteca local de packs + favoritos + sorpréndeme | ✅ | ❌ | ❌ | ❌ |
+| **Compatible con dos generaciones de host + detección de capacidades en tiempo de ejecución** (degrada con elegancia ante cambios de host, sin errores) | ✅ | desconocido | desconocido | ❌ (requiere actualizar el kernel primero) |
+| Validación + rollback (sin cambios destructivos) | ✅ | parcial | — | parcial |
+
+> **En una frase**: ¿quieres los colores de marca de Catppuccin o el ambiente de mineradio? El sistema de theme packs
+> de este plugin puede construirlos o apilarlos — al revés, no.
 
 ---
 
@@ -358,14 +358,18 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
 
 ## 📌 Hoja de ruta
 
-- [x] v0.1: 8 themes + wallpaper personalizado (opacidad / desenfoque) + persistencia local
+- [x] Primera versión: 8 themes + wallpaper personalizado (opacidad / desenfoque) + persistencia local
 - [x] Formato de theme pack + importar / exportar / enlace para compartir (JSON + manifest + validación)
 - [x] Accent por usuario + aleatorizar
-- [x] Wallpaper 2.0 (URL / gradiente / sugerencia por skin / atenuación automática)
+- [x] Wallpaper 2.0 (URL / gradiente / sugerencia por skin / atenuación automática / Bing diario + refresco programado)
 - [x] Biblioteca local de packs + aplicación con un clic / favoritos / sorpréndeme
 - [x] Textos y docs i18n completos (zh / en / ja / ko / es / fr / de / ru)
-- [ ] Studio online de paletas / vista previa de themes (frontend puro, verificador de contraste)
-- [ ] Galería comunitaria de themes (envía packs al repo / a la galería online)
+- [x] Sistema de materiales de vidrio: doble material esmerilado / líquido + deslizadores de opacidad independientes (v9.13.0)
+- [x] Configuración de fábrica lista al instalar: un aspecto completo y ajustado desde el primer reinicio (v9.13.0)
+- [x] Refuerzo de compatibilidad de host: detección en tiempo de ejecución para dos generaciones + marcadores de forma DOM contra la deriva de nombres de clase (issue #50, v9.13.x)
+- [ ] Eliminar por completo la dependencia de los nombres de clase con hash del host: migrar también las reglas decorativas restantes (barra lateral / panel de archivos) a marcadores de forma DOM
+- [ ] Studio online de paletas / vista previa de themes (frontend puro, validación en el navegador + verificador de contraste)
+- [ ] Galería comunitaria de themes (envía packs al repo / a la galería online; se agradecen paletas derivadas estilo Catppuccin vía theme packs)
 - [ ] Mejora del first-paint (FOUC)
 
 ---

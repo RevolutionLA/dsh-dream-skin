@@ -51,37 +51,26 @@
 
 ---
 
-## 🎨 预览 — Mirage 幻梦系列
+## 🎨 玩法一：8 套预设皮肤（Mirage 幻梦系列）
 
-> **玩法一 · 开箱即用的优雅。** 8 套皮肤，由各皮肤的**真实 token + 专属弥散光背景**生成——所见即所得。点开可放大查看精致材质。
+> **开箱即用的优雅。** 在 **设置 → 外观（Theme）** 一键切换。下列预览由各皮肤的**真实 token + 专属弥散光背景**生成——所见即所得，点开可放大查看精致材质。
 
 <table>
   <tr>
-    <td align="center"><a href="docs/previews/abyss.png"><img src="docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 沉静蓝</td>
-    <td align="center"><a href="docs/previews/aurora.png"><img src="docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 极光青</td>
-    <td align="center"><a href="docs/previews/nebula.png"><img src="docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 星云紫</td>
-    <td align="center"><a href="docs/previews/ember.png"><img src="docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 余烬橙</td>
+    <td align="center"><a href="docs/previews/abyss.png"><img src="docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 沉静蓝<br/><sub>冷静深沉的靛蓝，克制不喧哗</sub></td>
+    <td align="center"><a href="docs/previews/aurora.png"><img src="docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 极光青<br/><sub>清冽通透的冷青，自然冷调</sub></td>
+    <td align="center"><a href="docs/previews/nebula.png"><img src="docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星云紫<br/><sub>深邃漫射的紫青，朦胧神秘</sub></td>
+    <td align="center"><a href="docs/previews/ember.png"><img src="docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余烬橙<br/><sub>温暖克制的琥珀橙</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="docs/previews/midnight.png"><img src="docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 午夜黑</td>
-    <td align="center"><a href="docs/previews/ivory.png"><img src="docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS 扁平</td>
-    <td align="center"><a href="docs/previews/mist.png"><img src="docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 干净明亮</td>
-    <td align="center"><a href="docs/previews/rose.png"><img src="docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 蔷薇粉</td>
+    <td align="center"><a href="docs/previews/midnight.png"><img src="docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 午夜黑<br/><sub>极简纯黑，OLED 沉浸</sub></td>
+    <td align="center"><a href="docs/previews/ivory.png"><img src="docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 扁平<br/><sub>极简平白，iOS 系统灰 + 克制的蓝</sub></td>
+    <td align="center"><a href="docs/previews/mist.png"><img src="docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 干净明亮<br/><sub>清透明亮的玻璃质感，半透明 + 模糊</sub></td>
+    <td align="center"><a href="docs/previews/rose.png"><img src="docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material 粉<br/><sub>明快彩粉，谷歌 Material 扁平彩色</sub></td>
   </tr>
 </table>
 
-### 📋 预设一览
-
-| id | 风格 | 特质 |
-|------|-------|------|
-| `abyss` | 🕶️ 沉静蓝 | 冷静深沉的靛蓝，克制不喧哗 |
-| `aurora` | 🌌 极光青 | 清冽通透的冷青，自然冷调 |
-| `nebula` | 🪐 星云紫 | 深邃漫射的紫青，朦胧神秘 |
-| `ember` | 🔥 余烬橙 | 温暖克制的琥珀橙 |
-| `midnight` | 🌚 午夜黑 | 极简纯黑，OLED 沉浸 |
-| `ivory` | 📐 iOS 扁平 | 极简平白，iOS 系统灰 + 克制的蓝 |
-| `mist` | 🧊 干净明亮 | 清透明亮的玻璃质感，半透明 + 模糊 |
-| `rose` | 🌸 Material 粉 | 明快彩粉，谷歌 Material 扁平彩色 |
+> 浅色 / 深色兼顾：`mist`、`ivory`、`rose` 为浅色系，其余为深色系。不喜欢预设？往下看**玩法二**。
 
 ---
 
@@ -125,23 +114,28 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ---
 
-## 🏆 为什么值得用（vs 同类）
+## 🏆 为什么值得用（vs 同类 DSH 主题插件）
 
-> 换个赛道看：全家桶把换肤做成一堆二次元题材的「贴图墙」；我们把换肤做成**材质与配色的精细化工艺**——
-> 追求的不是「更花」，而是「更准、更克制、更耐看」，像一块反复推敲的玻璃。**审美是我们的护城河。**
+> 换个赛道看：同类插件要么是把一套现成色板移植过来（好看，但配置只有一个开关）、要么是锁死单一美学的定制款、
+> 要么专注把外部壁纸搬进来。我们把换肤做成**一整套可调的材质与配色系统**——追求的不是「更花」，
+> 而是「更准、更克制、更耐看」，像一块反复推敲的玻璃。**审美 + 可调性是我们的护城河。**
 
-| 能力 | 本插件 | 全家桶换肤方案 | Codex-Dream-Skin (桌面) |
-|------|:---:|:---:|:---:|
-| 原生 token 主题，不注入、不改安装包 | ✅ | ✅ | ❌ (CDP 注入) |
-| **iOS/Linear 式清透冷调材质与配色** | ✅ | ❌ (偏二次元题材) | ❌ |
-| **每皮肤克制的高级感弥散光背景** | ✅ | 部分 | ❌ |
-| 自定义壁纸 + 透明度/模糊 | ✅ | 部分 | ✅ |
-| **主题包导入/导出 + 分享链接** | ✅ | ❌ | ✅ (zip 主题) |
-| **每用户强调色 Accent** | ✅ | ❌ | 部分 |
-| **壁纸 2.0（URL / 渐变 / 每皮肤建议 / 自动弱化）** | ✅ | ❌ | ✅ |
-| 本地主题包库 + 收藏 + 随机 | ✅ | ❌ | 部分 |
-| 校验 + 回滚 | ✅ | 部分 | ✅ |
-| **浏览器 Web GUI，天然跨平台** | ✅ | ✅ | ❌ (需桌面 App) |
+| 能力 | 本插件 | [dsh-catppuccin-theme](https://github.com/)（色板移植） | [dsh-theme-mineradio](https://github.com/)（单一美学定制） | [dsh-wallpaper-engine](https://github.com/)（壁纸桥接） |
+|------|:---:|:---:|:---:|:---:|
+| **8 套原创设计**（非现成色板移植，原创 token + 弥散光） | ✅ | ❌ (4 套 Catppuccin 官方色板) | ❌ (1 套香槟金美学) | ❌ |
+| **毛玻璃 / 液态玻璃双材质**一键切换 | ✅ | 部分（固定玻璃质感） | ❌ | ❌ |
+| **输入框 / 弹窗独立透明度滑杆** | ✅ | ❌ | ❌ | ❌ |
+| **开箱即用的出厂配置**（装完重启就是调好的样子） | ✅ | ❌ | ✅（本身即成品） | ❌ |
+| 自定义壁纸 + 透明度/模糊 | ✅ | ❌ | ❌ | ✅（核心能力） |
+| **壁纸 2.0**（URL / 渐变预设 / 每皮肤建议 / 自动弱化 / 必应每日 + 定时更新） | ✅ | ❌ | ❌ | 部分（依赖 WE 壁纸） |
+| **每用户强调色 Accent**（叠加层，不动皮肤本身） | ✅ | ❌ | ❌ | ❌ |
+| **主题包导入/导出 + 分享链接**（JSON，无代码分发） | ✅ | ❌ | ❌ | ❌ |
+| 本地主题包库 + 收藏 + 随机换 | ✅ | ❌ | ❌ | ❌ |
+| **两代宿主兼容 + 运行时能力探测**（宿主换代自动降级不报错） | ✅ | 未知 | 未知 | ❌（需先升级内核） |
+| 校验 + 回滚（不做破坏性更改） | ✅ | 部分 | — | 部分 |
+
+> **一句话**：想要 Catppuccin 的品牌色、mineradio 的氛围感？本插件的主题包系统都能做出来或叠出来——
+> 反过来不成立。
 
 ---
 
@@ -354,11 +348,15 @@ bundle（`@deepseek-ai/dsh-client-runtime/client`、…）。
 - [x] 首版：8 套主题 + 自定义壁纸（透明度 / 模糊）+ 本地持久化
 - [x] 主题包格式 + 导入 / 导出 / 分享链接（JSON + manifest + 校验）
 - [x] 每用户强调色 Accent + 随机
-- [x] 壁纸 2.0（URL / 渐变 / 每皮肤建议 / 自动弱化）
+- [x] 壁纸 2.0（URL / 渐变 / 每皮肤建议 / 自动弱化 / 必应每日 + 定时更新）
 - [x] 本地主题包库 + 一键应用 / 收藏 /「换一个试试」
 - [x] 多语言文案与文档（中 / 英 / 日 / 韩 / 西 / 法 / 德 / 俄）
+- [x] 玻璃材质系统：毛玻璃 / 液态玻璃双材质 + 独立透明度滑杆（v9.13.0）
+- [x] 开箱即用的出厂配置：装完重启即得调好的完整外观（v9.13.0）
+- [x] 宿主兼容加固：两代宿主运行时探测 + 类名漂移 DOM 形态标记（issue #50，v9.13.x）
+- [ ] 宿主哈希类名全量去依赖：剩余装饰规则（侧栏/文件面板）同样改 DOM 形态标记
 - [ ] 在线色板 / 主题预览 Studio（纯前端，浏览器内校验 + 对比度检查）
-- [ ] 社区主题库（把主题包投稿到仓库 / 在线 Gallery）
+- [ ] 社区主题库（把主题包投稿到仓库 / 在线 Gallery；欢迎用主题包做出 Catppuccin 风格等衍生配色）
 - [ ] 首帧无闪烁（FOUC）改进
 
 ---

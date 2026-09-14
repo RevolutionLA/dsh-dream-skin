@@ -59,31 +59,20 @@ The two ways are layered and independent: a preset decides the "material &amp; b
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Deep Blue</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Aurora Green</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Nebula Purple</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ember Amber</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Deep Blue<br/><sub>calm deep indigo, restrained and quiet</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Aurora Green<br/><sub>crisp translucent cool teal, natural cold tone</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Nebula Purple<br/><sub>deep diffused violet-blue, hazy and mysterious</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ember Amber<br/><sub>warm restrained amber orange</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Clear Bright</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Midnight OLED<br/><sub>minimal pure black, immersive OLED</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>minimal flat white, iOS system gray + restrained blue</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Clear Bright<br/><sub>crisp, bright glass feel, translucent + blurred</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>bright vivid pink, Google Material flat colors</sub></td>
   </tr>
 </table>
 
-### 📋 The presets at a glance
-
-| id | style | trait |
-|------|--------|------|
-| `abyss` | 🕶️ Deep Blue | calm deep indigo, restrained and quiet |
-| `aurora` | 🌌 Aurora Green | crisp translucent cool teal, natural cold tone |
-| `nebula` | 🪐 Nebula Purple | deep diffused violet-blue, hazy and mysterious |
-| `ember` | 🔥 Ember Amber | warm restrained amber orange |
-| `midnight` | 🌚 Midnight OLED | minimal pure black, immersive OLED |
-| `ivory` | 📐 iOS Flat | minimal flat white, iOS system gray + restrained blue |
-| `mist` | 🧊 Clear Bright | crisp, bright glass feel, translucent + blurred |
-| `rose` | 🌸 Material Pink | bright vivid pink, Google Material flat colors |
+> Light & dark both covered: `mist`, `ivory` and `rose` are light themes, the rest are dark. Not into presets? See **Way #2** below.
 
 ---
 
@@ -130,20 +119,29 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ---
 
-## 🏆 Why it earns a star (vs alternatives)
+## 🏆 Why it earns a star (vs similar DSH skinning plugins)
 
-| Capability | Ours | Other DSH skinning | Codex-Dream-Skin (desktop) |
-|------|:---:|:---:|:---:|
-| Native token themes — no injection, no installer patches | ✅ | ✅ | ❌ (CDP injection) |
-| **iOS/Linear-style cool translucent material & color** | ✅ | ❌ (anime-flavored) | ❌ |
-| **Restrained premium diffused-glow per skin** | ✅ | partial | ❌ |
-| Custom wallpaper + opacity/blur | ✅ | partial | ✅ |
-| **Theme-pack import/export + share links** | ✅ | ❌ | ✅ (zip packs) |
-| **Per-user Accent override** | ✅ | ❌ | partial |
-| **Wallpaper 2.0 (URL / gradient / per-skin suggestion / auto-dim)** | ✅ | ❌ | ✅ |
-| Local pack library + favorites + surprise-me | ✅ | ❌ | partial |
-| Validation + rollback | ✅ | partial | ✅ |
-| **Browser Web GUI, cross-platform natively** | ✅ | ✅ | ❌ (needs desktop App) |
+> A look across the lane: similar plugins either port over an existing palette (pretty, but a single on/off switch),
+> lock themselves to a single aesthetic, or focus on bridging external wallpapers in. We built skinning as a
+> **complete, tunable material & color system** — the goal isn't "flashier", it's "more precise, more restrained,
+> more durable to look at", like a pane of glass polished over and over. **Taste + tunability is our moat.**
+
+| Capability | Ours | [dsh-catppuccin-theme](https://github.com/) (palette port) | [dsh-theme-mineradio](https://github.com/) (single-aesthetic custom) | [dsh-wallpaper-engine](https://github.com/) (wallpaper bridge) |
+|------|:---:|:---:|:---:|:---:|
+| **8 original designs** (not a palette port: original tokens + diffused glow) | ✅ | ❌ (4 official Catppuccin palettes) | ❌ (1 champagne-gold aesthetic) | ❌ |
+| **Frosted / Liquid glass dual-material** one-click switch | ✅ | partial (fixed glass feel) | ❌ | ❌ |
+| **Independent opacity sliders for input box / popups** | ✅ | ❌ | ❌ | ❌ |
+| **Ready-tuned factory config** (restart after install and it just looks right) | ✅ | ❌ | ✅ (itself a finished product) | ❌ |
+| Custom wallpaper + opacity/blur | ✅ | ❌ | ❌ | ✅ (core ability) |
+| **Wallpaper 2.0** (URL / gradient presets / per-skin suggestion / auto-dim / Bing daily + scheduled refresh) | ✅ | ❌ | ❌ | partial (depends on WE wallpapers) |
+| **Per-user Accent** (overlay layer, the skin untouched) | ✅ | ❌ | ❌ | ❌ |
+| **Theme-pack import/export + share links** (JSON, code-free distribution) | ✅ | ❌ | ❌ | ❌ |
+| Local pack library + favorites + surprise-me | ✅ | ❌ | ❌ | ❌ |
+| **Two host generations compatible + runtime capability detection** (degrades gracefully across host upgrades, no errors) | ✅ | unknown | unknown | ❌ (kernel upgrade required first) |
+| Validation + rollback (no destructive changes) | ✅ | partial | — | partial |
+
+> **In one sentence**: want Catppuccin's brand colors or mineradio's vibe? This plugin's theme-pack system can build
+> or layer them — not the other way around.
 
 ---
 
@@ -351,14 +349,18 @@ seeds (`react`, `react/jsx-runtime`, …) and registered client bundles (`@deeps
 
 ## 📌 Roadmap
 
-- [x] v0.1: 8 themes + custom wallpaper (opacity / blur) + local persistence
+- [x] First release: 8 themes + custom wallpaper (opacity / blur) + local persistence
 - [x] Theme-pack format + import / export / share link (JSON + manifest + validation)
 - [x] Per-user Accent + randomize
-- [x] Wallpaper 2.0 (URL / gradient / per-skin suggestion / auto-dim)
+- [x] Wallpaper 2.0 (URL / gradient / per-skin suggestion / auto-dim / Bing daily + scheduled refresh)
 - [x] Local pack library + one-click apply / favorites / surprise-me
 - [x] Full i18n copy & docs (zh / en / ja / ko / es / fr / de / ru)
-- [ ] Online palette / theme-preview Studio (pure frontend, contrast checker)
-- [ ] Community theme gallery (submit packs to the repo / online gallery)
+- [x] Glass material system: Frosted / Liquid dual-material + independent opacity sliders (v9.13.0)
+- [x] Ready-tuned factory config: a fully styled look on first restart after install (v9.13.0)
+- [x] Host-compat hardening: runtime detection for two host generations + DOM-shape markers against class-name drift (issue #50, v9.13.x)
+- [ ] Full de-dependency on host hashed class names: migrate the remaining decorative rules (sidebar / file panel) to DOM-shape markers too
+- [ ] Online palette / theme-preview Studio (pure frontend, in-browser validation + contrast checker)
+- [ ] Community theme gallery (submit packs to the repo / online gallery; Catppuccin-style derivative palettes via theme packs are welcome)
 - [ ] First-paint (FOUC) improvement
 
 ---

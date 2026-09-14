@@ -59,31 +59,20 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Deep Blue</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Aurora Green</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Nebula Purple</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ember Amber</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Deep Blue<br/><sub>ruhiges, tiefes Indigo, zurückhaltend und leise</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Aurora Green<br/><sub>knackiges, transluzentes kühles Petrol, natürlicher kalter Ton</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Nebula Purple<br/><sub>tiefes, weiches Violettblau, dunstig und geheimnisvoll</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ember Amber<br/><sub>warmes, zurückhaltendes Amber-Orange</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Klar hell</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Midnight OLED<br/><sub>minimales, reines Schwarz, immersives OLED</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>minimales, flaches Weiß, iOS-Systemgrau + zurückhaltendes Blau</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Klar hell<br/><sub>knackig-helle Glasoptik, transluzent + unscharf</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>helles, leuchtendes Pink, flache Google-Material-Farben</sub></td>
   </tr>
 </table>
 
-### 📋 Die Presets auf einen Blick
-
-| id | Stil | Charakter |
-|------|--------|------|
-| `abyss` | 🕶️ Deep Blue | ruhiges, tiefes Indigo, zurückhaltend und leise |
-| `aurora` | 🌌 Aurora Green | knackiges, transluzentes kühles Petrol, natürlicher kalter Ton |
-| `nebula` | 🪐 Nebula Purple | tiefes, weiches Violettblau, dunstig und geheimnisvoll |
-| `ember` | 🔥 Ember Amber | warmes, zurückhaltendes Amber-Orange |
-| `midnight` | 🌚 Midnight OLED | minimalistisches reines Schwarz, immersives OLED |
-| `ivory` | 📐 iOS Flat | minimalistisches flaches Weiß, iOS-Systemgrau + zurückhaltendes Blau |
-| `mist` | 🧊 Klar hell | knackig-helle Glasoptik, transluzent + unscharf |
-| `rose` | 🌸 Material Pink | helles, leuchtendes Pink, flache Google-Material-Farben |
+> Hell und dunkel im Angebot: `mist`, `ivory` und `rose` sind helle Themes, alle anderen dunkle. Die Presets nicht dein Ding? Weiter geht's mit **Weg #2**.
 
 ---
 
@@ -132,18 +121,22 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ## 🏆 Warum es einen Stern verdient (im Vergleich zu Alternativen)
 
-| Fähigkeit | Unser | Anderes DSH-Skinning | Codex-Dream-Skin (Desktop) |
-|------|:---:|:---:|:---:|
-| Native Token-Themes — keine Injection, keine Installer-Patches | ✅ | ✅ | ❌ (CDP-Injection) |
-| **Kühles transluzentes Material & Farben im iOS/Linear-Stil** | ✅ | ❌ (Anime-lastig) | ❌ |
-| **Zurückhaltender Premium-diffused-glow pro Skin** | ✅ | teilweise | ❌ |
-| Benutzerdefiniertes Wallpaper + Deckkraft/Unschärfe | ✅ | teilweise | ✅ |
-| **Theme-Pack-Import/-Export + Freigabelinks** | ✅ | ❌ | ✅ (Zip-Packs) |
-| **Accent-Override pro Nutzer** | ✅ | ❌ | teilweise |
-| **Wallpaper 2.0 (URL / Gradient / Vorschlag pro Skin / Auto-Abdunkeln)** | ✅ | ❌ | ✅ |
-| Lokale Pack-Bibliothek + Favoriten + Überrasch-mich | ✅ | ❌ | teilweise |
-| Validierung + Rollback | ✅ | teilweise | ✅ |
-| **Browser-Web-GUI, plattformübergreifend nativ** | ✅ | ✅ | ❌ (Desktop-App nötig) |
+| Fähigkeit | Dieses Plugin | [dsh-catppuccin-theme](https://github.com/) (Farbpaletten-Port) | [dsh-theme-mineradio](https://github.com/) (Einzel-Ästhetik) | [dsh-wallpaper-engine](https://github.com/) (Wallpaper-Brücke) |
+|------|:---:|:---:|:---:|:---:|
+| **8 originale Designs** (kein Farbpaletten-Port, eigene Tokens + Diffused Glow) | ✅ | ❌ (4 offizielle Catppuccin-Paletten) | ❌ (1 Champagner-Gold-Ästhetik) | ❌ |
+| **Frosted Glass / Liquid Glass** per Klick umschalten | ✅ | teilweise (feste Glasoptik) | ❌ | ❌ |
+| **Separate Transparenzregler** für Eingabefeld / Dialoge | ✅ | ❌ | ❌ | ❌ |
+| **Fabrikfertige Vorkonfiguration** (nach Installation + Neustart direkt fertig eingestellt) | ✅ | ❌ | ✅ (ist selbst das fertige Produkt) | ❌ |
+| Benutzerdefiniertes Wallpaper + Deckkraft/Unschärfe | ✅ | ❌ | ❌ | ✅ (Kernfunktion) |
+| **Wallpaper 2.0** (URL / Gradient-Presets / Vorschlag pro Skin / Auto-Abdunkeln / Bing täglich + zeitgesteuert) | ✅ | ❌ | ❌ | teilweise (abhängig vom WE-Wallpaper) |
+| **Accent pro Nutzer** (Overlay-Ebene, der Skin bleibt unangetastet) | ✅ | ❌ | ❌ | ❌ |
+| **Theme-Pack-Import/-Export + Freigabelink** (JSON, verteilbar ohne Code) | ✅ | ❌ | ❌ | ❌ |
+| Lokale Pack-Bibliothek + Favoriten + Überrasch-mich | ✅ | ❌ | ❌ | ❌ |
+| **Kompatibel mit zwei Host-Generationen + Laufzeit-Fähigkeitserkennung** (Host-Wechsel degradiert automatisch statt zu crashen) | ✅ | unbekannt | unbekannt | ❌ (Kernel-Upgrade nötig) |
+| Validierung + Rollback (keine destruktiven Änderungen) | ✅ | teilweise | — | teilweise |
+
+> **In einem Satz**: Die Markentöne von Catppuccin oder die Atmosphäre von mineradio — das Theme-Pack-System dieses
+> Plugins baut beides nach oder legt es als Schicht darüber. Umgekehrt funktioniert es nicht.
 
 ---
 
@@ -355,11 +348,15 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 - [x] v0.1: 8 Themes + benutzerdefiniertes Wallpaper (Deckkraft / Unschärfe) + lokale Speicherung
 - [x] Theme-Pack-Format + Import / Export / Freigabelink (JSON + Manifest + Validierung)
 - [x] Accent pro Nutzer + Zufallsfunktion
-- [x] Wallpaper 2.0 (URL / Gradient / Vorschlag pro Skin / Auto-Abdunkeln)
+- [x] Wallpaper 2.0 (URL / Gradient / Vorschlag pro Skin / Auto-Abdunkeln / Bing täglich + zeitgesteuert)
 - [x] Lokale Pack-Bibliothek + Anwenden per Klick / Favoriten / Überrasch-mich
 - [x] Vollständige i18n-Texte & Doku (zh / en / ja / ko / es / fr / de / ru)
-- [ ] Online-Farbpaletten- / Theme-Vorschau-Studio (reines Frontend, Kontrastprüfer)
-- [ ] Community-Theme-Galerie (Packs zum Repo / zur Online-Galerie beitragen)
+- [x] Glasmaterial-System: Frosted Glass / Liquid Glass + separater Transparenzregler (v9.13.0)
+- [x] Fabrikfertige Vorkonfiguration: nach Installation + Neustart direkt der fertig abgestimmte Look (v9.13.0)
+- [x] Host-Kompatibilität gehärtet: Laufzeiterkennung über zwei Host-Generationen + DOM-Form-Marker gegen Klassennamen-Drift (issue #50, v9.13.x)
+- [ ] Vollständige Entkopplung von Host-Hash-Klassennamen: verbleibende Deko-Regeln (Seitenleiste/Datei-Panel) ebenfalls auf DOM-Form-Marker umstellen
+- [ ] Online-Farbpaletten- / Theme-Vorschau-Studio (reines Frontend, Validierung im Browser + Kontrastprüfer)
+- [ ] Community-Theme-Galerie (Packs zum Repo / zur Online-Galerie beitragen; Catppuccin-artige Derivat-Farbgebungen per Theme-Pack ausdrücklich willkommen)
 - [ ] Verbesserung des First-Paint (FOUC)
 
 ---

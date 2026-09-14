@@ -1506,7 +1506,12 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// right-angle frame around the input when a wallpaper was active. The root is
 	// now transparent so only the rounded card renders (issue: 外层尖角框).
 	assert.ok(css.includes('.uV2eYG_root'), 'composer root styled');
-	assert.ok(css.includes('.uV2eYG_root {'), 'composer root rule present');
+	assert.ok(css.includes('.uV2eYG_root,'), 'composer root rule present (legacy hash selector)');
+	// Issue #50 regression: on dsh 0.1.5+ the host re-rolled every hash class,
+	// so the glass rules matched nothing and the 输入框透明度 slider went dead.
+	// Every composer rule must now ALSO match our own DOM-shape attribute.
+	assert.ok(css.includes('[data-dsh-dream-skin-composer]'), 'composer rules carry the DOM-shape attribute selector');
+	assert.ok(css.includes('.uV2eYG_card::before,'), 'glass ::before rule matches BOTH hash and attribute');
 	assert.ok(css.includes("background: transparent"), 'composer root has no sharp frame (transparent)');
 	assert.ok(!css.includes('linear-gradient(to bottom'), 'no full-width scrim gradient around the rounded card');
 	// Cross-panel consistency: the right file panel must use the same sidebar fill
@@ -1526,7 +1531,10 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// the token fill line first, then the @supports gate that transparents the
 	// card body, and the OPAQUE composer-base token so the fill weight is the
 	// composer slider's alone (the wallpaper slider must not thin it).
-	assert.ok(css.includes('.uV2eYG_card {') && css.includes('var(--dsw-specific-input-major)'), 'composer card keeps the token-fill fallback line');
+	// Issue #50: selectors now carry BOTH the legacy hash and the DOM-shape
+	// attribute (`[data-dsh-dream-skin-composer]`), so assert the hash prefix
+	// rather than the old bare `{` form.
+	assert.ok(/\.uV2eYG_card[^{]*\{/.test(css) && css.includes('var(--dsw-specific-input-major)'), 'composer card keeps the token-fill fallback line');
 	assert.ok(css.includes('@supports') && /@supports[^{]*color-mix[^{]*\{[^}]*\.uV2eYG_card[^}]*background: transparent/.test(css.replace(/\n/g, ' ')), '@supports gate transparents the composer card body');
 	assert.ok(css.includes('--dsh-dream-skin-composer-base'), 'composer fill mixes the OPAQUE composer-base token (no alpha compounding)');
 	// The user-questions option card must get a high-opacity readable fill (it

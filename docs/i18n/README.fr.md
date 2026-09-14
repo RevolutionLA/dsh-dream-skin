@@ -52,38 +52,27 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 
 ---
 
-## 🎨 Aperçu — la série Mirage
+## 🎨 Voie n°1 : 8 skins prédéfinis (série Mirage)
 
-> **Voie n°1 · élégant clé en main.** Les 8 skins ci-dessous sont générés à partir des **vrais tokens + du fond diffused-glow dédié** de
-> chaque skin — ce que vous voyez est ce que vous obtenez. Cliquez pour zoomer et admirer le détail du matériau.
+> **Voie n°1 · élégant clé en main.** Basculez en un clic sous **Paramètres → Thème / Apparence**. Les 8 aperçus ci-dessous sont générés à partir des
+> **vrais tokens + du fond diffused-glow dédié** de chaque skin — ce que vous voyez est ce que vous obtenez. Cliquez pour zoomer et admirer le détail du matériau.
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Bleu profond</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Vert aurora</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Violet nébuleuse</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ambre braise</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Bleu profond<br/><sub>indigo profond et calme, sobre et paisible</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Vert aurora<br/><sub>sarcelle froide translucide et nette, tonalité naturelle froide</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Violet nébuleuse<br/><sub>violet-bleu diffus et profond, brumeux et mystérieux</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ambre braise<br/><sub>orange ambré chaud et sobre</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Minuit OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · Clair net</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Rose Material</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Minuit OLED<br/><sub>noir pur minimaliste, OLED immersif</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>blanc plat minimaliste, gris système iOS + bleu sobre</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Clair net<br/><sub>rendu de verre net et lumineux, translucide + flouté</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Rose Material<br/><sub>rose vif et éclatant, couleurs plates Google Material</sub></td>
   </tr>
 </table>
 
-### 📋 Les presets en un coup d'œil
-
-| id | style | caractéristique |
-|------|--------|------|
-| `abyss` | 🕶️ Bleu profond | indigo profond et calme, sobre et paisible |
-| `aurora` | 🌌 Vert aurora | sarcelle froide translucide et nette, tonalité naturelle froide |
-| `nebula` | 🪐 Violet nébuleuse | violet-bleu diffus et profond, brumeux et mystérieux |
-| `ember` | 🔥 Ambre braise | orange ambré chaud et sobre |
-| `midnight` | 🌚 Minuit OLED | noir pur minimaliste, OLED immersif |
-| `ivory` | 📐 iOS Flat | blanc plat minimaliste, gris système iOS + bleu sobre |
-| `mist` | 🧊 Clair net | rendu de verre net et lumineux, translucide + flouté |
-| `rose` | 🌸 Rose Material | rose vif et éclatant, couleurs plates Google Material |
+> Clair / sombre : `mist`, `ivory` et `rose` sont des thèmes clairs, les autres sont sombres. Les presets ne vous plaisent pas ? Poursuivez avec la **Voie n°2**.
 
 ---
 
@@ -130,20 +119,29 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ---
 
-## 🏆 Pourquoi il mérite une étoile (vs les alternatives)
+## 🏆 Pourquoi il mérite une étoile (vs les plugins de thème DSH)
 
-| Capacité | Le nôtre | Autre skinning DSH | Codex-Dream-Skin (desktop) |
-|------|:---:|:---:|:---:|
-| Thèmes natifs par tokens — aucune injection, aucun patch d'installation | ✅ | ✅ | ❌ (injection CDP) |
-| **Matériau translucide froid &amp; couleur, style iOS/Linear** | ✅ | ❌ (style anime) | ❌ |
-| **Diffused glow premium et sobre par skin** | ✅ | partiel | ❌ |
-| Wallpaper personnalisé + opacité/flou | ✅ | partiel | ✅ |
-| **Import/export de packs de thèmes + liens de partage** | ✅ | ❌ | ✅ (packs zip) |
-| **Surcharge d'Accent par utilisateur** | ✅ | ❌ | partiel |
-| **Wallpaper 2.0 (URL / gradient / suggestion par skin / auto-assombrissement)** | ✅ | ❌ | ✅ |
-| Bibliothèque locale de packs + favoris + surprise-moi | ✅ | ❌ | partiel |
-| Validation + restauration | ✅ | partiel | ✅ |
-| **Web GUI navigateur, multiplateforme nativement** | ✅ | ✅ | ❌ (nécessite l'App desktop) |
+> Changez de piste et regardez : les plugins du même genre, c'est soit un portage d'une palette toute prête (jolie, mais un seul réglage),
+> soit une édition verrouillée sur une esthétique unique, soit un pont dédié aux wallpapers externes. Nous, nous faisons du skinning un
+> **véritable système réglable de matériaux et de couleurs** — l'ambition n'est pas « plus clinquant », mais « plus juste, plus sobre,
+> plus durable à l'œil », comme un verre longuement repensé. **Le goût + la réglabilité, c'est notre rempart.**
+
+| Capacité | Le nôtre | [dsh-catppuccin-theme](https://github.com/) (palette portée) | [dsh-theme-mineradio](https://github.com/) (esthétique unique) | [dsh-wallpaper-engine](https://github.com/) (pont wallpaper) |
+|------|:---:|:---:|:---:|:---:|
+| **8 designs originaux** (pas un portage de palette : tokens originaux + diffused glow) | ✅ | ❌ (4 palettes Catppuccin officielles) | ❌ (1 esthétique or champagne) | ❌ |
+| **Double matériau verre dépoli / verre liquide** en un clic | ✅ | partiel (rendu de verre figé) | ❌ | ❌ |
+| **Curseurs d'opacité indépendants pour la saisie / les popups** | ✅ | ❌ | ❌ | ❌ |
+| **Apparence prête à l'installation** (redémarrez et c'est déjà réglé) | ✅ | ❌ | ✅ (un produit fini en soi) | ❌ |
+| Wallpaper personnalisé + opacité/flou | ✅ | ❌ | ❌ | ✅ (cœur du produit) |
+| **Wallpaper 2.0** (URL / presets de gradient / suggestion par skin / auto-assombrissement / photo du jour Bing + rafraîchissement programmé) | ✅ | ❌ | ❌ | partiel (dépend des wallpapers WE) |
+| **Accent par utilisateur** (couche de surcharge, le skin reste intact) | ✅ | ❌ | ❌ | ❌ |
+| **Import / export de packs de thèmes + liens de partage** (JSON, distribution sans code) | ✅ | ❌ | ❌ | ❌ |
+| Bibliothèque locale de packs + favoris + surprise-moi | ✅ | ❌ | ❌ | ❌ |
+| **Compatibilité deux générations d'hôte + détection de capacités à l'exécution** (dégradation propre sans erreur quand l'hôte change) | ✅ | inconnu | inconnu | ❌ (nécessite d'abord une mise à niveau du noyau) |
+| Validation + restauration (aucune modification destructive) | ✅ | partiel | — | partiel |
+
+> **En une phrase** : vous voulez la palette Catppuccin ou l'atmosphère mineradio ? Le système de packs de ce plugin sait les recréer
+> ou les superposer — l'inverse n'est pas vrai.
 
 ---
 
@@ -353,12 +351,16 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 - [x] v0.1 : 8 thèmes + wallpaper personnalisé (opacité / flou) + persistance locale
 - [x] Format de pack de thèmes + import / export / lien de partage (JSON + manifest + validation)
 - [x] Accent par utilisateur + aléatoire
-- [x] Wallpaper 2.0 (URL / gradient / suggestion par skin / auto-assombrissement)
+- [x] Wallpaper 2.0 (URL / gradient / suggestion par skin / auto-assombrissement / photo du jour Bing + rafraîchissement programmé)
 - [x] Bibliothèque locale de packs + application en un clic / favoris / surprise-moi
 - [x] Contenu & documentation i18n complets (zh / en / ja / ko / es / fr / de / ru)
-- [ ] Palette en ligne / Studio d'aperçu de thèmes (frontend pur, vérificateur de contraste)
-- [ ] Galerie de thèmes communautaire (soumettre des packs au dépôt / galerie en ligne)
-- [ ] Amélioration du premier rendu (FOUC)
+- [x] Système de matériaux de verre : double verre dépoli / verre liquide + curseurs d'opacité indépendants (v9.13.0)
+- [x] Apparence prête à l'installation : une apparence complète et réglée dès le premier redémarrage (v9.13.0)
+- [x] Consolidation de la compatibilité hôte : détection à l'exécution sur deux générations d'hôte + marqueurs de forme DOM face à la dérive des noms de classe (issue #50, v9.13.x)
+- [ ] Indépendance totale vis-à-vis des noms de classe hachés : les règles décoratives restantes (barre latérale / panneau de fichiers) passeront elles aussi aux marqueurs de forme DOM
+- [ ] Palette en ligne / Studio d'aperçu de thèmes (frontend pur, validation dans le navigateur + vérificateur de contraste)
+- [ ] Bibliothèque de thèmes communautaire (soumettre des packs au dépôt / galerie en ligne ; les dérivés type Catppuccin via packs de thèmes sont bienvenus)
+- [ ] Amélioration du premier rendu sans scintillement (FOUC)
 
 ---
 

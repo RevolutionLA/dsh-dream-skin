@@ -52,38 +52,27 @@
 
 ---
 
-## 🎨 미리보기 — Mirage 시리즈
+## 🎨 방법 #1: preset skin 8종 (Mirage 시리즈)
 
-> **방법 #1 · 설치하자마자 우아하게.** 아래 8종의 skin은 각 skin의 **실제 tokens + 전용 diffused-glow 배경**으로
+> **방법 #1 · 설치하자마자 우아하게.** **Settings → Theme / Appearance**에서 한 번의 클릭으로 전환합니다. 아래 8종의 미리보기는 각 skin의 **실제 tokens + 전용 diffused-glow 배경**으로
 > 생성되었습니다 — 보이는 그대로입니다. 클릭하면 정교한 material 디테일을 확대해서 볼 수 있습니다.
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Deep Blue</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Aurora Green</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Nebula Purple</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ember Amber</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 차분한 블루<br/><sub>차분하고 깊은 인디고, 절제되고 조용한</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 오로라 틸<br/><sub>선명하고 반투명한 쿨 틸, 자연스러운 차가운 톤</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 성운 퍼플<br/><sub>깊고 은은한 바이올렛-블루, 아련하고 신비로운</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 잉버 앰버<br/><sub>따뜻하고 절제된 앰버 오렌지</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 클리어 브라이트</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 미드나잇 블랙<br/><sub>미니멀한 순수 블랙, 몰입감 있는 OLED</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 플랫<br/><sub>미니멀한 플랫 화이트, iOS 시스템 그레이 + 절제된 블루</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 클리어 브라이트<br/><sub>맑고 밝은 유리 질감, 반투명 + 블러</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>밝고 선명한 핑크, Google Material 플랫 컬러</sub></td>
   </tr>
 </table>
 
-### 📋 preset 한눈에 보기
-
-| id | 스타일 | 특징 |
-|------|--------|------|
-| `abyss` | 🕶️ Deep Blue | 차분한 딥 인디고, 절제되고 조용한 |
-| `aurora` | 🌌 Aurora Green | 선명하고 반투명한 쿨 틸, 자연스러운 차가운 톤 |
-| `nebula` | 🪐 Nebula Purple | 깊고 은은한 바이올렛-블루, 아련하고 신비로운 |
-| `ember` | 🔥 Ember Amber | 따뜻하고 절제된 앰버 오렌지 |
-| `midnight` | 🌚 Midnight OLED | 미니멀한 순수 블랙, 몰입감 있는 OLED |
-| `ivory` | 📐 iOS Flat | 미니멀한 플랫 화이트, iOS 시스템 그레이 + 절제된 블루 |
-| `mist` | 🧊 클리어 브라이트 | 맑고 밝은 유리 질감, 반투명 + 블러 |
-| `rose` | 🌸 Material Pink | 밝고 선명한 핑크, Google Material 플랫 컬러 |
+> 라이트 / 다크 모두 커버: `mist`, `ivory`, `rose`는 라이트 계열, 나머지는 다크 계열입니다. preset이 마음에 들지 않나요? 아래 **방법 #2**를 보세요.
 
 ---
 
@@ -130,20 +119,29 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ---
 
-## 🏆 별 하나를 받을 만한 이유 (대안과의 비교)
+## 🏆 별 하나를 받을 만한 이유 (유사 DSH 테마 플러그인과의 비교)
 
-| 기능 | 당사 제품 | 기타 DSH 스키닝 | Codex-Dream-Skin (데스크톱) |
-|------|:---:|:---:|:---:|
-| 네이티브 token 테마 — injection 없음, 설치 프로그램 패치 없음 | ✅ | ✅ | ❌ (CDP injection) |
-| **iOS/Linear 스타일의 쿨한 반투명 material & color** | ✅ | ❌ (애니메이션풍) | ❌ |
-| **skin마다 절제된 프리미엄 diffused-glow** | ✅ | 일부 | ❌ |
-| 커스텀 wallpaper + opacity/blur | ✅ | 일부 | ✅ |
-| **Theme pack 가져오기/내보내기 + 공유 링크** | ✅ | ❌ | ✅ (zip pack) |
-| **사용자별 Accent 오버라이드** | ✅ | ❌ | 일부 |
-| **Wallpaper 2.0 (URL / gradient / skin별 추천 / auto-dim)** | ✅ | ❌ | ✅ |
-| 로컬 pack 라이브러리 + 즐겨찾기 + surprise-me | ✅ | ❌ | 일부 |
-| 검증 + 롤백 | ✅ | 일부 | ✅ |
-| **브라우저 Web GUI, 크로스 플랫폼 네이티브** | ✅ | ✅ | ❌ (데스크톱 App 필요) |
+> 관점을 바꿔 보면: 유사 플러그인들은 기존 팔레트를 이식하거나(예쁘지만 설정은 스위치 하나뿐), 단일 미학에 고정된
+> 커스텀 제품이거나, 외부 wallpaper를 들여오는 데만 집중합니다. 우리는 스키닝을 **조율 가능한 material과 컬러의
+> 완전한 시스템**으로 만들었습니다 — 추구하는 것은 "더 화려함"이 아니라 "더 정확하고, 더 절제되고, 더 오래 봐도
+> 좋은", 반복적으로 다듬어진 유리 한 장입니다. **미학 + 조율 가능성이 우리의 해자(moat)입니다.**
+
+| 기능 | 당사 플러그인 | [dsh-catppuccin-theme](https://github.com/) (팔레트 이식) | [dsh-theme-mineradio](https://github.com/) (단일 미학 커스텀) | [dsh-wallpaper-engine](https://github.com/) (wallpaper 브릿지) |
+|------|:---:|:---:|:---:|:---:|
+| **오리지널 디자인 8종** (기존 팔레트 이식이 아닌, 오리지널 tokens + diffused glow) | ✅ | ❌ (Catppuccin 공식 팔레트 4종) | ❌ (샴페인 골드 미학 1종) | ❌ |
+| **새틴 글래스 / 리퀴드 글래스 이중 material** 원클릭 전환 | ✅ | 부분 (고정된 유리 질감) | ❌ | ❌ |
+| **입력창 / 팝업 독립 투명도 슬라이더** | ✅ | ❌ | ❌ | ❌ |
+| **설치 즉시 완성된 출고 설정** (재시작하면 바로 다듬어진 모습) | ✅ | ❌ | ✅ (그 자체로 완성품) | ❌ |
+| 커스텀 wallpaper + 투명도/블러 | ✅ | ❌ | ❌ | ✅ (핵심 기능) |
+| **Wallpaper 2.0** (URL / gradient preset / skin별 추천 / auto-dim / Bing 일일 + 자동 갱신) | ✅ | ❌ | ❌ | 부분 (WE wallpaper 의존) |
+| **사용자별 Accent 오버라이드** (오버레이 레이어, skin은 그대로) | ✅ | ❌ | ❌ | ❌ |
+| **Theme pack 가져오기/내보내기 + 공유 링크** (JSON, 코드 없는 배포) | ✅ | ❌ | ❌ | ❌ |
+| 로컬 pack 라이브러리 + 즐겨찾기 + surprise-me | ✅ | ❌ | ❌ | ❌ |
+| **두 세대 호스트 호환 + 런타임 기능 감지** (호스트 세대 전환 시 자동으로 성능 저하, 오류 없음) | ✅ | 알 수 없음 | 알 수 없음 | ❌ (커널 업그레이드 필요) |
+| 검증 + 롤백 (파괴적인 변경 없음) | ✅ | 부분 | — | 부분 |
+
+> **한 줄 요약**: Catppuccin의 브랜드 컬러, mineradio의 분위기를 원하신다면? 이 플러그인의 theme pack 시스템으로
+> 만들거나 쌓아 올릴 수 있습니다 — 그 반대는 성립하지 않습니다.
 
 ---
 
@@ -351,15 +349,19 @@ ui-layout의 ThemePresenter가 `<body>`에 인라인 커스텀 프로퍼티로 �
 
 ## 📌 로드맵
 
-- [x] v0.1: 테마 8종 + 커스텀 wallpaper (opacity / blur) + 로컬 저장
+- [x] 첫 버전: 테마 8종 + 커스텀 wallpaper (투명도 / 블러) + 로컬 저장
 - [x] Theme pack 형식 + 가져오기 / 내보내기 / 공유 링크 (JSON + manifest + 검증)
 - [x] 사용자별 Accent + 랜덤
-- [x] Wallpaper 2.0 (URL / gradient / skin별 추천 / auto-dim)
+- [x] Wallpaper 2.0 (URL / gradient / skin별 추천 / auto-dim / Bing 일일 + 자동 갱신)
 - [x] 로컬 pack 라이브러리 + 한 번 클릭 적용 / 즐겨찾기 / surprise-me
 - [x] 완전한 i18n 문구 & 문서 (zh / en / ja / ko / es / fr / de / ru)
-- [ ] 온라인 팔레트 / 테마 미리보기 Studio (순수 프론트엔드, 대비 검사기)
-- [ ] 커뮤니티 테마 갤러리 (저장소 / 온라인 갤러리에 pack 제출)
-- [ ] 첫 페인트 (FOUC) 개선
+- [x] 글래스 material 시스템: 새틴 글래스 / 리퀴드 글래스 이중 material + 독립 투명도 슬라이더 (v9.13.0)
+- [x] 설치 즉시 완성된 출고 설정: 재시작만 하면 다듬어진 완전한 모습으로 (v9.13.0)
+- [x] 호스트 호환 강화: 두 세대 호스트 런타임 감지 + 클래스 이름 드리프트용 DOM 형태 마커 (issue #50, v9.13.x)
+- [ ] 호스트 해시 클래스 이름 완전 탈의존: 남은 장식 규칙(사이드바 / 파일 패널) 역시 DOM 형태 마커로 전환
+- [ ] 온라인 팔레트 / 테마 미리보기 Studio (순수 프론트엔드, 브라우저 내 검증 + 대비 검사기)
+- [ ] 커뮤니티 테마 라이브러리 (저장소 / 온라인 갤러리에 pack 제출; Catppuccin 스타일 등 파생 팔레트를 pack으로 만들어 보는 것도 환영)
+- [ ] 첫 페인트 깜빡임(FOUC) 개선
 
 ---
 

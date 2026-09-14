@@ -50,37 +50,26 @@
 
 ---
 
-## 🎨 プレビュー — Mirage シリーズ
+## 🎨 方法 #1：プリセットスキン 8種（Mirage シリーズ）
 
-> **方法 #1 · 箱から出してすぐエレガント。** 下の 8 スキンは、各スキンの**実トークン + 専用の diffused-glow 背景**から生成しています — 見たままが得られます。クリックで拡大して、素材の細部をご確認ください。
+> **箱から出してすぐエレガント。** **設定 → テーマ / 外観** でワンクリック切替。下の 8 スキンは、各スキンの**実トークン + 専用の diffused-glow 背景**から生成しています — 見たままが得られます。クリックで拡大して、素材の細部をご確認ください。
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · Deep Blue</td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · Aurora Green</td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · Nebula Purple</td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · Ember Amber</td>
+    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 深静ブルー<br/><sub>落ち着いた深い藍色、控えめで静か</sub></td>
+    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 オーロラティール<br/><sub>澄んだ半透明のクールなティール、自然な冷色</sub></td>
+    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星雲パープル<br/><sub>深く拡散した青紫、霞がかってミステリアス</sub></td>
+    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余炎アンバー<br/><sub>温かみのある控えめな琥珀色</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · Midnight OLED</td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · iOS Flat</td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · クリアブライト</td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · Material Pink</td>
+    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 ミッドナイトブラック<br/><sub>ミニマルな純黒、没入感のある OLED</sub></td>
+    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS フラット<br/><sub>ミニマルなフラットホワイト、iOS システムグレー + 控えめなブルー</sub></td>
+    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 クリアブライト<br/><sub>明るくすっきりしたガラス質感、半透明 + ぼかし</sub></td>
+    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 マテリアルピンク<br/><sub>明るく鮮やかなピンク、Google Material のフラットカラー</sub></td>
   </tr>
 </table>
 
-### 📋 プリセット一覧
-
-| id | style | trait |
-|------|--------|------|
-| `abyss` | 🕶️ Deep Blue | 落ち着いた深い藍色、控えめで静か |
-| `aurora` | 🌌 Aurora Green | 澄んだ半透明のクールなティール、自然な冷色 |
-| `nebula` | 🪐 Nebula Purple | 深く拡散した青紫、霞がかってミステリアス |
-| `ember` | 🔥 Ember Amber | 温かみのある控えめな琥珀色 |
-| `midnight` | 🌚 Midnight OLED | ミニマルな純黒、没入感のある OLED |
-| `ivory` | 📐 iOS Flat | ミニマルなフラットホワイト、iOS システムグレー + 控えめなブルー |
-| `mist` | 🧊 クリアブライト | 明るくすっきりしたガラス質感、半透明 + ぼかし |
-| `rose` | 🌸 Material Pink | 明るく鮮やかなピンク、Google Material のフラットカラー |
+> ライト & ダーク両対応：`mist`、`ivory`、`rose` はライト系、それ以外はダーク系です。プリセットで物足りない？ この先の**方法 #2** へどうぞ。
 
 ---
 
@@ -123,20 +112,25 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ---
 
-## 🏆 スターを付けたくなる理由（他の選択肢との比較）
+## 🏆 スターを付けたくなる理由（他の DSH テーマプラグインとの比較）
 
-| 機能 | 当プラグイン | 他の DSH スキニング | Codex-Dream-Skin（デスクトップ） |
-|------|:---:|:---:|:---:|
-| ネイティブのトークンテーマ — 注入なし、インストーラーへのパッチなし | ✅ | ✅ | ❌（CDP 注入） |
-| **iOS / Linear 風のクールな半透明マテリアル & カラー** | ✅ | ❌（アニメ風） | ❌ |
-| **スキンごとの控えめで高級感のある diffused-glow** | ✅ | 一部対応 | ❌ |
-| カスタム壁紙 + 不透明度 / ぼかし | ✅ | 一部対応 | ✅ |
-| **テーマパックのインポート / エクスポート + 共有リンク** | ✅ | ❌ | ✅（zip パック） |
-| **ユーザーごとの Accent オーバーライド** | ✅ | ❌ | 一部対応 |
-| **Wallpaper 2.0（URL / グラデーション / スキンごとの提案 / 自動減光）** | ✅ | ❌ | ✅ |
-| ローカルパックライブラリ + お気に入り + おまかせ | ✅ | ❌ | 一部対応 |
-| 検証 + ロールバック | ✅ | 一部対応 | ✅ |
-| **ブラウザベースの Web GUI、クロスプラットフォームにネイティブ対応** | ✅ | ✅ | ❌（デスクトップアプリが必要） |
+> 視点を変えて見ると：同種のプラグインは、既成のカラーパレットを移植したもの（きれいだが設定はスイッチ一つ）、単一の美学に閉じたカスタム版、外部の壁紙を取り込むことに特化したもののいずれかです。私たちはスキニングを**調整可能な素材と配色のシステム一式**として設計しました — 追求しているのは「より華やか」ではなく、「より的確に、より控えめに、より長く飽きずに」、何度も吟味を重ねた一枚のガラスのように。**審美性 + 調整可能性が私たちの堀（モート）です。**
+
+| 機能 | 当プラグイン | [dsh-catppuccin-theme](https://github.com/)（パレット移植） | [dsh-theme-mineradio](https://github.com/)（単一美学カスタム） | [dsh-wallpaper-engine](https://github.com/)（壁紙ブリッジ） |
+|------|:---:|:---:|:---:|:---:|
+| **オリジナルデザイン 8種**（既成パレットの移植ではなく、オリジナル token + diffused glow） | ✅ | ❌（Catppuccin 公式パレット 4種） | ❌（シャンパンゴールド美学 1種） | ❌ |
+| **すりガラス / リキッドガラスのデュアル素材**をワンクリック切替 | ✅ | 一部（固定のガラス質感） | ❌ | ❌ |
+| **入力欄 / ポップアップの独立した不透明度スライダー** | ✅ | ❌ | ❌ | ❌ |
+| **箱から出してすぐの初期設定**（インストールして再起動するだけですぐ使える調整済みの見た目） | ✅ | ❌ | ✅（それ自体が完成品） | ❌ |
+| カスタム壁紙 + 不透明度 / ぼかし | ✅ | ❌ | ❌ | ✅（中核機能） |
+| **Wallpaper 2.0**（URL / グラデーションプリセット / スキンごとの提案 / 自動減光 / Bing 毎日 + 定時更新） | ✅ | ❌ | ❌ | 一部（WE 壁紙に依存） |
+| **ユーザーごとの Accent**（オーバーレイレイヤー、スキン自体は変更なし） | ✅ | ❌ | ❌ | ❌ |
+| **テーマパックのインポート / エクスポート + 共有リンク**（JSON、コード不要の配布） | ✅ | ❌ | ❌ | ❌ |
+| ローカルパックライブラリ + お気に入り + おまかせ | ✅ | ❌ | ❌ | ❌ |
+| **2世代のホスト互換 + ランタイム能力検出**（ホスト交代時も自動デグレードでエラーなし） | ✅ | 不明 | 不明 | ❌（先にコアの更新が必要） |
+| 検証 + ロールバック（破壊的な変更なし） | ✅ | 一部対応 | — | 一部対応 |
+
+> **ひとことで**：Catppuccin のブランドカラーも、mineradio の雰囲気も、本プラグインのテーマパックシステムなら作り出せる、重ねられます — その逆は成り立ちません。
 
 ---
 
@@ -318,14 +312,18 @@ DSH のテーマシステムはトークンベースです：Web シェルは `-
 
 ## 📌 ロードマップ
 
-- [x] v0.1：8テーマ + カスタム壁紙（不透明度 / ぼかし）+ ローカル永続化
+- [x] 初版：8テーマ + カスタム壁紙（不透明度 / ぼかし）+ ローカル永続化
 - [x] テーマパック形式 + インポート / エクスポート / 共有リンク（JSON + マニフェスト + 検証）
 - [x] ユーザーごとの Accent + ランダム化
-- [x] Wallpaper 2.0（URL / グラデーション / スキンごとの提案 / 自動減光）
+- [x] Wallpaper 2.0（URL / グラデーション / スキンごとの提案 / 自動減光 / Bing 毎日 + 定時更新）
 - [x] ローカルパックライブラリ + ワンクリック適用 / お気に入り / おまかせ
-- [x] 完全な i18n コピー & ドキュメント（zh / en / ja / ko / es / fr / de / ru）
-- [ ] オンラインのパレット / テーマプレビュー Studio（純フロントエンド、コントラストチェッカー）
-- [ ] コミュニティテーマギャラリー（パックをリポジトリ / オンラインギャラリーに投稿）
+- [x] 多言語コピー & ドキュメント（zh / en / ja / ko / es / fr / de / ru）
+- [x] ガラス素材システム：すりガラス / リキッドガラスのデュアル素材 + 独立した不透明度スライダー（v9.13.0）
+- [x] 箱から出してすぐの初期設定：インストールして再起動するだけで調整済みの完全な外観に（v9.13.0）
+- [x] ホスト互換の強化：2世代ホストのランタイム検出 + クラス名の変動に強い DOM 形状マーカー（issue #50、v9.13.x）
+- [ ] ホストのハッシュ化クラス名への完全な非依存化：残りの装飾ルール（サイドバー / ファイルパネル）も DOM 形状マーカーへ移行
+- [ ] オンラインのパレット / テーマプレビュー Studio（純フロントエンド、ブラウザ内検証 + コントラストチェック）
+- [ ] コミュニティテーマライブラリ（パックをリポジトリ / オンラインギャラリーに投稿。Catppuccin 風などの派生カラーパックも歓迎）
 - [ ] 初回描画（FOUC）の改善
 
 ---
