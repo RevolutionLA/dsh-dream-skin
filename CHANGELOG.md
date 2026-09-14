@@ -2,6 +2,14 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [9.14.2] - 2026-09-14
+
+> **npm 元数据版**（无代码变更，提升插件在目录与 npm 搜索中的可发现性）。
+
+### 变更
+- npm `description` 改为双语（补充英文能力摘要，明确支持原生 DSH Web 与 DSH Desktop 等第三方桌面端）；
+- `keywords` 从 9 个扩到 15 个：新增 `deepseek`、`dsh-desktop`（第三方桌面端用户的搜索入口）、`theme-pack`、`glassmorphism`、`主题`、`美化`——DSH Community Market 的目录 adapter 与 dshfind 均从 npm `latest` 抓取结构化字段，元数据即分发。
+
 ## [9.14.1] - 2026-09-14
 
 > **DSH Desktop（第三方桌面端）适配备忘**（issue #50 用户续报）。
