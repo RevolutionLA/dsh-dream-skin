@@ -274,3 +274,46 @@ test('stable-DSH fallback path (store seed missing) still boots and adopts host 
 	await new Promise((resolve) => setTimeout(resolve, 50));
 	assert.equal(h.getItem('dsh-dream-skin:skin'), 'midnight', 'host-adopted skin persisted via the fallback path');
 });
+
+test('post-release review: hung host probe releases the gate; a late write pushes ONLY user-written keys (no null erasure)', async (t) => {
+	// Two review findings in one scenario:
+	// 🟠-1 the 4s probe timeout must cover the whole fetch+json probe — with a
+	// never-resolving fetch the gate MUST still open (previously the gate
+	// stayed shut for the whole session);
+	// 🟠-2 the flush push must carry ONLY keys written this session. Boot-time
+	// READS cache absent keys as null in stateCache; pushing those nulls would
+	// ERASE the user's durable accent/packs/favorites on the host.
+	let timeoutFired = false;
+	const h = buildSandbox({
+		firstBoot: true,
+		hostValue: {},
+		fetchImpl: async (url, init) => {
+			// Only the boot GET probe hangs (stalled host connection); SET calls
+			// must be recorded normally or the flush could never be observed.
+			const bodyObj = JSON.parse(init.body);
+			if (bodyObj.method === 'set') {
+				sentSets.push(bodyObj.patch);
+				return { ok: true, status: 200, json: async () => ({ ok: true }) };
+			}
+			return new Promise(() => {});
+		}
+	});
+	const sentSets = h.sent.sets;
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	// The user writes BEFORE the probe settles (the common "first change on a
+	// slow boot" order) — the write must be held by the gate, then flushed.
+	h.actionBags['dream-skin-accent'].setAccent('#123456');
+	// > 4s probe timeout + 200ms debounce + slack.
+	await new Promise((resolve) => setTimeout(resolve, 4400));
+	assert.equal(h.sent.sets.length, 1, 'exactly one push: the gate flushed the held user write');
+	const patch = h.sent.sets[0];
+	assert.equal(patch['dsh-dream-skin:accent'], '#123456', 'the user write made it to the host file');
+	for (const [key, value] of Object.entries(patch)) {
+		assert.notEqual(value, null, `no null-erase of ${key} (read-cached absent keys stay out of the patch)`);
+	}
+	assert.equal(patch['dsh-dream-skin:favorites'], undefined, 'durable favorites NOT erased from the host file');
+	assert.equal(patch['dsh-dream-skin:packs'], undefined, 'durable packs NOT erased from the host file');
+	timeoutFired = true;
+	assert.ok(timeoutFired, 'reached the post-timeout assertions');
+});
