@@ -28,3 +28,4 @@ research/
 # internal review notes (kept locally, deliberately NOT published to GitHub or npm)
 /docs/review/
 .rivals/
+.probe/
