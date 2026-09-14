@@ -2,6 +2,18 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [9.15.0] - 2026-09-15
+
+> **composer 标记器换锚点版**（issue #50 第三轮，彻底修复）。
+
+### 根因（实锤，非猜测）
+- 下载并解包了 `@deepseek-ai/dsh-client-ui-conversation@0.1.5-rc.2`（真正的聊天 UI 包，宿主 `dsh-web-frontend` 只是入口壳）：**0.1.5-rc.2 的聊天输入框根本不是 `<textarea>`，而是 Lexical contenteditable div**，带稳定 data 属性 `data-composer-input`；
+- 9.14.0/9.14.1 的标记器锚点全是「找 textarea」——在 0.1.5-rc.2 上从第一秒就永远找不到对象，轮询 30 次也只是把错误动作重复 30 次。此前 dsh-web 旧版有 textarea 所以一直没暴露。
+
+### 修复
+- 锚点选择器改为三级兜底：`[data-composer-input]`（Lexical 指纹，0.1.5-rc.2 主锚点）→ `textarea`（旧宿主）→ `[contenteditable='true'][role='textbox']`（通用兜底）；后续的圆角祖先爬升、轮询、observer 逻辑全部复用；
+- 新增防回归断言：锚点选择器必须包含 `data-composer-input` 指纹（直接校验源码，不允许软通过）。回归门 **59/59**。
+
 ## [9.14.2] - 2026-09-14
 
 > **npm 元数据版**（无代码变更，提升插件在目录与 npm 搜索中的可发现性）。

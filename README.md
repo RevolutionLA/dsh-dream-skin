@@ -272,6 +272,10 @@ dsh web   # 重启后恢复官方外观
 >
 > 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布，其 peer 以宽范围声明以适配宿主换代。
 
+**版本 9.15.0（2026-09-15）**：composer 标记器换锚点（issue #50 第三轮，彻底修复）——0.1.5-rc.2 的聊天输入框实为 Lexical contenteditable（非 textarea），旧锚点永远落空；现以稳定指纹 `data-composer-input` 为主锚点、textarea/contenteditable 三级兜底。回归门 **59/59**。
+
+**版本 9.14.2（2026-09-14）**：npm 元数据版（无代码变更）——description 双语化、keywords 9→15（含 `dsh-desktop`），提升 npm 搜索与插件目录可发现性。
+
 **版本 9.14.1（2026-09-14）**：DSH Desktop（第三方桌面端）适配——composer 标记器自愈化：启动轮询直到首次标记成功、observer 改挂 `documentElement`、标记所有可见输入框、圆角阈值两段放宽。修复桌面端「输入框透明度」滑杆仍失效的问题（issue #50 续报）。回归门 **59/59**。
 
 **版本 9.14.0（2026-09-14）**：修复 dsh 0.1.5+ 上「输入框透明度」滑杆失效（issue #50）——宿主发版重掷了插件引用的哈希类名，玻璃规则全部落空；现改用 DOM 形态标记（自有属性 `data-dsh-dream-skin-composer`）+ 双选择器，新旧宿主通吃，不再赌类名。README 同步重构（预览合一、真实竞品对比、Roadmap 刷新，7 语言全量同步）。回归门 **59/59**。

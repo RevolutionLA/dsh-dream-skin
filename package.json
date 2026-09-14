@@ -1,6 +1,6 @@
 {
 	"name": "dsh-dream-skin",
-	"version": "9.14.2",
+	"version": "9.15.0",
 	"description": "DeepSeek Harness 换肤插件（Dream Skin for DSH）：8 套 iOS / Linear 式清透冷调的高质感主题 + 弥散光壁纸 + 每皮肤智能背景 + 强调色 + 主题包分享，把换肤做成材质与配色克制的高级感工艺，而非贴图。Works in native DSH Web and third-party desktop clients (DSH Desktop): 8 original premium themes, glass materials, wallpaper 2.0, per-user accent, shareable theme packs — purely native token system.",
 	"license": "MIT",
 	"type": "module",

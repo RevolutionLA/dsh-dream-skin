@@ -1512,6 +1512,11 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// Every composer rule must now ALSO match our own DOM-shape attribute.
 	assert.ok(css.includes('[data-dsh-dream-skin-composer]'), 'composer rules carry the DOM-shape attribute selector');
 	assert.ok(css.includes('.uV2eYG_card::before,'), 'glass ::before rule matches BOTH hash and attribute');
+	// Issue #50 round 3: on dsh 0.1.5-rc.2 the chat input is a Lexical
+	// contenteditable div, NOT a textarea — the marker anchor must include the
+	// stable `data-composer-input` fingerprint or the slider stays dead there.
+	const clientSrc = fs.readFileSync(require.resolve('../lib/client.js'), 'utf8');
+	assert.ok(clientSrc.includes('[data-composer-input], textarea'), 'composer marker anchors on the data-composer-input fingerprint (Lexical root), not textarea-only');
 	assert.ok(css.includes("background: transparent"), 'composer root has no sharp frame (transparent)');
 	assert.ok(!css.includes('linear-gradient(to bottom'), 'no full-width scrim gradient around the rounded card');
 	// Cross-panel consistency: the right file panel must use the same sidebar fill
