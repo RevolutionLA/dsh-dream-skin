@@ -317,3 +317,48 @@ test('post-release review: hung host probe releases the gate; a late write pushe
 	timeoutFired = true;
 	assert.ok(timeoutFired, 'reached the post-timeout assertions');
 });
+
+test('issue #51: dynamic-port restart with cleared wallpaper does NOT flash the factory wallpaper', async (t) => {
+	// Electron shell, fresh port every launch: empty localStorage, no marker
+	// (firstBoot), host file holds the user's CLEARED wallpaper (null from the
+	// full-state replacement push). The factory wallpaper must never seed —
+	// neither at boot (the reported one-frame flash) nor after the probe.
+	const h = buildSandbox({
+		firstBoot: true,
+		hostValue: { 'dsh-dream-skin:wallpaper': null, 'dsh-dream-skin:skin': 'ivory' }
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	// Boot pass: non-visual defaults seed, wallpaper must NOT be there yet.
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper'), undefined, 'no factory wallpaper at first paint');
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper'), undefined, 'factory wallpaper NOT resurrected after probe (host is authoritative)');
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'ivory', 'user skin adopted');
+	assert.equal(h.getItem('dsh-dream-skin:factory-applied'), '1', 'factory marker still written');
+});
+
+test('issue #51: true first install still gets the factory wallpaper (deferred seed)', async (t) => {
+	// Genuine first install: empty localStorage AND an empty host file. The
+	// wallpaper keys must arrive via the deferred seed once the probe settles
+	// — a few hundred ms later than before, but the shipped look is intact.
+	const h = buildSandbox({ firstBoot: true, hostValue: {} });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'deferred wallpaper kind seeded after probe');
+	assert.ok(h.getItem('dsh-dream-skin:wallpaper') != null, 'deferred wallpaper seeded after probe');
+});
+
+test('issue #51: unreachable host on first install still seeds the wallpaper (catch path)', async (t) => {
+	// Host probe fails/times out: report=false = "no host decision seen" — the
+	// shipped look must still seed (otherwise a transient host outage on a
+	// true first install would leave the user permanently wallpaper-less).
+	const h = buildSandbox({
+		firstBoot: true,
+		fetchImpl: async () => { throw new Error('host unavailable'); }
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 50));
+	assert.ok(h.getItem('dsh-dream-skin:wallpaper') != null, 'wallpaper seeded on the unreachable-host path');
+});

@@ -1887,15 +1887,19 @@ test('round-5: glass blur var follows the blur slider, not the material', () => 
 	assert.equal(styleProps['--dsh-dream-skin-glass-blur'], '15px', 'glass blur clamped to 60px, then material-scaled');
 });
 
-test('round-6: first launch applies factory defaults (shipped look)', () => {
+test('round-6: first launch applies factory defaults (shipped look)', async () => {
 	// Fresh profile WITHOUT the factory-applied marker: first boot must paint
 	// the full shipped look (nebula skin, bundled wallpaper, tuned numbers,
 	// bing-daily URL) and stamp the one-shot marker.
+	// Issue #51: the WALLPAPER keys are deferred until the host probe settles
+	// (this sandbox has no fetch, so the catch path fires on the next tick) —
+	// non-visual defaults are still synchronous.
 	const h = buildSandbox();
 	h.localStorage.removeItem('dsh-dream-skin:factory-applied'); // simulate true first launch
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), 'nebula', 'factory skin applied on first launch');
+	await new Promise((resolve) => setTimeout(resolve, 10)); // let the deferred wallpaper seed settle
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'factory wallpaper kind applied');
 	assert.ok((h.localStorage.getItem('dsh-dream-skin:wallpaper') || '').startsWith('data:image/jpeg;base64,'), 'bundled horse painting applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'bing-daily default URL visible');
