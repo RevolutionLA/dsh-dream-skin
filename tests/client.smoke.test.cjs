@@ -1619,6 +1619,67 @@ test('glass row: material presets, composer opacity and popup opacity persist an
 	assert.equal(h.storeStates['dream-skin-modal-opacity'].opacity, 0.7, 'legacy setOpacity synced its own modal store');
 });
 
+test('composer marker tags the Lexical input card by behavior (adversarial F2)', () => {
+	// Behavioral guard (adversarial-review F2): the source-string assertion
+	// above is necessary but NOT sufficient — this test drives the REAL
+	// marker over a mock DOM to prove three behaviors:
+	//   1. a Lexical contenteditable anchor ([data-composer-input]) climbs to
+	//      its rounded card and gets tagged;
+	//   2. an anchor inside a settings dialog is REJECTED (F1 — the glass
+	//      rules would strip that surface's background);
+	//   3. a percentage radius ("50%") is not misread as 50px (F3).
+	const tagged = [];
+	const mkAnchor = ({ inDialog = false, parentRadius = '12px', parentWidth = 300 }) => {
+		const parent = {
+			offsetWidth: parentWidth,
+			__radius: parentRadius,
+			__attrs: {},
+			getAttribute(name) { return this.__attrs[name] !== undefined ? this.__attrs[name] : null; },
+			// The marker tags the CARD (this node), not the anchor — record here.
+			setAttribute(name, value) { this.__attrs[name] = String(value); tagged.push({ name, value, card: this }); }
+		};
+		const anchor = {
+			offsetWidth: 100,
+			offsetHeight: 40,
+			parentElement: parent,
+			closest(sel) {
+				if (String(sel).includes('dialog')) return inDialog ? { __dialog: true } : null;
+				return null; // no legacy hash card
+			},
+			getAttribute() { return null; },
+			setAttribute(name, value) { tagged.push({ name, value, anchor }); }
+		};
+		return anchor;
+	};
+	const composerAnchor = mkAnchor({});
+	const dialogAnchor = mkAnchor({ inDialog: true });
+	const pillAnchor = mkAnchor({ parentRadius: '50%' });
+	const anchors = [composerAnchor, dialogAnchor, pillAnchor];
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains: () => false, appendChild() {}, append() {} },
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll(sel) {
+			if (String(sel).includes('data-composer-input')) return anchors;
+			return [];
+		},
+		documentElement: {}
+	};
+	const h = buildSandbox({
+		document: documentMock,
+		getComputedStyle(node) { return { borderTopLeftRadius: node.__radius || '0px' }; }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h);
+	assert.doesNotThrow(() => e.apply(ctx), 'apply runs the marker without throwing');
+
+	assert.ok(tagged.length === 1, 'exactly one anchor got tagged (dialog + pill rejected), got ' + tagged.length);
+	assert.ok(tagged[0].card === composerAnchor.parentElement, 'the tagged card is the composer input\'s rounded parent');
+	assert.equal(tagged[0].name, 'data-dsh-dream-skin-composer', 'tagged with the DOM-shape attribute');
+});
+
 test('composer opacity drives the CSS fill variable', () => {
 	// B4: the composer (chat input) opacity slider must set the
 	// --dsh-dream-skin-composer-fill CSS variable at boot and on change.
