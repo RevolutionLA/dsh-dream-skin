@@ -300,9 +300,24 @@ test('issue #18: every skin themes the bubble / selector surfaces (no default-bl
 			assert.ok(layer1Lum !== null && layer1Lum >= 100,
 				`${skin.id} light layer-1 must be a light surface (got ${layer1})`);
 		}
+		// Same class of defect as the layer-1 report above, one semantic level deeper:
+		// --dsw-alias-bg-layer-2 carries settings panels and other text-bearing surfaces.
+		// A translucent value lets the conversation behind such a panel read through it, so
+		// two layers of text overlap. Built-in skins must either keep it opaque or keep it
+		// translucent only inside the liquid-glass floor below; `mist` is the one skin whose
+		// documented design is a translucent white pane with blur, so it is exempt by name
+		// rather than by weakening the floor for every skin (issue: 进设置界面时左边框里
+		// 会透出对话页面的文字).
+		const GLASS_LAYER2_SKINS = ['mist'];
+		const layer2 = skin.tokens['--dsw-alias-bg-layer-2'];
+		assert.ok(typeof layer2 === 'string' && layer2.length > 0,
+			`${skin.id} must define --dsw-alias-bg-layer-2`);
+		const layer2Floor = GLASS_LAYER2_SKINS.includes(skin.id) ? 0.5 : 0.95;
+		const layer2Alpha = colorAlpha(layer2);
+		assert.ok(layer2Alpha === null || layer2Alpha >= layer2Floor,
+			`${skin.id} --dsw-alias-bg-layer-2 must be opaque or >= ${layer2Floor} alpha (got ${layer2})`);
 		// The bubble fill for dark skins must be a readable dark bubble; for light skins near-white.
-		const bubble = skin.tokens['--dsw-specific-bubble'];
-		if (skin.colorScheme === 'dark') {
+		const bubble = skin.tokens['--dsw-specific-bubble'];		if (skin.colorScheme === 'dark') {
 			assert.ok(!/^#|^rgba\(255|^white/i.test(bubble.trim()), `${skin.id} dark bubble must be a dark fill`);
 			const layer3 = skin.tokens['--dsw-alias-bg-layer-3'];
 			assert.ok(!/rgba\(255,\s*255,\s*255,\s*0\.5\)/i.test(layer3), `${skin.id} dark layer-3 must not be a 50% white box`);
@@ -325,6 +340,14 @@ function hexLuminance(c) {
 	m = /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)/.exec(c);
 	if (m) return Math.round(0.2126 * (+m[1]) + 0.7152 * (+m[2]) + 0.0722 * (+m[3]));
 	return null;
+}
+
+// Alpha of an rgba() color, or null when the value is opaque by construction
+// (a hex literal and a bare rgb() both carry no alpha channel).
+function colorAlpha(c) {
+	if (typeof c !== 'string') return null;
+	const m = /^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/i.exec(c.trim());
+	return m ? +m[1] : null;
 }
 
 test('apply() mounts slot rows and registers built-in skins without throwing', () => {
