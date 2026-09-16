@@ -761,7 +761,7 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 		const body = src.slice(start, end);
 		const keys = [...body.matchAll(/"([a-zA-Z0-9.]+)":\s*"/g)].map((m) => m[1]);
 		dicts[lang] = new Set(keys);
-		assert.equal(keys.length, 63, `${lang} has ${keys.length} keys (expected 63)`);
+		assert.equal(keys.length, 64, `${lang} has ${keys.length} keys (expected 64)`);
 	}
 	const zhKeys = dicts.zh;
 	for (const lang of langs.slice(1)) {
@@ -1551,6 +1551,126 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	// MODAL_FILL_VAR custom property with a readable fallback, not a hardcoded 94%.
 	assert.ok(css.includes('--dsh-dream-skin-modal-fill'), 'option card fill is user-adjustable via CSS variable');
 	assert.ok(css.includes(', 94%'), 'adjustable fill keeps the readable default fallback');
+});
+
+test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on the DSH Desktop shell', () => {
+	// In the Electron shell the upstream sidebar renders inside the shell's own
+	// <aside class="dshDesktopSidebarSurface">, and that element re-declares
+	// `--dsw-specific-sidebar-fill` on itself, shadowing every :root/body theme
+	// override for the whole sidebar subtree — the 侧边栏透明度 slider had no
+	// pixels to move there while the right file panel (outside that aside) kept
+	// responding. Upstream source check: in dsh-plugin-desktop@2.0.0 (the only
+	// 2.x on npm) lib/client.js:248 is the package's ONLY declaration of that
+	// token and it is a plain, non-important class rule. The fix must re-inherit
+	// the token for that subtree in a way that outranks it, and must stay inert
+	// on plain DSH Web.
+	let appended = null;
+	const documentMock = {
+		body: { contains: () => false, getAttribute: () => null },
+		head: {
+			children: [],
+			contains() { return false; },
+			appendChild(el) { appended = el; },
+			append() { appended = el; }
+		},
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const css = appended.textContent;
+
+	const rule = css.match(/\.dshDesktopSidebarSurface\s*\{[^}]*\}/);
+	assert.ok(rule, 'the shell sidebar surface is targeted by the material sheet');
+	assert.ok(/--dsw-specific-sidebar-fill:\s*inherit\s*!important/.test(rule[0]),
+		'the token is re-inherited with !important (the shell declares it without)');
+	// Guard the intent: this selector must never broaden into DSH's own sidebar
+	// surfaces (the fix is scoped to the desktop shell's element only).
+	assert.ok(!/\.dshDesktopSidebarSurface\s*,|,\s*\.dshDesktopSidebarSurface/.test(css),
+		'the desktop rule is not merged into a selector list with other surfaces');
+});
+
+test('issue #55: the sidebar transparency slider is wired end to end', () => {
+	// Behaviour gate for the whole issue. Root cause B was that with the sidebar
+	// linked to the wallpaper, shadeTokens2() uses the CANVAS alpha and ignores
+	// SIDEBAR_OPACITY_KEY, while the slider kept moving and printing a percentage
+	// — so it read as broken. This test drives the REAL public action (the same
+	// one the Slider calls) and asserts the stored preference AND the token that
+	// ships to the DOM.
+	const makeCase = ({ wallpaper = true, seed = {} } = {}) => {
+		const wallpaperSeed = wallpaper ? {
+			'dsh-dream-skin:wallpaper-kind': 'gradient',
+			'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #222 0%, #444 100%)',
+			'dsh-dream-skin:wallpaper-opacity': '0.5',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		} : {
+			'dsh-dream-skin:wallpaper-kind': 'image',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		};
+		const h = buildSandbox({ seed: { ...wallpaperSeed, ...seed } });
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		const active = {
+			id: 'rose',
+			colorScheme: 'light',
+			tokens: { '--dsw-alias-bg-base': '#f7f0f3', '--dsw-specific-sidebar-fill': '#f6e9ef' }
+		};
+		const captured = [];
+		const theme = {
+			register() { return () => {}; },
+			setTheme() {},
+			getTheme() { return { preference: 'rose', active, themes: [active], revision: 1 }; },
+			overrideTokens(source, tokens) {
+				if (source === 'dsh-dream-skin:appearance' && tokens['--dsw-specific-sidebar-fill']) {
+					captured.push(tokens['--dsw-specific-sidebar-fill']);
+				}
+				return () => {};
+			}
+		};
+		const ctx = { ...makeApplyContext(h, { captureActions: true }), theme };
+		assert.doesNotThrow(() => e.apply(ctx), 'apply');
+		return { captured, h, last: () => captured[captured.length - 1] };
+	};
+
+	// 1) Unlinked: the sidebar keeps its OWN token colour at the slider's alpha.
+	const unlinked = makeCase({ seed: { 'dsh-dream-skin:sidebar-link': '0', 'dsh-dream-skin:sidebar-opacity': '0.31' } });
+	assert.ok(unlinked.captured.length > 0, 'a sidebar fill override was produced');
+	assert.equal(unlinked.last().light, 'rgba(246, 233, 239, 0.31)',
+		'unlinked sidebar fill = sidebar token colour at the slider alpha (slider is wired)');
+
+	// 2) Dragging the slider through the public action moves the token.
+	unlinked.h.actionBags['dream-skin-glass'].setSidebarOpacity(60);
+	assert.equal(unlinked.h.localStorage.getItem('dsh-dream-skin:sidebar-opacity'), '0.6', 'opacity persisted');
+	assert.equal(unlinked.last().light, 'rgba(246, 233, 239, 0.6)', 'dragging the slider moves the sidebar fill');
+
+	// 3) Linked: dragging RELEASES the link in the same action, so the value the
+	//    user just chose is what renders. This is the actual #55 fix for root
+	//    cause B — asserted on storage + token, not on source text.
+	const linked = makeCase({ seed: { 'dsh-dream-skin:sidebar-link': '1', 'dsh-dream-skin:sidebar-opacity': '0.31' } });
+	assert.ok(/^rgba\(247, 240, 243,/.test(linked.last().light),
+		'while linked the sidebar follows the canvas base colour (the documented no-op)');
+	linked.h.actionBags['dream-skin-glass'].setSidebarOpacity(60);
+	assert.equal(linked.h.localStorage.getItem('dsh-dream-skin:sidebar-link'), '0', 'dragging released the link');
+	assert.equal(linked.last().light, 'rgba(246, 233, 239, 0.6)', 'the dragged value reaches the sidebar token');
+
+	// 4) Upgrade path — a profile that predates BOTH keys (the case the review
+	//    flagged): absence must resolve to the author's shipped look, i.e. the
+	//    SAME numbers the factory seed writes, or the two readers drift again.
+	const bare = makeCase({ seed: {} });
+	assert.equal(bare.last().light, 'rgba(246, 233, 239, 0.28)',
+		'missing sidebar keys fall back to the shipped look (0.28, unlinked)');
+
+	// 5) No wallpaper wash at all: the sidebar fill is not overridden, so the
+	//    slider cannot change anything — and it must therefore NOT silently
+	//    rewrite the user's link preference either (review P1-1).
+	const dry = makeCase({ wallpaper: false, seed: { 'dsh-dream-skin:sidebar-link': '1', 'dsh-dream-skin:sidebar-opacity': '0.31' } });
+	assert.equal(dry.captured.length, 0, 'no wash → no sidebar fill override to tune');
+	dry.h.actionBags['dream-skin-glass'].setSidebarOpacity(60);
+	assert.equal(dry.h.localStorage.getItem('dsh-dream-skin:sidebar-opacity'), '0.6', 'the value is still persisted');
+	assert.equal(dry.h.localStorage.getItem('dsh-dream-skin:sidebar-link'), '1',
+		'no wash → the stored link is left alone (no preference change without a visible effect)');
 });
 
 test('glass row: material presets, composer opacity and popup opacity persist and sync', () => {
