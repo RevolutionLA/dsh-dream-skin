@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 💬 讨论区 Discussions
+    url: https://github.com/RevolutionLA/dsh-dream-skin/discussions
+    about: 使用疑问、主题包分享、想聊聊配色——来这里，比 issue 轻松一些。
+  - name: 📖 README / 使用文档
+    url: https://github.com/RevolutionLA/dsh-dream-skin#readme
+    about: 安装、更新、卸载与常见问题，多半答案已经写在那里。
+  - name: 🔒 安全问题
+    url: https://github.com/RevolutionLA/dsh-dream-skin/blob/main/SECURITY.md
+    about: 请勿以公开 issue 报告安全漏洞，参见安全策略。
