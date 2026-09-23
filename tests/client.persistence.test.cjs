@@ -74,7 +74,7 @@ function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {}, firstBoot =
 		unescape: (s) => s, escape: (s) => s,
 		encodeURIComponent, decodeURIComponent,
 		TextEncoder, TextDecoder,
-		URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+		URL: Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }),
 		Blob: class {}, FileReader: class {}, Image: function () {},
 		setTimeout, clearTimeout, alert: () => {},
 		MutationObserver: class { observe() {} disconnect() {} },

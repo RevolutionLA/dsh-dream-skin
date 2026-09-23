@@ -57,7 +57,7 @@ function buildSandbox(overrides = {}) {
 		matchMedia: undefined, console, location: loc, history: { replaceState(n, t, url) { loc.hash = ''; loc.pathname = url; } },
 		btoa, atob, unescape: unescapeB, escape: escapeB, encodeURIComponent, decodeURIComponent,
 		TextEncoder, TextDecoder,
-		URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+		URL: Object.assign(URL, { createObjectURL: () => 'blob:x', revokeObjectURL() {} }),
 		Blob: class {}, FileReader: class {},
 		// Image stub: assigning `src` resolves the preload synchronously as a
 		// success, so the plugin's "preload before committing a scheduled
