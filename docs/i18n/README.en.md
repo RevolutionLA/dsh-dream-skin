@@ -278,6 +278,7 @@ dsh web   # restores the official appearance
 | DeepSeek Harness (`dsh`) | **One build for two host generations**: stable `0.1.0-rc.6` / `0.1.1-rc.x` (peers pinned to `^0.1.0-rc.6`) and DSH master (post-split module table) |
 | Node.js | `>=18` |
 | Browser | modern Chromium / WebKit (native CSS variables & `matchMedia`) |
+| Desktop | Third-party DSH Desktop shell supported (issues #50/#51/#55); the **official DSH Desktop preview is expected to work** (Electron, same front-end, inherits the plugin mechanism). Full anchor list / security boundary / verified-unverified matrix: **[docs/desktop-support.md](../desktop-support.md)** |
 
 > When upgrading DSH, bump the peerDependencies in `package.json` accordingly.
 

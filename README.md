@@ -265,12 +265,15 @@ dsh web   # 重启后恢复官方外观
 | DeepSeek Harness (`dsh`) | **同一构建兼容两代宿主**：稳定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peer 以 `^0.1.0-rc.6` 对齐）与 DSH master（`dsh-client-runtime` 拆分后的新模块表）。兼容性以**运行时能力探测**保证，不依赖 `engines.dsh`（见下） |
 | Node.js | `>=18` |
 | 浏览器 | 现代 Chromium / WebKit（依赖原生 CSS 变量与 `matchMedia`） |
+| 桌面端 | 第三方 DSH Desktop 壳已适配（issue #50/#51/#55）；**官方 DSH Desktop 预览版预期兼容**（Electron 同源前端 + 继承插件机制）。完整锚点依赖清单 / 安全边界 / 已验证清单见 **[docs/desktop-support.md](./docs/desktop-support.md)** |
 
 > **兼容机制（v9.10.0 起）**：客户端 bundle 把**全部平台 seed** 放在受控 `try` 内按候选顺序探测——`react` / `react/jsx-runtime`，以及设置 store 的 master 名 `@deepseek-ai/dsh-client-store` → 稳定版名 `@deepseek-ai/dsh-client-runtime/client`。判定依据是「require 成功返回」，**不匹配宿主内部错误文案**。若某天宿主全部 seed 换代，插件会**降级为不注册任何 UI 的哑模块**并打一条 `console.warn`，而不会抛错——因此**不会**再出现 issue #43 那种整个 DSH Web 全屏 `Failed to load plugins`（宿主对 loader-entry 工厂不做隔离，一个工厂抛错即可拖垮整个 shell）。
 >
 > **关于 `engines.dsh`**：曾尝试声明 `engines.dsh` 作为生态兼容信号，但因 semver 只在与自身 `major.minor.patch` 三元组相同的轨道上放行预发布版本，单一范围无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`，会把本项目明确支持的版本判为「不兼容」，反而广播错误信号；而宿主目前也不读取该字段。故**不声明**，以上述运行时探测为准。
 >
 > 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布，其 peer 以宽范围声明以适配宿主换代。
+
+**版本 9.26.0（2026-09-26）**：官方桌面版支持轮——新增**机读诊断通道** `window.__DSH_DREAM_SKIN_STATUS__`（ready/degraded + 锚点漂移快照，纯只读、零网络、零持久化改动），发布 **[docs/desktop-support.md](./docs/desktop-support.md)** 兼容支持矩阵（锚点依赖清单/安全边界/已验证-未验证诚实清单），CI 首次编译校验 `.d.ts`；渐变壁纸新增资源拉取函数注入拒绝（写入+渲染双层）；**出厂壁纸换为原创抽象弥散光图**（7.2KB，bundle -26%），仍用旧出厂图的用户由内容三重指纹精确匹配一次性迁移（自设壁纸不受影响）。回归门 **69/69**。
 
 **版本 9.16.0（2026-09-16）**：DSH Desktop 侧边栏透明度修复（issue #55，经蓝军→第三方→中立裁定三方评审整改）——桌面壳在自己的 `<aside class="dshDesktopSidebarSurface">` 上就近声明 `--dsw-specific-sidebar-fill`，遮蔽主题覆盖值，侧边栏透明度滑杆在桌面端无视觉通路（右侧文件面板不受影响，故左右不一致）；现让该子树重新继承（`inherit !important`，原生 Web 不匹配任何元素）。同时：拖动侧边栏透明度滑杆会释放「跟随壁纸」（仅在有壁纸 wash 时），两处默认值收敛到单点真源，桌面端规则纳入以宿主信号为锚点的漂移探针。回归门 **65/65**。
 

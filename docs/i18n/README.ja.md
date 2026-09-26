@@ -257,6 +257,7 @@ dsh web   # restores the official appearance
 | DeepSeek Harness（`dsh`） | **同一ビルドで両世代のホストに対応**：安定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peerDependencies は `^0.1.0-rc.6` に固定）と DSH master（分割後のモジュールテーブル） |
 | Node.js | `>=18` |
 | ブラウザ | モダンな Chromium / WebKit（ネイティブ CSS 変数 & `matchMedia`） |
+| デスクトップ | サードパーティの DSH Desktop シェルに対応済み（issue #50/#51/#55）；**公式 DSH Desktop プレビュー版も互換の見込み**（Electron 同一フロントエンド + プラグイン機構を継承）。完全なアンカー依存リスト／セキュリティ境界／検証済み・未検証の一覧は **[docs/desktop-support.md](../desktop-support.md)** を参照 |
 
 > DSH をアップグレードするときは、`package.json` の peerDependencies もそれに合わせて更新してください。
 

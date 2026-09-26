@@ -283,6 +283,7 @@ dsh web   # restaura el aspecto oficial
 | DeepSeek Harness (`dsh`) | **Una compilación para dos generaciones de host**: estable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies fijadas a `^0.1.0-rc.6`) y DSH master (tabla de módulos tras la división) |
 | Node.js | `>=18` |
 | Navegador | Chromium / WebKit modernos (variables CSS nativas y `matchMedia`) |
+| Escritorio | Shell DSH Desktop de terceros ya soportado (issues #50/#51/#55); se **espera compatibilidad con la vista previa oficial de DSH Desktop** (Electron, mismo front-end, hereda el mecanismo de plugins). Lista completa de anclajes / límite de seguridad / matriz verificado-no verificado: **[docs/desktop-support.md](../desktop-support.md)** |
 
 > Al actualizar DSH, sube las peerDependencies en `package.json` en consecuencia.
 

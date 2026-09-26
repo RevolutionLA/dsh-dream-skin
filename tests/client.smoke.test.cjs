@@ -73,7 +73,7 @@ function buildSandbox(overrides = {}) {
 	for (const k of ['document', 'localStorage', 'btoa', 'atob']) sandbox.window[k] = sandbox[k];
 	const context = vm.createContext(sandbox);
 	vm.runInContext(CODE + '\nwindow.__LOGGED__=1;', context);
-	return { factory, loc, localStorage, document, registered: [], slots: { count: 0 } };
+	return { factory, loc, localStorage, document, window: sandbox.window, registered: [], slots: { count: 0 } };
 }
 
 function makeApplyContext(harness, { captureActions = false } = {}) {
@@ -511,6 +511,116 @@ test('url wallpaper: unsafe schemes are refused, safe ones persist, stored junk 
 	});
 	const e2 = h2.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)), 'stored unsafe URL must not break apply()');
+});
+
+test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drift channel (docs/desktop-support.md)', () => {
+	const pkg = require('../package.json');
+	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'abyss' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(status, 'apply() publishes the status global even with no UI interaction');
+	assert.equal(status.plugin, 'dsh-dream-skin');
+	// Release-drift guard: PLUGIN_BUILD in the bundle must track package.json.
+	assert.equal(status.build, pkg.version, 'bundle build matches package.json version');
+	assert.equal(status.status, 'ready');
+	assert.equal(status.shell, 'web');
+	assert.equal(status.skin, 'abyss', 'status reflects the saved skin at boot');
+	// The mock DOM matches no host class, so every probe reports drifted —
+	// the POSITIVE signal official desktop tooling reads without console scraping.
+	assert.ok(status.anchors, 'drift probe fills anchors');
+	assert.equal(status.anchors.probed, 6, 'six host anchor groups probed on web shell');
+	assert.equal(status.anchors.drifted.length, 6, 'all six drifted against the empty mock DOM');
+	assert.ok(status.checkedAt > 0 && status.publishedAt > 0, 'timestamps present');
+});
+
+test('diagnostics: degraded boot still publishes a machine-readable status (the moment tooling needs it most)', () => {
+	const h = buildSandbox({ console: { warn() {}, log() {}, error() {} } });
+	// Total seed failure → dumb module. The inline degraded snapshot must exist
+	// so official diagnostics can distinguish "plugin absent" from "plugin
+	// present but host seeds renamed" without parsing a console.warn.
+	const e = h.factory(() => { throw new Error('client-modules: require missed the module table'); });
+	assert.deepEqual(e.SKINS, [], 'degraded surface');
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(status, 'degraded path publishes status at factory time');
+	assert.equal(status.status, 'degraded');
+	assert.equal(status.reason, 'host-seeds-unavailable');
+	assert.ok(status.lastError && status.lastError.includes('missed the module table'), 'last error surfaced for diagnosis');
+});
+
+test('factory-wallpaper migration: only the exact legacy asset is replaced, user state is never touched', () => {
+	// The v9.13.0–v9.23.0 factory photo is replaced by an original abstract image
+	// (brand + licensing). The positive path (real legacy bytes → swapped) is
+	// verified out-of-band against the actual asset; this test guards the
+	// FALSE-POSITIVE side, which is what could destroy user data: a wrong-length
+	// string, a same-length different-content smuggle, and a same-byte-length
+	// zero payload must all survive untouched, and a clean boot must not throw.
+	const legacyPrefix = 'data:image/jpeg;base64,';
+	const legacyDataUrlLength = 115863;
+	const legacyByteLength = 86879;
+	const b64ForBytes = (n) => Buffer.alloc(n).toString('base64'); // zero payload, exact byte length
+
+	const cases = {
+		'short custom photo': legacyPrefix + b64ForBytes(1000),
+		'same length, different content': legacyPrefix + 'A'.repeat(legacyDataUrlLength - legacyPrefix.length),
+		'same byte length, zero payload': legacyPrefix + b64ForBytes(legacyByteLength)
+	};
+	assert.equal(legacyPrefix.length + (legacyDataUrlLength - legacyPrefix.length), legacyDataUrlLength, 'smuggle case has the exact legacy string length');
+	assert.equal(Buffer.from(cases['same byte length, zero payload'].slice(legacyPrefix.length), 'base64').length, legacyByteLength, 'zero-payload case has the exact legacy byte length');
+
+	for (const [name, value] of Object.entries(cases)) {
+		const h = buildSandbox({ seed: { 'dsh-dream-skin:wallpaper': value } });
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		assert.doesNotThrow(() => e.apply(makeApplyContext(h)), name + ': apply must not throw');
+		assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), value, name + ': stored value must survive the migration check');
+	}
+
+	// The shipped factory wallpaper itself must also be stable across boots
+	// (idempotence anchor for the day this asset is next replaced).
+	const current = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+	const h2 = buildSandbox({ seed: { 'dsh-dream-skin:wallpaper': current } });
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)));
+	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper'), current, 'current factory wallpaper is not migrated away');
+});
+
+test('gradient wallpaper: resource-fetching values are refused at write and ignored at render', () => {
+	// Gradient values reach `el.style.backgroundImage` (CSSOM write, cannot escape
+	// via ; or }), but valid CSS image functions like url()/image-set() would make
+	// the page silently fetch an attacker-chosen endpoint. Host state and share
+	// links can supply this value, so the same write-gate + render-guard pattern
+	// as the URL kind applies.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply(ctx));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	// Smuggled resource fetches are refused and nothing is written.
+	adv.setGradient('linear-gradient(red, blue), url("http://evil.invalid/ping")');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), null, 'url() smuggle must not write kind');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), null, 'url() smuggle must not be persisted');
+
+	adv.setGradient('image-set("http://evil.invalid/a.png" 1x)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), null, 'bare image-set must be refused');
+
+	adv.setGradient('#f0f0f0');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), null, 'bare color is not a gradient');
+
+	// Single-layer and multi-layer (skin-glow style) gradients persist normally.
+	adv.setGradient('linear-gradient(135deg, #000 0%, #fff 100%)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'gradient');
+	const glow = 'radial-gradient(1100px 620px at 82% -8%, rgba(94, 106, 210, 0.35), transparent 60%), linear-gradient(165deg, #121216 0%, #0d0d11 55%, #101016 100%)';
+	adv.setGradient(glow);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), glow, 'multi-layer glow gradient accepted');
+
+	// A value that slipped into storage without validation (old versions or a
+	// tampered state file) must be ignored at render time, never applied.
+	const h2 = buildSandbox({
+		seed: { 'dsh-dream-skin:wallpaper-kind': 'gradient', 'dsh-dream-skin:wallpaper-gradient': 'radial-gradient(circle, red, blue), url("http://evil.invalid/ping")' }
+	});
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)), 'stored unsafe gradient must not break apply()');
 });
 
 test('issue #45: scheduled URL-wallpaper refresh is due-based, keeps the stored URL clean and never grows history', () => {

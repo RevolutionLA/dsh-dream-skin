@@ -276,6 +276,7 @@ dsh web   # restores the official appearance
 | DeepSeek Harness (`dsh`) | **하나의 빌드로 두 세대의 호스트 모두 지원**: 안정版 `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) 및 DSH master (분할 후 모듈 테이블) |
 | Node.js | `>=18` |
 | 브라우저 | 최신 Chromium / WebKit (네이티브 CSS variables & `matchMedia`) |
+| 데스크톱 | 서드파티 DSH Desktop 셸 지원 완료 (issue #50/#51/#55); **공식 DSH Desktop 미리보기 버전도 호환 예상** (Electron 동일 프런트엔드 + 플러그인 메커니즘 상속). 전체 앵커 의존 목록 / 보안 경계 / 검증-미검증 목록: **[docs/desktop-support.md](../desktop-support.md)** |
 
 > DSH를 업그레이드할 때 `package.json`의 peerDependencies도 그에 맞게 올려주세요.
 

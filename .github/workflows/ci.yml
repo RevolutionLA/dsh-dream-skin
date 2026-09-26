@@ -27,3 +27,19 @@ jobs:
         run: npm test
       - name: Syntax check the host + client bundles
         run: node --check lib/index.js && node --check lib/client.js
+
+  # The shipped package stays dependency-free; we pull TypeScript on demand
+  # here so the advisory `.d.ts` declarations are actually compiled (they are
+  # otherwise never checked, and drift silently). A local ambient stub covers
+  # the private @deepseek-ai/cordis module so the check is self-contained.
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Typecheck the .d.ts declarations
+        run: npx -y -p typescript@5.6 tsc -p tsconfig.json

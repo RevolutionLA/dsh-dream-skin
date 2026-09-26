@@ -21,13 +21,15 @@ GitHub 上 [Fei-Away/Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-S
 
 ## 能力范围
 
+> 下列 v0.x 为**早期里程碑**（命名保留自项目起步阶段）；当前版本已到 9.x，完整能力清单以 [README](../README.md) 为准，桌面端兼容边界见 [desktop-support.md](./desktop-support.md)。
+
 **v0.1（已完成）**
 - 8 套主题预设（Mirage 幻梦），浅/深色兼顾，品牌锚点用 DeepSeek 蓝。
 - 自选背景壁纸，含透明度和模糊调节。
 - `localStorage` 持久化。
 - 设置里出现「皮肤 / 背景图片」入口。
 
-**v0.4 - 高级感材质升级（进行中）**
+**v0.4 - 高级感材质升级（已完成）**
 - 8 套内置皮肤 token 全面重构为 iOS / Linear 式清透冷调（克制用色 + 玻璃面板 + 弥散光）。
 - 每皮肤内置弥散光渐变，选皮肤自动配背景。
 - 设计哲学文档 [`docs/design-philosophy.md`](./design-philosophy.md)，作为品牌差异化宣言。
@@ -62,13 +64,14 @@ dsh-dream-skin/
 ├─ package.json            # dsh.bundle + dsh.client 清单、exports、test 脚本
 ├─ cordis.patch.yml        # 插入 dream-skin loader 入口
 ├─ lib/
-│  ├─ index.js             # host 半边（no-op apply）
+│  ├─ index.js             # host 半边（$DSH_HOME/dream-skin.json 状态文件 + /dream-skin/api 围栏路由）
 │  ├─ client.js            # 浏览器半边（__ModuleLoader__ bundle，含 P0）
-│  └─ types/               # 类型声明（辅助，非运行时）
+│  └─ types/               # 类型声明（辅助，非运行时；`npm run typecheck` 编译校验）
 ├─ tests/
 │  └─ client.smoke.test.cjs# VM 冒烟测试（npm test）
 ├─ docs/
 │  ├─ PROJECT.md           # 本文（项目说明）
+│  ├─ desktop-support.md   # 桌面端兼容与支持矩阵（锚点清单 / 安全边界 / 已验证清单）
 │  ├─ design-philosophy.md # 设计哲学（品牌差异化宣言）
 │  ├─ themes-spec.md       # 主题包 / 令牌契约
 │  ├─ publishing-to-npm.md # npm / GitHub 发布指引

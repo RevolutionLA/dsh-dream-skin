@@ -67,6 +67,7 @@ dsh plugin --profile web add dsh-dream-skin
 
 - **镜像源**：发布必须 `--registry https://registry.npmjs.org`。
 - **版本号**：从 `8.28.0` 起改用**日期式版本** `M.D.X`（月.日.当日第几个版本）。例如 8 月 28 日首版 `8.28.0`、当日再发 `8.28.1`、次日 `8.29.0`。当前最新为 `9.9.0`（首发 0.2.0 → 0.4.15 → 8.28.0 → 9.9.0）。
+- **PLUGIN_BUILD 同步**：改版本号时同步 `lib/client.js` 顶部的 `PLUGIN_BUILD` 常量（桌面诊断通道 `window.__DSH_DREAM_SKIN_STATUS__` 上报的构建号）。冒烟测试里有一条断言会拿它比对 package.json 版本——漏改会红。
 - **peerDependencies**：以 `^0.1.0-rc.6` 对齐 DSH 当前版本；DSH 升级到正式版后记得跟进。平台客户端包的 peer 均为 `optional`（宿主运行时供给）；`dsh-client-store`（自 2026-08-30 起已在 npm 发布）用宽范围声明以适配宿主换代。
 - **engines.dsh（刻意不声明）**：semver 只在候选版本与自身 `major.minor.patch` 相同的轨道放行预发布版本，任何单一范围都无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`；声明反而会广播错误的「不兼容」信号，且宿主不读取该字段。兼容性以 README 兼容矩阵 + 客户端运行时能力探测（平台 seed 全量降级兜底）为准。
 - **发布顺序**：先打 tag 并在 GitHub 建 Release（Release notes 引用 CHANGELOG 条目与 npm 链接），再执行 `npm publish`；三处（tag / Release / npm）版本号必须一致。

@@ -2,6 +2,30 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [9.26.0] - 2026-09-26
+
+> **官方桌面版对齐 + 尽调加固**（面向 2026-09-25 官方 DSH Desktop 预览版）。
+
+### 新增
+- **桌面诊断通道 `window.__DSH_DREAM_SKIN_STATUS__`**：漂移探针从"只能 scrape console.warn"升级为机读快照——官方桌面端工具/preload 桥可直接读取 `{ status: ready|degraded, build, shell, skin, anchors: {probed, drifted}, checkedAt }`；降级路径（issue #43 的哑模块）也内联发布 `degraded + reason + lastError`，让诊断方能区分"插件没装"与"宿主 seed 换代"。**纯只读、零网络请求、零持久化改动**（不触碰三层同步层——真机验证前的刻意取舍）。新增 `PLUGIN_BUILD` 常量并由测试守卫与 package.json 版本对齐。
+- **docs/desktop-support.md**：桌面端兼容与支持矩阵——支持状态总览、桌面壳检测契约、三层持久化、**锚点依赖清单（逐条列失效后果与对策）**、安全边界、已验证/未验证诚实清单、对官方的三条兼容契约建议。README 兼容性表与 docs/PROJECT.md 已互链。
+- **CI typecheck job**：`.d.ts` 声明文件首次纳入编译校验（strict；`typecheck/cordis-stub.d.ts` 为私有包 `@deepseek-ai/cordis` 的仅类型桩，保证自包含）。发布包维持零依赖（TypeScript 只在 CI 内按需拉取，不进 `files` 白名单）。
+
+### 变更
+- **出厂壁纸替换 + 一次性迁移**：旧出厂壁纸为一张真人照片（84.8KB），不适合充当生产力工具的默认视觉，也是官方尽调视角下的首要减分项。替换为**原创生成的抽象弥散光图**（1200×678，7.2KB），`lib/client.js` 374KB → 276KB（-26%，base64 载荷 113KB → 9.4KB）。同时新增 `migrateLegacyFactoryWallpaper()`：对仍停留在旧出厂壁纸的用户，在启动恢复阶段以**三重内容指纹**（data URL 长度 + 解码字节长度 + cyrb53 哈希，全部对上才写入）识别旧图并一次性换成新出厂图——用户自设壁纸、任何非旧图内容均不可能被误写；迁移挂在 `restorePersistedState`（首启与 host 接管后都会经过），不触碰三层同步层。**负向路径**（短图 / 同长度走私 / 同字节数空白载荷 / 当前出厂图幂等）进 CI 回归门；**正向路径**经一次性离线测试确认命中后替换，旧图素材本体不进仓库。注意：旧照片仍存在于 **git 历史**（是否重写历史由维护者决定），且 `docs/screenshots/` 两张截图仍含旧图，**待真机重截**。
+- **漂移探针桌面锚点修正**（本会话自纠）：桌面壳侧边栏探针此前把带注释的字符串直接喂给 `querySelector`（非法选择器 → 桌面端恒判漂移），已改为查询原始选择器、注释只出现在报告文案中。
+
+### 加固
+- **渐变壁纸注入校验**：渐变值经 `el.style.backgroundImage`（CSSOM）写入，无法借 `;`/`}` 逃逸，但 `url()` / `image-set()` / `element()` / `cross-fade()` 等合法图像函数仍可让页面静默拉取第三方端点（内网探测/埋点）。新增 `isSafeWallpaperGradient()`（仅放行 linear/radial/conic-gradient、拒绝一切资源拉取函数与控制字符），**写入（`setWallpaperKind`，覆盖导入/分享链接/恢复全部路径）与渲染（`wallpaperBackgroundCss`）双层把关**——与既有 URL 壁纸的"出口拒绝"模式对齐。合法预设/弥散光渐变不受影响。
+- docs/PROJECT.md 失实修正：host 半边早已不是 "no-op apply"（现为状态文件 + 围栏路由）；v0.x 里程碑标注为历史、v0.4 补"已完成"。
+
+### 回归门
+- **69/69**（新增：渐变注入 4 例——`url()` 走私拒绝、裸色值拒绝、多层弥散光放行、被篡改存储渲染期忽略；诊断通道 2 例——ready 快照与 degraded 内联发布；壁纸迁移负向 1 例——三类走私 + 出厂图幂等）。`tsc -p tsconfig.json` 通过。
+
+### 未验证项（如实记录）
+- 官方 DSH Desktop 预览版真机像素级验证尚未执行（矩阵中该行标注"预期兼容"）；
+- **`docs/screenshots/preview.png` 与 `settings.png` 仍展示旧出厂壁纸，需真机重截**（不拿合成图冒充真机截图）。
+
 ## [9.23.0] - 2026-09-23
 
 > **子路径部署支持**（issue #56，报告者 shuangji66）。

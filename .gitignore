@@ -29,3 +29,6 @@ research/
 /docs/review/
 .rivals/
 .probe/
+
+# Local image-generation scratch sources (not distributed)
+vibe_images/
