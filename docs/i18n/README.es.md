@@ -45,9 +45,9 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 > Capturas reales, no maquetas. Izquierda: DSH tras aplicar una skin; derecha: la sección dedicada **Theme / Appearance** en Settings.
 
 <p align="center">
-  <img src="../../docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
   &nbsp;&nbsp;
-  <img src="../../docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
 </p>
 
 ---
@@ -406,7 +406,7 @@ que el proyecto se descubra y se mantenga. ¿Quieres contribuir con themes / un 
 > Actualizada automáticamente cada día (GitHub Actions). Eje izquierdo: **descargas acumuladas** (verde); eje derecho: **número de Stars** (púrpura) — magnitudes muy distintas, por eso cada uno tiene su propio eje Y independiente.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=3" alt="Curva de crecimiento diario Star × descargas acumuladas de dsh-dream-skin" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="Curva de crecimiento diario Star × descargas acumuladas de dsh-dream-skin" width="900"/>
 </p>
 
 *Los datos se recogen cada 24 horas: las descargas desde la [API oficial de npm](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), y las Stars desde la [API de GitHub](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*

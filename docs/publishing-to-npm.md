@@ -11,14 +11,18 @@
 1. 包名全局唯一。scope 名更安全（如 `@你的账号/dsh-dream-skin`）——如需改 scope，改 `package.json` 里的
    `name` 即可。
 2. 填好 `author`、`repository`、`description`、`keywords`（均已预留）。
-3. 确认 `files` 里带上了这些文件（当前已配置：主 README + `docs/i18n/` 多语言 README）：
+3. 确认 `files` 里带上了这些文件（当前已配置：主 README + `docs/i18n/` 多语言 README + 兼容矩阵）：
    ```json
    "files": ["lib/index.js", "lib/client.js", "lib/types", "cordis.patch.yml",
-             "README.md", "docs/i18n", "docs/previews", "docs/screenshots",
-             "docs/examples", "docs/themes-spec.md", "docs/design-philosophy.md"]
+             "README.md", "docs/i18n", "docs/previews", "docs/examples",
+             "docs/themes-spec.md", "docs/design-philosophy.md", "docs/desktop-support.md"]
    ```
    这样 npm 只会上传这些，不会带源码里不需要的东西。多语言 README（en/ja/ko/es/fr/de/ru）放在
    `docs/i18n/` 下（根目录只保留中文 `README.md`），同样会随包发布。
+   注意：`docs/screenshots/` **刻意不在白名单**（v9.26.1 起，真机重截前不随包分发）——
+   README 里的截图与成长图已改指 GitHub 绝对 URL，npm 页面仍可显示；`package-lock.json` 的版本
+   须与 `package.json`/`PLUGIN_BUILD` 同步（三方评审 T-07）。发布前跑 `npm pack --dry-run`
+   核对产物清单。
 
 ## 二、GitHub 发布（开源）
 
@@ -66,14 +70,17 @@ dsh plugin --profile web add dsh-dream-skin
 ## 五、常见注意事项
 
 - **镜像源**：发布必须 `--registry https://registry.npmjs.org`。
-- **版本号**：从 `8.28.0` 起改用**日期式版本** `M.D.X`（月.日.当日第几个版本）。例如 8 月 28 日首版 `8.28.0`、当日再发 `8.28.1`、次日 `8.29.0`。当前最新为 `9.9.0`（首发 0.2.0 → 0.4.15 → 8.28.0 → 9.9.0）。
+- **版本号**：从 `8.28.0` 起改用**日期式版本** `M.D.X`（月.日.当日第几个版本）。例如 8 月 28 日首版 `8.28.0`、当日再发 `8.28.1`、次日 `8.29.0`。当前版本号以 `package.json` 为准（此处刻意不抄录，防陈旧；演进脉络：0.2.0 → 0.4.15 → 8.28.0 → 日期式）。
 - **PLUGIN_BUILD 同步**：改版本号时同步 `lib/client.js` 顶部的 `PLUGIN_BUILD` 常量（桌面诊断通道 `window.__DSH_DREAM_SKIN_STATUS__` 上报的构建号）。冒烟测试里有一条断言会拿它比对 package.json 版本——漏改会红。
 - **peerDependencies**：以 `^0.1.0-rc.6` 对齐 DSH 当前版本；DSH 升级到正式版后记得跟进。平台客户端包的 peer 均为 `optional`（宿主运行时供给）；`dsh-client-store`（自 2026-08-30 起已在 npm 发布）用宽范围声明以适配宿主换代。
 - **engines.dsh（刻意不声明）**：semver 只在候选版本与自身 `major.minor.patch` 相同的轨道放行预发布版本，任何单一范围都无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`；声明反而会广播错误的「不兼容」信号，且宿主不读取该字段。兼容性以 README 兼容矩阵 + 客户端运行时能力探测（平台 seed 全量降级兜底）为准。
 - **发布顺序**：先打 tag 并在 GitHub 建 Release（Release notes 引用 CHANGELOG 条目与 npm 链接），再执行 `npm publish`；三处（tag / Release / npm）版本号必须一致。
 - **LICENSE / README**：npm 页会展示仓库提交的内容，建议发布前同步。
-- **files 白名单**：已含主 README、`docs/i18n/` 多语言 README 与 `docs/previews`、`docs/screenshots`、`docs/examples`、`docs/themes-spec.md`，
-  保证 npm 包页的 README 截图 / 预览色卡 / 示例链接不 404。
+- **files 白名单**：以 `package.json` 的 `files` 字段为准；除代码与多语言 README 外含
+  `docs/previews`、`docs/examples`、`docs/themes-spec.md`、`docs/desktop-support.md`，保证 npm 包页的
+  预览色卡 / 示例 / 兼容矩阵链接不 404。`docs/screenshots/` **刻意排除**（v9.26.1 起，真机重截前
+  不随包分发），根 README 的截图与成长图已改用 GitHub 绝对 URL 渲染。每次发布前 `npm pack --dry-run`
+  核对产物清单。
 
 ## 六、让社区发现你（.dsh-plugin topic / awesome / dsh-market）
 

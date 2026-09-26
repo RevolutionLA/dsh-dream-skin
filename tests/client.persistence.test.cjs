@@ -37,7 +37,7 @@ function makeEl() {
  * @param opts.hostValue - object the GET boot call should return (or 'unavailable').
  * @param opts.onSet - optional callback receiving each SET patch.
  */
-function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {}, firstBoot = false } = {}) {
+function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {}, firstBoot = false, code = null } = {}) {
 	const body = makeEl();
 	const document = { body, createElement: () => makeEl(), createTextNode: () => ({}), querySelector: () => null, querySelectorAll: () => [], head: makeEl() };
 	const loc = { origin: 'http://x', pathname: '/', search: '', hash: '' };
@@ -85,8 +85,10 @@ function buildSandbox({ hostValue = {}, fetchImpl = null, seed = {}, firstBoot =
 	sandbox.window.history = sandbox.history;
 	for (const k of ['document', 'localStorage', 'btoa', 'atob', 'fetch']) sandbox.window[k] = sandbox[k];
 	const context = vm.createContext(sandbox);
-	vm.runInContext(CODE + '\nwindow.__LOGGED__=1;', context);
-	return { factory, localStorage, sent, getItem: (k) => store.get(k) };
+	// `code` lets a test patch the bundle source (e.g. pin the migration
+	// fingerprint constants to a synthetic fixture) without touching lib/client.js.
+	vm.runInContext((code || CODE) + '\nwindow.__LOGGED__=1;', context);
+	return { factory, localStorage, sent, window: sandbox.window, getItem: (k) => store.get(k) };
 }
 
 const REACT = { useRef: () => ({ current: {} }), useMemo: (f) => (typeof f === 'function' ? f() : f), useState: (init) => [init, () => {}] };
@@ -361,4 +363,111 @@ test('issue #51: unreachable host on first install still seeds the wallpaper (ca
 	e.apply(makeApplyContext(h));
 	await new Promise((resolve) => setTimeout(resolve, 50));
 	assert.ok(h.getItem('dsh-dream-skin:wallpaper') != null, 'wallpaper seeded on the unreachable-host path');
+});
+
+/**
+ * 9.26.1 remediation regression gates (adversarial review 9.26.0).
+ * The migration-fingerprint triple is rewritten in a patched copy of the
+ * bundle so tests can drive the legacy-photo path with a SYNTHETIC fixture
+ * (the real JPEG never re-enters the tree — fingerprints stay numeric).
+ */
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function cyrb53(str) {
+	let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+	for (let i = 0; i < str.length; i++) {
+		const ch = str.charCodeAt(i);
+		h1 = Math.imul(h1 ^ ch, 2654435761);
+		h2 = Math.imul(h2 ^ ch, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+	h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+	h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+	return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+function legacyFixture() {
+	const bin = Buffer.alloc(4096, 0x5a).toString('binary');
+	const fixture = 'data:image/jpeg;base64,' + Buffer.from(bin, 'binary').toString('base64');
+	let patched = CODE;
+	for (const [from, to] of [
+		['dataUrlLength: 115863', 'dataUrlLength: ' + fixture.length],
+		['byteLength: 86879,', 'byteLength: 4096,'],
+		['hash: 1042845555783671', 'hash: ' + cyrb53(bin)]
+	]) {
+		assert.ok(CODE.includes(from), 'fingerprint literal moved in client.js: ' + from);
+		patched = patched.replace(from, to);
+	}
+	const factoryImage = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+	return { fixture, patched, factoryImage };
+}
+
+const WP_KEY = 'dsh-dream-skin:wallpaper';
+
+test('B-01: boot re-publishes the diagnostics snapshot with host-adopted values', async () => {
+	const h = buildSandbox({ hostValue: { 'dsh-dream-skin:skin': 'midnight' } });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	// The boot-time publish happens BEFORE the GET resolves; without the
+	// post-adoption publishStatus() the status would keep the pre-host skin.
+	await sleep(50);
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(status, 'status channel published');
+	assert.equal(status.status, 'ready');
+	assert.equal(status.skin, 'midnight', 'status refreshed with the adopted host skin');
+});
+
+test('T-02 A: a user-cleared wallpaper (host null) wins over the provisional legacy-photo swap', async () => {
+	const { fixture, patched, factoryImage } = legacyFixture();
+	const h = buildSandbox({
+		hostValue: { [WP_KEY]: null },
+		seed: { [WP_KEY]: fixture },
+		code: patched
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	// Past the 200ms debounce: any leaked provisional push would have landed.
+	await sleep(350);
+	assert.ok(h.getItem(WP_KEY) == null, 'the cleared wallpaper stays cleared (issue #51 semantics)');
+	assert.ok(!h.sent.sets.some((p) => p[WP_KEY] === factoryImage), 'pre-settle swap is factory-sealed and never pushed');
+});
+
+test('T-02 B: legacy photo living in the host file converges to the new factory image', async () => {
+	const { fixture, patched, factoryImage } = legacyFixture();
+	// Desktop restart: fresh origin, host file still holds the legacy photo.
+	// Adoption makes it user-state; the post-settle migration must then push
+	// the replacement so EVERY origin converges (and the legacy copy leaves
+	// dream-skin.json too).
+	const h = buildSandbox({ firstBoot: true, hostValue: { [WP_KEY]: fixture }, code: patched });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(500);
+	assert.equal(h.getItem(WP_KEY), factoryImage, 'adopted legacy photo migrated locally');
+	assert.ok(h.sent.sets.some((p) => p[WP_KEY] === factoryImage), 'migration pushed as user state — host file converges');
+	assert.ok(!h.sent.sets.some((p) => p[WP_KEY] === fixture), 'the legacy photo is never pushed back');
+});
+
+test('T-03: host adoption enforces the gradient/URL write gates (tampered state file cannot smuggle fetches)', async () => {
+	const glow = 'linear-gradient(165deg, #121216 0%, #0d0d11 55%, #101016 100%)';
+	const h = buildSandbox({
+		hostValue: {
+			'dsh-dream-skin:wallpaper-gradient': 'radial-gradient(circle, red, blue), url("http://evil.invalid/ping")',
+			'dsh-dream-skin:wallpaper-url': 'javascript:alert(1)',
+			'dsh-dream-skin:skin': 'midnight'
+		}
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(50);
+	assert.ok(h.getItem('dsh-dream-skin:wallpaper-gradient') == null, 'unsafe gradient refused at adoption');
+	assert.ok(h.getItem('dsh-dream-skin:wallpaper-url') == null, 'non-http(s)/data URL refused at adoption');
+	assert.equal(h.getItem('dsh-dream-skin:skin'), 'midnight', 'gating one key must not stall adoption of the others');
+
+	// A legitimate glow gradient still adopts normally.
+	const h2 = buildSandbox({ hostValue: { 'dsh-dream-skin:wallpaper-gradient': glow } });
+	const e2 = h2.factory(makeRequire());
+	e2.apply(makeApplyContext(h2));
+	await sleep(50);
+	assert.equal(h2.getItem('dsh-dream-skin:wallpaper-gradient'), glow, 'valid gradient adopted');
 });

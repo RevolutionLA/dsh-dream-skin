@@ -45,9 +45,9 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
 > Echte Screenshots, keine Mockups. Links: DSH nach dem Anwenden eines Skins; rechts: der eigene Bereich **Theme / Appearance** in den Einstellungen.
 
 <p align="center">
-  <img src="../../docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
   &nbsp;&nbsp;
-  <img src="../../docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
 </p>
 
 ---
@@ -392,7 +392,7 @@ Ein Sicherheitsproblem gefunden? Öffne kein öffentliches Issue — siehe die [
 > Täglich automatisch aktualisiert (GitHub Actions). Linke Achse: **kumulierte Downloads** (türkis); rechte Achse: **Sternezahl** (violett) — sehr unterschiedliche Größenordnungen, daher zwei unabhängige Y-Achsen.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=3" alt="Tägliche Wachstumskurve Star × kumulierte Downloads von dsh-dream-skin" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="Tägliche Wachstumskurve Star × kumulierte Downloads von dsh-dream-skin" width="900"/>
 </p>
 
 *Die Daten werden alle 24 Stunden gesammelt: Downloads über die [offizielle npm-API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), Sterne über die [GitHub-API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*

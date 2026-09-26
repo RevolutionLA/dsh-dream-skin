@@ -45,9 +45,9 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 > De vraies captures d'écran, pas des maquettes. À gauche : DSH après application d'un skin ; à droite : la section dédiée **Thème / Apparence** dans les Paramètres.
 
 <p align="center">
-  <img src="../../docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
   &nbsp;&nbsp;
-  <img src="../../docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
 </p>
 
 ---
@@ -396,7 +396,7 @@ Vous avez trouvé un problème de sécurité ? N'ouvrez pas d'issue publique —
 > Mise à jour automatique chaque jour (GitHub Actions). Axe gauche : **téléchargements cumulés** (turquoise) ; axe droit : **nombre d'étoiles** (violet) — des ordres de grandeur très différents, d'où deux axes Y indépendants.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=3" alt="Courbe de croissance quotidienne Star × téléchargements cumulés de dsh-dream-skin" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="Courbe de croissance quotidienne Star × téléchargements cumulés de dsh-dream-skin" width="900"/>
 </p>
 
 *Les données sont collectées toutes les 24 h : téléchargements via l'[API officielle npm](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), étoiles via l'[API GitHub](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*

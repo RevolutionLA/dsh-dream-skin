@@ -44,9 +44,9 @@
 > 真机效果，非概念图。左：应用皮肤后的 DSH 界面；右：设置里的「外观 / Theme」分节。
 
 <p align="center">
-  <img src="docs/screenshots/preview.png" alt="DSH 皮肤实机预览" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH 皮肤实机预览" width="46%"/>
   &nbsp;&nbsp;
-  <img src="docs/screenshots/settings.png" alt="设置中的外观分节" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="设置中的外观分节" width="46%"/>
 </p>
 
 ---
@@ -273,7 +273,9 @@ dsh web   # 重启后恢复官方外观
 >
 > 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布，其 peer 以宽范围声明以适配宿主换代。
 
-**版本 9.26.0（2026-09-26）**：官方桌面版支持轮——新增**机读诊断通道** `window.__DSH_DREAM_SKIN_STATUS__`（ready/degraded + 锚点漂移快照，纯只读、零网络、零持久化改动），发布 **[docs/desktop-support.md](./docs/desktop-support.md)** 兼容支持矩阵（锚点依赖清单/安全边界/已验证-未验证诚实清单），CI 首次编译校验 `.d.ts`；渐变壁纸新增资源拉取函数注入拒绝（写入+渲染双层）；**出厂壁纸换为原创抽象弥散光图**（7.2KB，bundle -26%），仍用旧出厂图的用户由内容三重指纹精确匹配一次性迁移（自设壁纸不受影响）。回归门 **69/69**。
+**版本 9.26.1（2026-09-26）**：三方对抗评审整改轮——诊断快照跟随宿主采纳刷新、degraded 快照字段集与 ready 对齐；出厂壁纸迁移改为按 host 探针落定分支（落定前 provisional 不复活用户已清空的壁纸，落定后以用户态推送、把宿主状态文件里的旧图一并收敛）；宿主采纳路径补渐变/URL 注入守卫（写入+渲染+采纳三道把关）；漂移探针机读输出改合法原始选择器、桌面壳下计数修正；旧真人照片截图移出 npm 发布包、兼容矩阵进包；新增 8 个回归用例并全部经变异验证（反向破坏每处修复均有用例翻红）。回归门 **77/77**。
+
+**版本 9.26.0（2026-09-26）**：官方桌面版支持轮——新增**机读诊断通道** `window.__DSH_DREAM_SKIN_STATUS__`（ready/degraded + 锚点漂移快照，纯只读、零网络、零持久化改动），发布 **[docs/desktop-support.md](./docs/desktop-support.md)** 兼容支持矩阵（锚点依赖清单/安全边界/已验证-未验证诚实清单），CI 首次编译校验 `.d.ts`；渐变壁纸新增资源拉取函数注入拒绝（写入+渲染双层）；**出厂壁纸换为原创抽象弥散光图**（7.0KB，bundle -26%），仍用旧出厂图的用户由内容三重指纹精确匹配一次性迁移（自设壁纸不受影响）。回归门 **69/69**。
 
 **版本 9.16.0（2026-09-16）**：DSH Desktop 侧边栏透明度修复（issue #55，经蓝军→第三方→中立裁定三方评审整改）——桌面壳在自己的 `<aside class="dshDesktopSidebarSurface">` 上就近声明 `--dsw-specific-sidebar-fill`，遮蔽主题覆盖值，侧边栏透明度滑杆在桌面端无视觉通路（右侧文件面板不受影响，故左右不一致）；现让该子树重新继承（`inherit !important`，原生 Web 不匹配任何元素）。同时：拖动侧边栏透明度滑杆会释放「跟随壁纸」（仅在有壁纸 wash 时），两处默认值收敛到单点真源，桌面端规则纳入以宿主信号为锚点的漂移探针。回归门 **65/65**。
 
@@ -418,7 +420,7 @@ bundle（`@deepseek-ai/dsh-client-runtime/client`、…）。
 > 每天自动更新（GitHub Actions）。左轴：**累计下载量**（青色）；右轴：**Star 数**（紫色）——两个量级不同，因此使用独立的双纵轴。
 
 <p align="center">
-  <img src="docs/stats.png?v=3" alt="dsh-dream-skin 每日 Star × 累计下载量成长曲线" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="dsh-dream-skin 每日 Star × 累计下载量成长曲线" width="900"/>
 </p>
 
 *数据每 24 小时自动采集一次：下载量来自 [npm 官方 API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin)，Star 来自 [GitHub API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers)。*

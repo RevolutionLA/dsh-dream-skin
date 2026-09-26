@@ -45,9 +45,9 @@ The two ways are layered and independent: a preset decides the "material &amp; b
 > Real screenshots, not mockups. Left: DSH after applying a skin; right: the dedicated **Theme / Appearance** section in Settings.
 
 <p align="center">
-  <img src="../../docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
   &nbsp;&nbsp;
-  <img src="../../docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
 </p>
 
 ---
@@ -406,7 +406,7 @@ Found a security issue? Don't open a public issue — see the [Security Policy](
 > **Star count** (purple) — two very different magnitudes, so each has its own independent Y-axis.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=3" alt="dsh-dream-skin daily Stars × cumulative downloads growth chart" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="dsh-dream-skin daily Stars × cumulative downloads growth chart" width="900"/>
 </p>
 
 *Data is collected every 24 hours: downloads from the [npm API](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), Stars from the [GitHub API](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*

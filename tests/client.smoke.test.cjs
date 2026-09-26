@@ -72,7 +72,9 @@ function buildSandbox(overrides = {}) {
 	sandbox.window.history = sandbox.history;
 	for (const k of ['document', 'localStorage', 'btoa', 'atob']) sandbox.window[k] = sandbox[k];
 	const context = vm.createContext(sandbox);
-	vm.runInContext(CODE + '\nwindow.__LOGGED__=1;', context);
+	// overrides.code lets a test patch the bundle source (e.g. pin the migration
+	// fingerprint constants to a synthetic fixture) without touching lib/client.js.
+	vm.runInContext((overrides.code || CODE) + '\nwindow.__LOGGED__=1;', context);
 	return { factory, loc, localStorage, document, window: sandbox.window, registered: [], slots: { count: 0 } };
 }
 
@@ -546,6 +548,13 @@ test('diagnostics: degraded boot still publishes a machine-readable status (the 
 	assert.equal(status.status, 'degraded');
 	assert.equal(status.reason, 'host-seeds-unavailable');
 	assert.ok(status.lastError && status.lastError.includes('missed the module table'), 'last error surfaced for diagnosis');
+	// B-09 (9.26.1): degraded snapshot must expose the SAME field set as the
+	// ready one — consumers may read any member unguarded.
+	for (const k of ['plugin', 'build', 'status', 'shell', 'skin', 'anchors', 'checkedAt', 'publishedAt']) {
+		assert.ok(k in status, 'degraded snapshot keeps the ready-schema field: ' + k);
+	}
+	assert.equal(status.shell, null, 'unknown fields are null, not undefined/missing');
+	assert.equal(status.build, require('../package.json').version, 'degraded snapshot tracks package version');
 });
 
 test('factory-wallpaper migration: only the exact legacy asset is replaced, user state is never touched', () => {
@@ -615,12 +624,22 @@ test('gradient wallpaper: resource-fetching values are refused at write and igno
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), glow, 'multi-layer glow gradient accepted');
 
 	// A value that slipped into storage without validation (old versions or a
-	// tampered state file) must be ignored at render time, never applied.
+	// tampered state file) must be ignored at render time, never applied —
+	// asserted positively (9.26.1 B-05): NO element created during apply may
+	// carry the smuggled endpoint in any style property.
+	const created = [];
+	const doc = {
+		body: makeEl(), createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}), querySelector: () => null, querySelectorAll: () => [], head: makeEl()
+	};
 	const h2 = buildSandbox({
+		document: doc,
 		seed: { 'dsh-dream-skin:wallpaper-kind': 'gradient', 'dsh-dream-skin:wallpaper-gradient': 'radial-gradient(circle, red, blue), url("http://evil.invalid/ping")' }
 	});
 	const e2 = h2.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)), 'stored unsafe gradient must not break apply()');
+	const leaks = created.filter((el) => Object.values(el.style).some((v) => typeof v === 'string' && v.includes('evil.invalid')));
+	assert.equal(leaks.length, 0, 'render gate: the unsafe gradient must never reach any element style');
 });
 
 test('issue #45: scheduled URL-wallpaper refresh is due-based, keeps the stored URL clean and never grows history', () => {
@@ -2246,4 +2265,100 @@ test('round-17: liquid slider drives glass thickness (extra backdrop blur)', () 
 	assert.ok(styleEl, 'liquid thickness var consumed in material CSS');
 	assert.ok(styleEl.textContent.includes('backdrop-filter'), 'liquid rule uses backdrop-filter (not filter:url)');
 	assert.ok(!styleEl.textContent.includes('url(#dsh-liquid-refract)'), 'SVG refraction experiment fully removed');
+});
+
+/**
+ * 9.26.1 remediation regression gates (adversarial review 9.26.0).
+ * Helpers below reimplement the migration fingerprint in-test so a SYNTHETIC
+ * legacy asset can drive the positive path (the real photo never re-enters
+ * the test tree — fingerprints stay numeric).
+ */
+function cyrb53(str) {
+	let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+	for (let i = 0; i < str.length; i++) {
+		const ch = str.charCodeAt(i);
+		h1 = Math.imul(h1 ^ ch, 2654435761);
+		h2 = Math.imul(h2 ^ ch, 1597334677);
+	}
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+	h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+	h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+	return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+/** Synthetic legacy-factory-wallpaper fixture + bundle source whose fingerprint
+ *  constants are rewritten to match it. If the literals move, this throws —
+ *  which is itself the drift signal the tests must not silently lose. */
+function legacyFixture() {
+	const bin = Buffer.alloc(4096, 0x5a).toString('binary');
+	const fixture = 'data:image/jpeg;base64,' + Buffer.from(bin, 'binary').toString('base64');
+	let patched = CODE;
+	const subs = [
+		['dataUrlLength: 115863', 'dataUrlLength: ' + fixture.length],
+		['byteLength: 86879,', 'byteLength: 4096,'],
+		['hash: 1042845555783671', 'hash: ' + cyrb53(bin)]
+	];
+	for (const [from, to] of subs) {
+		assert.ok(CODE.includes(from), 'fingerprint literal moved in client.js: ' + from);
+		patched = patched.replace(from, to);
+	}
+	return { fixture, patched };
+}
+
+test('migration fingerprint: a synthetic asset matching the triple IS replaced by the new factory image; same-length wrong-hash is not', () => {
+	const { fixture, patched } = legacyFixture();
+	const factoryImage = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+
+	// Positive path — the pre-settle migration must fire on a true fingerprint match.
+	const h = buildSandbox({ code: patched, seed: { 'dsh-dream-skin:wallpaper': fixture } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), factoryImage, 'synthetic legacy asset migrated to the shipped image');
+
+	// Hash gate — identical lengths (data URL + bytes), only the content hash differs.
+	const almostBin = Buffer.alloc(4096, 0x5b).toString('binary');
+	const almost = 'data:image/jpeg;base64,' + Buffer.from(almostBin, 'binary').toString('base64');
+	assert.equal(almost.length, fixture.length, 'wrong-hash case keeps the exact fixture length');
+	const h2 = buildSandbox({ code: patched, seed: { 'dsh-dream-skin:wallpaper': almost } });
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	e2.apply(makeApplyContext(h2));
+	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper'), almost, 'same-length different-content must survive the hash gate');
+});
+
+test('drift probe (desktop shell): probed covers the gated anchor, drifted stays raw selectors, console keeps the label (B-08)', () => {
+	const warns = [];
+	const doc = {
+		body: Object.assign(makeEl(), { getAttribute: (k) => (k === 'data-dsh-desktop-mode' ? 'advanced' : null) }),
+		createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (sel === '.dshDesktopSidebarSurface' ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const h = buildSandbox({ document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.shell, 'desktop', 'desktop shell detected via the documented body stamp');
+	assert.equal(status.anchors.probed, 7, 'six host hashes + the gated desktop anchor');
+	assert.deepEqual(status.anchors.drifted, ['.dshDesktopSidebarSurface'], 'only the desktop anchor drifted; entries stay valid raw selectors');
+	assert.ok(warns.some((w) => w.includes('desktop shell sidebar surface')), 'human label survives in the console line');
+});
+
+test('diagnostics: later re-publishes keep the drift anchors via prev-merge (status never downgrades itself)', () => {
+	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'abyss' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	const before = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(before.anchors && before.checkedAt, 'anchors + timestamp from the boot probe');
+	h.actionBags['dream-skin'].setSkin('ember');
+	const after = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(after.skin, 'ember', 'skin refreshed by the re-publish');
+	assert.deepEqual(after.anchors, before.anchors, 'anchors survive the re-publish (prev-merge)');
+	assert.equal(after.checkedAt, before.checkedAt, 'probe timestamp survives the re-publish');
+});
+
+test('migration fingerprint constants are pinned (changing the shipped asset requires a new triple, not a silent edit)', () => {
+	assert.equal(CODE.includes('dataUrlLength: 115863'), true);
+	assert.equal(CODE.includes('byteLength: 86879,'), true);
+	assert.equal(CODE.includes('hash: 1042845555783671'), true);
 });

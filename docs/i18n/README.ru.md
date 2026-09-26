@@ -45,9 +45,9 @@
 > Настоящие скриншоты, а не макеты. Слева: DSH после применения скина; справа: выделенный раздел **Тема / Оформление** в настройках.
 
 <p align="center">
-  <img src="../../docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
   &nbsp;&nbsp;
-  <img src="../../docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="Theme section in settings" width="46%"/>
 </p>
 
 ---
@@ -397,7 +397,7 @@ dsh web   # восстанавливает официальный вид
 > Автоматически обновляется ежедневно (GitHub Actions). Левая ось: **суммарные скачивания** (бирюзовый); правая ось: **число звёзд** (фиолетовый) — сильно разные порядки величин, поэтому у каждого своя независимая ось Y.
 
 <p align="center">
-  <img src="../../docs/stats.png?v=3" alt="Ежедневная кривая роста Star × суммарные скачивания dsh-dream-skin" width="900"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/stats.png?v=3" alt="Ежедневная кривая роста Star × суммарные скачивания dsh-dream-skin" width="900"/>
 </p>
 
 *Данные собираются каждые 24 часа: скачивания — из [официального API npm](https://api.npmjs.org/downloads/range/2026-08-15:2026-12-31/dsh-dream-skin), звёзды — из [API GitHub](https://github.com/RevolutionLA/dsh-dream-skin/stargazers).*
