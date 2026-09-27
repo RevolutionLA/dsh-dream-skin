@@ -6,6 +6,7 @@
 	"type": "module",
 	"main": "lib/index.js",
 	"types": "lib/types/index.d.ts",
+	"icon": "./icon.svg",
 	"exports": {
 		".": {
 			"types": "./lib/types/index.d.ts",
@@ -19,6 +20,7 @@
 		"./locale/*.json": "./locale/*.json"
 	},
 	"files": [
+		"icon.svg",
 		"locale",
 		"lib/index.js",
 		"lib/client.js",
