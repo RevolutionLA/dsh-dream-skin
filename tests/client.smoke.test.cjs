@@ -623,14 +623,21 @@ test('factory-wallpaper migration: only the exact legacy asset is replaced, user
 	const legacyDataUrlLength = 115863;
 	const legacyByteLength = 86879;
 	const b64ForBytes = (n) => Buffer.alloc(n).toString('base64'); // zero payload, exact byte length
+	const legacy2Prefix = "data:image/jpeg;base64,";
+	const legacy2DataUrlLength = 9619; // v9.24.0-v9.27.0 glow raster, 7197 bytes
+	const legacy2ByteLength = 7197;
 
 	const cases = {
 		'short custom photo': legacyPrefix + b64ForBytes(1000),
 		'same length, different content': legacyPrefix + 'A'.repeat(legacyDataUrlLength - legacyPrefix.length),
-		'same byte length, zero payload': legacyPrefix + b64ForBytes(legacyByteLength)
+		'same byte length, zero payload': legacyPrefix + b64ForBytes(legacyByteLength),
+		'entry 2: same length, different content': legacy2Prefix + 'B'.repeat(legacy2DataUrlLength - legacy2Prefix.length),
+		'entry 2: same byte length, zero payload': legacy2Prefix + b64ForBytes(legacy2ByteLength)
 	};
 	assert.equal(legacyPrefix.length + (legacyDataUrlLength - legacyPrefix.length), legacyDataUrlLength, 'smuggle case has the exact legacy string length');
 	assert.equal(Buffer.from(cases['same byte length, zero payload'].slice(legacyPrefix.length), 'base64').length, legacyByteLength, 'zero-payload case has the exact legacy byte length');
+	assert.equal(cases['entry 2: same length, different content'].length, legacy2DataUrlLength, 'entry-2 smuggle case has the exact stored length');
+	assert.equal(Buffer.from(cases['entry 2: same byte length, zero payload'].slice(legacy2Prefix.length), 'base64').length, legacy2ByteLength, 'entry-2 zero-payload case has the exact byte length');
 
 	for (const [name, value] of Object.entries(cases)) {
 		const h = buildSandbox({ seed: { 'dsh-dream-skin:wallpaper': value } });
@@ -641,7 +648,7 @@ test('factory-wallpaper migration: only the exact legacy asset is replaced, user
 
 	// The shipped factory wallpaper itself must also be stable across boots
 	// (idempotence anchor for the day this asset is next replaced).
-	const current = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+	const current = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
 	const h2 = buildSandbox({ seed: { 'dsh-dream-skin:wallpaper': current } });
 	const e2 = h2.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)));
@@ -2205,7 +2212,7 @@ test('round-6: first launch applies factory defaults (shipped look)', async () =
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), 'nebula', 'factory skin applied on first launch');
 	await new Promise((resolve) => setTimeout(resolve, 10)); // let the deferred wallpaper seed settle
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'factory wallpaper kind applied');
-	assert.ok((h.localStorage.getItem('dsh-dream-skin:wallpaper') || '').startsWith('data:image/jpeg;base64,'), 'bundled horse painting applied');
+	assert.ok((h.localStorage.getItem('dsh-dream-skin:wallpaper') || '').startsWith('data:image/svg+xml;base64,'), 'bundled vector glow applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'bing-daily default URL visible');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.19', 'factory wallpaper opacity applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.4', 'factory composer opacity applied');
@@ -2342,20 +2349,29 @@ function cyrb53(str) {
 	return 4294967296 * (2097151 & h2) + (h1 >>> 0);
 }
 
-/** Synthetic legacy-factory-wallpaper fixture + bundle source whose fingerprint
- *  constants are rewritten to match it. If the literals move, this throws —
- *  which is itself the drift signal the tests must not silently lose. */
-function legacyFixture() {
-	const bin = Buffer.alloc(4096, 0x5a).toString('binary');
-	const fixture = 'data:image/jpeg;base64,' + Buffer.from(bin, 'binary').toString('base64');
+/**
+ * Synthetic legacy-factory-wallpaper fixture + bundle source whose
+ * fingerprint constants are rewritten to match it. Entry 1 is the
+ * v9.13.0-v9.23.0 stock photo, entry 2 the v9.24.0-v9.27.0 raster of the
+ * abstract glow. If the literals move, this throws - which is itself the
+ * drift signal the tests must not silently lose.
+ */
+const FP_LITERALS = {
+	1: ["dataUrlLength: 115863", "byteLength: 86879,", "hash: 1042845555783671"],
+	2: ["dataUrlLength: 9619", "byteLength: 7197,", "hash: 7481607271554265"]
+};
+function legacyFixture(entry = 1, size = 4096, fill = 0x5a) {
+	const bin = Buffer.alloc(size, fill).toString("binary");
+	const fixture = "data:image/jpeg;base64," + Buffer.from(bin, "binary").toString("base64");
 	let patched = CODE;
+	const [lenLit, byteLit, hashLit] = FP_LITERALS[entry];
 	const subs = [
-		['dataUrlLength: 115863', 'dataUrlLength: ' + fixture.length],
-		['byteLength: 86879,', 'byteLength: 4096,'],
-		['hash: 1042845555783671', 'hash: ' + cyrb53(bin)]
+		[lenLit, "dataUrlLength: " + fixture.length],
+		[byteLit, "byteLength: " + size + ","],
+		[hashLit, "hash: " + cyrb53(bin)]
 	];
 	for (const [from, to] of subs) {
-		assert.ok(CODE.includes(from), 'fingerprint literal moved in client.js: ' + from);
+		assert.ok(CODE.includes(from), "fingerprint literal moved in client.js: " + from);
 		patched = patched.replace(from, to);
 	}
 	return { fixture, patched };
@@ -2363,7 +2379,7 @@ function legacyFixture() {
 
 test('migration fingerprint: a synthetic asset matching the triple IS replaced by the new factory image; same-length wrong-hash is not', () => {
 	const { fixture, patched } = legacyFixture();
-	const factoryImage = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+	const factoryImage = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
 
 	// Positive path — the pre-settle migration must fire on a true fingerprint match.
 	const h = buildSandbox({ code: patched, seed: { 'dsh-dream-skin:wallpaper': fixture } });
@@ -2379,6 +2395,43 @@ test('migration fingerprint: a synthetic asset matching the triple IS replaced b
 	const e2 = h2.factory(makeRequire(makeRuntime().RT));
 	e2.apply(makeApplyContext(h2));
 	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper'), almost, 'same-length different-content must survive the hash gate');
+});
+
+test('migration fingerprint (entry 2): the shipped raster of the glow IS replaced; same-length wrong-hash is not', () => {
+	// The v9.24.0-v9.27.0 factory image is a 1200x678 JPEG whose macroblocks
+	// read as squares once `background-size: cover` upscales it on a 2K screen,
+	// so 9.27.1 swaps it for the inline-SVG default. Same triple-fingerprint
+	// discipline as entry 1: only the exact shipped asset moves.
+	const { fixture, patched } = legacyFixture(2, 5120, 0x69);
+	const factoryImage = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
+	const h = buildSandbox({ code: patched, seed: { 'dsh-dream-skin:wallpaper': fixture } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), factoryImage, 'entry-2 legacy raster migrated to the vector default');
+
+	// Same length, same decoded byte length, different content: hash gate holds.
+	const almost = 'data:image/jpeg;base64,' + Buffer.alloc(5120, 0x6a).toString('base64');
+	assert.equal(almost.length, fixture.length, 'wrong-hash case keeps the exact fixture length');
+	const h2 = buildSandbox({ code: patched, seed: { 'dsh-dream-skin:wallpaper': almost } });
+	h2.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(h2));
+	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper'), almost, 'same-length different-content must survive the hash gate');
+});
+
+test('factory wallpaper asset invariants: inline vector, sized, stitched, under budget', () => {
+	// The whole point of the 9.27.1 swap is that a fixed-resolution raster
+	// cannot stay smooth once the cover layer upscales it; these assertions
+	// fail the day someone re-ships a JPEG/PNG/WebP as the factory default.
+	const uri = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
+	assert.ok(uri.startsWith('data:image/svg+xml;base64,'), 'factory wallpaper must be inline SVG, not a resolution-bound raster');
+	const svg = Buffer.from(uri.slice('data:image/svg+xml;base64,'.length), 'base64').toString('utf8');
+	assert.ok(svg.includes('<svg xmlns="http://www.w3.org/2000/svg"'), 'background-image SVGs need the xmlns or they render blank');
+	const dims = svg.match(/width="(\d+)" height="(\d+)"/);
+	assert.ok(dims, 'the SVG must declare an intrinsic size for background-size: cover');
+	assert.ok(Number(dims[1]) * 9 === Number(dims[2]) * 16, `intrinsic ratio must be 16:9, got ${dims[1]}x${dims[2]}`);
+	assert.ok(Number(dims[1]) >= 1600, 'intrinsic width must be at least 1600 so the cover layer never upscales a raster');
+	assert.ok(svg.includes('stitchTiles="stitch"'), 'the dither tile must stitch or the grain shows a seam lattice');
+	assert.ok(/stop-opacity="0"/.test(svg), 'every glow must fade to zero opacity, else the blob edge shows as a ring');
+	assert.ok(Buffer.byteLength(svg, 'utf8') < 5120, `asset budget exceeded: ${Buffer.byteLength(svg, 'utf8')}B (the raster it replaced was 7197B)`);
 });
 
 test('drift probe (desktop shell): probed covers the gated anchor, drifted stays raw selectors, console keeps the label (B-08)', async () => {
@@ -2762,6 +2815,11 @@ test('migration fingerprint constants are pinned (changing the shipped asset req
 	assert.equal(CODE.includes('dataUrlLength: 115863'), true);
 	assert.equal(CODE.includes('byteLength: 86879,'), true);
 	assert.equal(CODE.includes('hash: 1042845555783671'), true);
+	// The triple's REAL correctness gate is the fixture-recomputation test in
+	// client.persistence.test.cjs; this pin only guards silent edits.
+	assert.equal(CODE.includes('dataUrlLength: 9619, byteLength: 7197, hash: 7481607271554265'), true, 'entry 2 (the 9.24-9.27 glow raster) must keep its full triple');
+	assert.equal(CODE.match(/dataUrlLength: \d+, byteLength: \d+, hash: \d+/g).length, 2, 'exactly two legacy fingerprints ship');
+	assert.ok(!/data:image\/jpeg;base64,[A-Za-z0-9+\/=]{500,}/.test(CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1]), 'the shipped default must not be a raster literal again');
 });
 
 test('schema guard (B-3): ready and degraded snapshots expose EXACTLY the same key set', () => {

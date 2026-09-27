@@ -242,6 +242,35 @@ test('blue-team B2: upgrader who only touched the sidebar keeps their look (no f
 	assert.equal(h.getItem('dsh-dream-skin:material-preset'), null, 'no factory material forced on the upgrader');
 });
 
+test('first launch pre-fills the daily-wallpaper URL but never applies it', async (t) => {
+	// The URL field ships pre-filled so a visitor can see what a daily-wallpaper
+	// API looks like, but a first install must paint the BUNDLED image and the
+	// scheduled third-party poll must stay off. Two independent guards, each with
+	// its own red: kind/url decide what actually renders, refresh decides whether
+	// anything ever reaches the network.
+	const h = buildSandbox({ firstBoot: true, hostValue: {} });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await new Promise((resolve) => setTimeout(resolve, 50));
+
+	assert.equal(
+		h.getItem('dsh-dream-skin:wallpaper-url'),
+		'https://uapis.cn/api/v1/image/bing-daily',
+		'the URL field stays pre-filled (removing it leaves users with no example to start from)'
+	);
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'a pre-filled URL must never become the active wallpaper kind');
+	assert.match(
+		h.getItem('dsh-dream-skin:wallpaper') || '',
+		/^data:image\/svg\+xml;base64,/,
+		'the first paint must come from the shipped data URI, not a network image'
+	);
+	assert.equal(
+		JSON.parse(h.getItem('dsh-dream-skin:wallpaper-refresh') || '{"on":0}').on,
+		0,
+		'scheduled polling is opt-in (blue-team B7)'
+	);
+});
+
 test('writes push to the host channel after a debounce', async (t) => {
 	const h = buildSandbox({ hostValue: {} });
 	const e = h.factory(makeRequire());
@@ -400,7 +429,9 @@ test('B-6: a host that answers {ok:false} still fires the deferred factory seed 
  * 9.26.1 remediation regression gates (adversarial review 9.26.0).
  * The migration-fingerprint triple is rewritten in a patched copy of the
  * bundle so tests can drive the legacy-photo path with a SYNTHETIC fixture
- * (the real JPEG never re-enters the tree — fingerprints stay numeric).
+ * (entry 1's stock photo never re-enters the tree — its fingerprint stays
+ * numeric). Entry 2 gets the opposite treatment, see the 9.27.1 cases below:
+ * a patched triple can only ever test the ALGORITHM, never the CONSTANTS.
  */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -430,7 +461,7 @@ function legacyFixture() {
 		assert.ok(CODE.includes(from), 'fingerprint literal moved in client.js: ' + from);
 		patched = patched.replace(from, to);
 	}
-	const factoryImage = CODE.match(/data:image\/jpeg;base64,[A-Za-z0-9+\/=]+/)[0];
+	const factoryImage = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
 	return { fixture, patched, factoryImage };
 }
 
@@ -491,6 +522,50 @@ test('T-02 B: legacy photo living in the host file converges to the new factory 
 	const folded = CODE.replace(/\s+/g, " ");
 	assert.ok(folded.includes("writeStorage(WALLPAPER_KEY, FACTORY_DEFAULTS[WALLPAPER_KEY], hostProbeSettled ? {} : { factory: true })"),
 		'migration write must branch on hostProbeSettled (user-state push after settle) — see the CONTROLLED EXCEPTION comment in migrateLegacyFactoryWallpaper');
+});
+
+/**
+ * 9.27.1 — entry-2 migration gates that can actually redden on a WRONG
+ * CONSTANT. The first version of this swap shipped an entry-2 hash that no
+ * test was able to catch: every existing case rewrote the triple to fit its
+ * own synthetic payload, so the literal was only ever compared with itself
+ * (self-consistent probe) and the swap silently never fired on real machines.
+ * These two cases drive the REAL bytes v9.24.0–v9.27.0 shipped, extracted from
+ * tag v9.27.0 into tests/fixtures/, with UNPATCHED source. That raster was
+ * generated for this project (no stock-photo licensing/exposure concerns), so
+ * pinning it as a fixture is safe — and tests/ is outside package.json files,
+ * so it never ships.
+ */
+const LEGACY_RASTER_9_27 = fs.readFileSync(path.join(__dirname, 'fixtures', 'legacy_factory_raster_9_27_0.txt'), 'utf8').trim();
+const FACTORY_VECTOR = CODE.match(/\[WALLPAPER_KEY\]: "(data:[^"]+)"/)[1];
+
+test('entry-2 fingerprint: the shipped triple is recomputed from the v9.27.0 raster, not retyped', () => {
+	assert.equal(LEGACY_RASTER_9_27.length, 9619, 'fixture drifted from the tagged asset');
+	assert.ok(LEGACY_RASTER_9_27.startsWith('data:image/jpeg;base64,'));
+	const bin = Buffer.from(LEGACY_RASTER_9_27.slice('data:image/jpeg;base64,'.length), 'base64').toString('binary');
+	const triples = [...CODE.matchAll(/dataUrlLength: (\d+), byteLength: (\d+), hash: (\d+)/g)]
+		.map((m) => ({ dataUrlLength: Number(m[1]), byteLength: Number(m[2]), hash: Number(m[3]) }));
+	assert.equal(triples.length, 2, 'exactly two migration entries ship');
+	const entry = triples[1];
+	assert.equal(entry.dataUrlLength, LEGACY_RASTER_9_27.length, 'entry 2 must match the real data-url length');
+	assert.equal(entry.byteLength, bin.length, 'entry 2 must match the real decoded byte length');
+	assert.equal(entry.hash, cyrb53(bin), 'entry 2 hash must be recomputed from the real asset bytes');
+});
+
+test('entry-2 migration converges on a same-origin restart with the real bytes (host file included)', async () => {
+	// The reported real-machine shape: same origin, so localStorage AND
+	// dream-skin.json both still hold the v9.27.0 raster, marker already set.
+	// Nothing is patched here — the shipped entry-2 constants must match.
+	const h = buildSandbox({
+		hostValue: { [WP_KEY]: LEGACY_RASTER_9_27, 'dsh-dream-skin:wallpaper-kind': 'image', 'dsh-dream-skin:skin': 'nebula' },
+		seed: { [WP_KEY]: LEGACY_RASTER_9_27, 'dsh-dream-skin:wallpaper-kind': 'image', 'dsh-dream-skin:skin': 'nebula' }
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(500);
+	assert.equal(h.getItem(WP_KEY), FACTORY_VECTOR, 'stored wallpaper swapped to the vector asset');
+	assert.ok(h.sent.sets.some((p) => p[WP_KEY] === FACTORY_VECTOR), 'dream-skin.json converges too (user-state push)');
+	assert.ok(!h.sent.sets.some((p) => p[WP_KEY] === LEGACY_RASTER_9_27), 'the legacy raster is never pushed back');
 });
 
 test('T-03: host adoption enforces the gradient/URL write gates (tampered state file cannot smuggle fetches)', async () => {
