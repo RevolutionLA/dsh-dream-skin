@@ -42,4 +42,4 @@ jobs:
         with:
           node-version: 22
       - name: Typecheck the .d.ts declarations
-        run: npx -y -p typescript@5.6 tsc -p tsconfig.json
+        run: npx -y -p typescript@5.6.3 tsc -p tsconfig.json

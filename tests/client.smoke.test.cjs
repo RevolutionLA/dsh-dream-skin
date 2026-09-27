@@ -10,6 +10,26 @@
  *
  * The DOM/react/localStorage are mocks; this is a smoke/regression gate, not a
  * browser integration suite.
+ *
+ * Test-admission rules live in CONTRIBUTING.md ("测试准入规则", four gates) —
+ * that file is authoritative; this block is a mirror of the two that bind a
+ * test author most directly:
+ *   1. every state-machine case samples at LEAST two time points — an
+ *      intermediate snapshot AND the final one. Asserting only the terminal
+ *      state cannot distinguish "reached the target state" from "never ran the
+ *      transition at all" (external review 9.26.x, process note 1, adopted
+ *      after mutation verification caught two "always-green" windows);
+ *   2. a "clarification" fix (rename / doc / constant shape) is only pinned
+ *      when a SEMANTIC reversal — source edited, literals untouched — reddens a
+ *      behavioural assertion. An anchor string that merely fails to match is a
+ *      file-level throw, not a pin (round 3 self-catch, see `drift probe (R-4)`);
+ *   3. a lifecycle/cleanup case must catch its resource IN FLIGHT. Compressing
+ *      the clock can move the unmount past the window the leak lives in, and the
+ *      case then passes while proving nothing (round 4: S-3's cases ran on
+ *      FAST_DRIFT_CODE, so the ladder timer was already spent at unload and
+ *      "unload leaves no residue" was only half implemented without one red).
+ * Every attribution statement of the form "mutation X is caught by assertion Y"
+ * is itself reverse-checked in isolation before it is written down.
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -18,6 +38,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const CODE = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8');
+
+// The drift probe now runs a bounded delay ladder (A-1; R-4 round 2 renamed
+// CHECKPOINTS→RETRY_DELAYS because the entries are RELATIVE gaps, cumulative
+// ≈0/300/1300/4300ms). Fast-path tests patch the ladder to low hundreds of
+// milliseconds instead of waiting out the real 4.3s.
+// CAUTION for lifecycle cases: unloading after a compressed ladder finishes
+// means nothing is in flight to cancel, which is how the round-4 T-1 leak stayed
+// invisible to 92 green cases. Teardown/cancellation tests slow the ladder
+// instead (see `drift probe (T-1)`).
+const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
+if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function makeEl() {
 	return {
@@ -515,9 +547,16 @@ test('url wallpaper: unsafe schemes are refused, safe ones persist, stored junk 
 	assert.doesNotThrow(() => e2.apply(makeApplyContext(h2)), 'stored unsafe URL must not break apply()');
 });
 
-test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drift channel (docs/desktop-support.md)', () => {
+test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drift channel (docs/desktop-support.md)', async () => {
 	const pkg = require('../package.json');
-	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'abyss' } });
+	// A-1 acceptance case ①: against an empty mock DOM (nothing of the host
+	// is mounted) the probe must NOT claim drift — "UI not mounted yet" and
+	// "the host hashes drifted" are indistinguishable from querySelector
+	// alone, so the honest answer is pending, an empty drifted list, and NO
+	// console.warn. (The pre-A-1 probe published drifted.length === 6 here —
+	// a false verdict aimed at official desktop tooling.)
+	const warns = [];
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, seed: { 'dsh-dream-skin:skin': 'abyss' }, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
@@ -525,15 +564,31 @@ test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drif
 	assert.equal(status.plugin, 'dsh-dream-skin');
 	// Release-drift guard: PLUGIN_BUILD in the bundle must track package.json.
 	assert.equal(status.build, pkg.version, 'bundle build matches package.json version');
-	assert.equal(status.status, 'ready');
+	assert.equal(status.status, 'ready', 'apply() completed → ready (B-4: the token is signed at the END of apply, not its head)');
 	assert.equal(status.shell, 'web');
 	assert.equal(status.skin, 'abyss', 'status reflects the saved skin at boot');
-	// The mock DOM matches no host class, so every probe reports drifted —
-	// the POSITIVE signal official desktop tooling reads without console scraping.
-	assert.ok(status.anchors, 'drift probe fills anchors');
+	// B-3: the READY snapshot must expose the same field set as the degraded
+	// one — a strict consumer reading `reason`/`lastError` never hits
+	// undefined on either side.
+	assert.ok('reason' in status && 'lastError' in status, 'ready snapshot carries reason/lastError keys');
+	assert.equal(status.reason, null, 'ready-side reason is an explicit null');
+	assert.equal(status.lastError, null, 'ready-side lastError is an explicit null');
+	assert.ok(status.anchors, 'drift probe fills anchors even while pending');
+	assert.equal(status.anchors.pending, true, 'empty DOM is UNDECIDABLE, not drifted (A-1)');
+	assert.deepEqual(status.anchors.drifted, [], 'no drift verdict may be published while pending');
 	assert.equal(status.anchors.probed, 6, 'six host anchor groups probed on web shell');
-	assert.equal(status.anchors.drifted.length, 6, 'all six drifted against the empty mock DOM');
 	assert.ok(status.checkedAt > 0 && status.publishedAt > 0, 'timestamps present');
+	// Run the whole checkpoint ladder to its end, then re-read: the FINAL
+	// round of an undecidable DOM stays pending forever — that is the point.
+	// 400ms lands ~240ms past the FAST ladder's last round (≈160ms), so a
+	// `conclusive = final` (liveness-gate drop) mutation WOULD have published
+	// a 6-group drifted verdict here — the honest pending below is what the
+	// sentinel gate buys, not an untested race.
+	await sleep(400);
+	const settled = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(settled.anchors.pending, true, 'after all rounds the empty DOM is still honestly pending');
+	assert.deepEqual(settled.anchors.drifted, [], 'still no drift verdict after the ladder completes');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'a pending probe must not console.warn about drift');
 });
 
 test('diagnostics: degraded boot still publishes a machine-readable status (the moment tooling needs it most)', () => {
@@ -2326,7 +2381,7 @@ test('migration fingerprint: a synthetic asset matching the triple IS replaced b
 	assert.equal(h2.localStorage.getItem('dsh-dream-skin:wallpaper'), almost, 'same-length different-content must survive the hash gate');
 });
 
-test('drift probe (desktop shell): probed covers the gated anchor, drifted stays raw selectors, console keeps the label (B-08)', () => {
+test('drift probe (desktop shell): probed covers the gated anchor, drifted stays raw selectors, console keeps the label (B-08)', async () => {
 	const warns = [];
 	const doc = {
 		body: Object.assign(makeEl(), { getAttribute: (k) => (k === 'data-dsh-desktop-mode' ? 'advanced' : null) }),
@@ -2334,20 +2389,366 @@ test('drift probe (desktop shell): probed covers the gated anchor, drifted stays
 		querySelector: (sel) => (sel === '.dshDesktopSidebarSurface' ? null : { matched: true }),
 		querySelectorAll: () => [], head: makeEl()
 	};
-	const h = buildSandbox({ document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	// Mid-ladder (FAST patch: rounds fire at 0/20/50/90ms — this sample lands
+	// after round 2 but BEFORE the final): liveness is already proven here,
+	// yet only the FINAL round may deliver a conclusive drifted verdict.
+	// Without this pin, `conclusive = liveness` (gate drop) is invisible.
+	await sleep(40);
+	const mid = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(mid.anchors.pending, true, 'an intermediate round stays pending even with liveness proven');
+	assert.deepEqual(mid.anchors.drifted, [], 'no drift verdict before the ladder completes');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'intermediate rounds stay silent');
+	await sleep(250);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.shell, 'desktop', 'desktop shell detected via the documented body stamp');
 	assert.equal(status.anchors.probed, 7, 'six host hashes + the gated desktop anchor');
+	// A-1 acceptance case ③ (desktop variant): liveness IS proven (host
+	// contract stamp + all six host anchors hit), so the single unmatched
+	// group may be called drifted — with the machine field kept an exact
+	// raw selector and the human label staying in the console line.
+	assert.equal(status.anchors.pending, false, 'liveness proven + chain converged → conclusive');
 	assert.deepEqual(status.anchors.drifted, ['.dshDesktopSidebarSurface'], 'only the desktop anchor drifted; entries stay valid raw selectors');
 	assert.ok(warns.some((w) => w.includes('desktop shell sidebar surface')), 'human label survives in the console line');
 });
 
-test('diagnostics: later re-publishes keep the drift anchors via prev-merge (status never downgrades itself)', () => {
-	const h = buildSandbox({ seed: { 'dsh-dream-skin:skin': 'abyss' } });
+test('drift probe (A-1): full host match converges to a conclusive zero-drift verdict', async () => {
+	// A-1 acceptance case ②: sentinel hits and every anchor matches — the
+	// ONLY shape that may publish `drifted: [] && pending: false`.
+	const warns = [];
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: () => ({ matched: true }), querySelectorAll: () => [], head: makeEl()
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.anchors.pending, false, 'liveness proven via matched host anchors');
+	assert.deepEqual(status.anchors.drifted, [], 'every refinement confirmed live');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'a clean verdict never warns');
+});
+
+test('drift probe (A-1): one replaced anchor group is reported as exactly that group', async () => {
+	// A-1 acceptance case ③ (web variant): five host groups mount (liveness
+	// proven), the sixth never appears — drifted must contain EXACTLY that
+	// group's raw selector, nothing else.
+	const warns = [];
+	const driftedSel = '.qDHVXG_fade';
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (sel === driftedSel ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.anchors.pending, false, 'liveness proven (five groups matched ≥ the two-group gate)');
+	assert.deepEqual(status.anchors.drifted, [driftedSel], 'drifted lists exactly the one unmatched group');
+	assert.ok(warns.some((w) => w.includes(driftedSel)), 'the console line names the drifted group');
+});
+
+test('drift probe (R-4): the ladder array is RELATIVE gaps — an early terminal would change observable state', async () => {
+	// R-4 (external review 9.27.0 round 2) renamed the constant and fixed the
+	// docs; the ROUND-3 re-check (S-1's "reverse-check the attribution claims"
+	// rule applied to ourselves) showed the rename had NO behavioural pin at
+	// all: reading the array as absolute timestamps while keeping the literal
+	// `[0, 300, 1000, 3000]` left the whole suite green. This test supplies
+	// that pin, in the shape the array semantics demand — a MID sample that
+	// only holds under the gap reading, plus the terminal sample.
+	// Ladder patched to three 400ms gaps: under the GAP reading the rounds land
+	// at ≈0/400/800/1200ms, so at ≈700ms the chain is still undecided. Under the
+	// ABSOLUTE reading the same array means gaps of 0/400/0/0 — the terminal
+	// verdict would already be published by ≈450ms, and the mid assertions below
+	// go red. Margins are ≥250ms on both sides so a loaded runner cannot flip it.
+	const code = CODE.replace('[0, 300, 1000, 3000]', '[0, 400, 400, 400]');
+	if (code === CODE) throw new Error('ladder anchor moved — update the R-4 semantics test');
+	const driftedSel = '.qDHVXG_fade';
+	const warns = [];
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (sel === driftedSel ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const h = buildSandbox({ code, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(700);
+	// MID SAMPLE: still inside the ladder — no conclusive verdict, no warn.
+	const mid = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(mid.anchors.pending, true, 'MID: round 3 of 4 has not run yet under the gap reading (an absolute reading would already be terminal)');
+	assert.deepEqual(mid.anchors.drifted, [], 'MID: nothing is blamed while the chain is open');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'MID: an undecided round stays silent');
+	await sleep(700);
+	// TERMINAL SAMPLE: ≈1200ms cumulative, liveness proven → conclusive.
+	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(t0.anchors.pending, false, 'TERMINAL: the ladder completed');
+	assert.deepEqual(t0.anchors.drifted, [driftedSel], 'TERMINAL: names exactly the missing group');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'TERMINAL: warns once, only after the last gap');
+});
+
+test('drift probe (R-2): a surface mounting AFTER the terminal verdict retracts via the late-correction observer', async () => {
+	// External review R-2 (9.27.0 round 2): hit-once memory only covers the
+	// ladder window — a settings surface opened a minute later used to be
+	// permanently mis-judged drifted with the warning already emitted. After
+	// a terminal drifted verdict a body MutationObserver re-samples
+	// (debounced) and the verdict may only IMPROVE: mounted groups retract,
+	// the warn is never repeated, and the observer disarms once clean.
+	const warns = [];
+	let mounted = false;
+	const observers = [];
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (sel.startsWith('.hHd-Xa_root') && !mounted ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	class FakeMO {
+		constructor(cb) { this.cb = cb; observers.push(this); }
+		observe() {}
+		disconnect() { this.disconnected = true; }
+	}
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(t0.anchors.pending, false, 'terminal verdict reached');
+	assert.deepEqual(t0.anchors.drifted, ['.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'], 'group missing at terminal is named');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'terminal drift warns exactly once');
+	assert.ok(observers.length >= 1, 'late-correction observer armed after a drifted terminal');
+	// User opens settings "a minute later": the surface mounts, DOM mutates.
+	mounted = true;
+	for (const o of observers) o.cb([]);
+	await sleep(400); // debounce (300ms) + resample
+	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.deepEqual(t1.anchors.drifted, [], 'late mount retracts the drifted verdict (one-way improvement)');
+	assert.equal(t1.anchors.pending, false, 'the corrected snapshot stays conclusive');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'correction never re-warns');
+});
+
+test('drift probe (S-3): fiber unload disarms the late-correction observer and freezes the verdict', async () => {
+	// External review S-3 (9.27.0 round 3): teardownMaterial only dropped the
+	// <style> node, so an observer armed by a terminal drifted verdict kept
+	// sampling document.body after the fiber unloaded — residue the project's
+	// "unload leaves nothing behind" tenet does not allow. Two halves are
+	// pinned here: the observer is disconnected on unload, AND (the part that
+	// actually matters to the machine-readable contract) a DOM change after
+	// unload can no longer mutate the snapshot.
+	// Two other observers exist in every sandbox (the boot-level DOM guard armed
+	// at module load, and the composer marker, which watches documentElement).
+	// The unit under test is the LATE-CORRECTION one: armed after apply() and
+	// bound to document.body — so filter on exactly that.
+	const lateMOs = (observers, baseLen, doc) => observers.slice(baseLen).filter((o) => o.target === doc.body);
+	let mounted = false;
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (((sel.startsWith('.hHd-Xa_root') || sel === '.qDHVXG_fade') && !mounted) ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const observers = [];
+	class FakeMO {
+		constructor(cb) { this.cb = cb; observers.push(this); }
+		observe(target, opts) { this.target = target; this.opts = opts; }
+		disconnect() { this.disconnected = true; }
+	}
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn() {}, log() {}, error() {} } });
+	const baseLen = observers.length; // the boot guard is already armed at module load
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	// MID SAMPLE: while the fiber is mounted the observer is alive.
+	assert.equal(lateMOs(observers, baseLen, doc).length, 1, 'terminal drifted verdict armed exactly one observer');
+	assert.notEqual(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'the observer is live while the fiber is mounted');
+	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	const driftedBefore = t0.anchors.drifted.slice();
+	assert.equal(t0.anchors.pending, false, 'terminal verdict reached');
+	assert.equal(driftedBefore.length, 2, 'two surfaces still missing at terminal (settings area + fade)');
+	// UNMOUNT: run every disposer the harness collected, as the real host does.
+	for (const d of h.disposers || []) d();
+	assert.equal(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'unload disconnects the late-correction observer');
+	// TERMINAL SAMPLE: the surfaces now mount, and every observer in the sandbox
+	// is poked — a stale (disconnected) callback must not reach the snapshot.
+	mounted = true;
+	for (const o of observers) o.cb([]);
+	await sleep(400); // debounce (300ms) + resample would have run twice over
+	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.deepEqual(t1.anchors.drifted, driftedBefore, 'an unloaded plugin publishes NOTHING - the verdict is frozen, not improved');
+});
+
+test('drift probe (S-3): a re-applied probe supersedes the live observer instead of stacking a second one', async () => {
+	// S-3 second half: every apply() builds a fresh probe closure, so without a
+	// single-owner handle a second chain could arm a second body observer while
+	// the first is still live (two independent samplers, ~7.5s of sampling each).
+	const lateMOs = (observers, baseLen, doc) => observers.slice(baseLen).filter((o) => o.target === doc.body);
+	const missing = '.qDHVXG_fade';
+	let mounted = false;
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => (sel === missing && !mounted ? null : { matched: true }),
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const observers = [];
+	class FakeMO {
+		constructor(cb) { this.cb = cb; observers.push(this); }
+		observe(target, opts) { this.target = target; this.opts = opts; }
+		disconnect() { this.disconnected = true; }
+	}
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn() {}, log() {}, error() {} } });
+	const baseLen = observers.length;
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	assert.equal(lateMOs(observers, baseLen, doc).length, 1, 'first chain armed one observer');
+	assert.notEqual(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'and it is still live (no unload happened)');
+	// Re-apply WITHOUT unmounting (the host can re-enter apply(); the material
+	// sheet gets re-injected, so the probe chain runs again).
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const armed = lateMOs(observers, baseLen, doc);
+	const live = armed.filter((o) => !o.disconnected);
+	assert.ok(armed.length >= 2, 'the second chain reached its own terminal drifted verdict and armed its observer');
+	assert.equal(live.length, 1, 'at most ONE live late-correction observer per page');
+	assert.equal(live[0], armed[armed.length - 1], 'the survivor is the newest chain');
+	// The superseded observer must be INERT, not merely disconnected: poking it
+	// may not publish anything.
+	mounted = true;
+	for (const o of observers) o.cb([]);
+	await sleep(400);
+	assert.deepEqual(h.window.__DSH_DREAM_SKIN_STATUS__.anchors.drifted, [], 'the live chain retracts the late mount, exactly once and by itself');
+});
+
+test('drift probe (T-1): fiber unload cancels the ladder timer that is still armed', async () => {
+	// External review T-1 (9.27.0 round 4): S-3 gave teardown the
+	// late-correction observer, but scheduleNext() threw its setTimeout handle
+	// away — so unmounting inside the ~4.3s window left the remaining rounds
+	// armed and a dead plugin kept rewriting `checkedAt`. "Unload leaves no
+	// residue" has TWO halves and they are pinned by two separate cases on
+	// purpose (round-3 S-1: two assertions inside one case let the first
+	// failure hide the second). THIS case pins the cancellation; the next one
+	// pins the gate that clearTimeout cannot cover.
+	// Delays are values no other subsystem timer in this sandbox uses, and long
+	// enough that the chain cannot finish while the test runs.
+	const code = CODE.replace('[0, 300, 1000, 3000]', '[0, 4321, 5432, 6543]');
+	if (code === CODE) throw new Error('ladder anchor moved — update the T-1 cancellation test');
+	const armed = [];
+	const cleared = [];
+	const h = buildSandbox({
+		code,
+		setTimeout: (fn, ms) => { const id = setTimeout(fn, ms); armed.push({ id, ms }); return id; },
+		clearTimeout: (id) => { cleared.push(id); clearTimeout(id); },
+		console: { warn() {}, log() {}, error() {} }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(30); // round 1 ran synchronously; the 4321ms gap is now armed
+	const ladder = armed.filter((t) => t.ms === 4321);
+	assert.equal(ladder.length, 1, 'the mounted ladder armed exactly one pending round, gaps seen: ' + armed.map((t) => t.ms).join(','));
+	for (const d of h.disposers || []) d();
+	assert.ok(cleared.includes(ladder[0].id), 'unload CANCELS the armed drift-ladder timer (S-3 was only half done)');
+});
+
+test('drift probe (T-1): a step that slips past unload publishes nothing and arms nothing further', async () => {
+	// The other half, and the reason a clearTimeout is not enough on its own:
+	// once a timer has fired, its handle is consumed, so an unmount landing in
+	// that same tick cancels nothing and the in-flight step re-arms the rest of
+	// the chain from a plugin that no longer exists. This drives exactly that
+	// slip — it unmounts while round 2 is armed, then runs that step by hand —
+	// and asserts BOTH observable consequences: the machine-readable snapshot
+	// object is not even replaced (any publish allocates a new one, so this is
+	// insensitive to Date.now() resolution), and nothing new got armed.
+	// The second assertion is what pins the gate's POSITION, not just its
+	// existence: a guard inside runRound() also publishes nothing, but the step
+	// still reaches scheduleNext() and arms the remaining rounds from a dead
+	// fiber. That shape was run as an experiment in the copy tree and its ONLY
+	// red is exactly this assertion — the publish assertion above stays green,
+	// which is why the position claim could not have been made from it.
+	const code = CODE.replace('[0, 300, 1000, 3000]', '[0, 4321, 5432, 6543]');
+	if (code === CODE) throw new Error('ladder anchor moved — update the T-1 slip-through test');
+	const armed = [];
+	const h = buildSandbox({
+		code,
+		setTimeout: (fn, ms) => { const id = setTimeout(fn, ms); armed.push({ id, ms, fn }); return id; },
+		console: { warn() {}, log() {}, error() {} }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	// Round 1 ran synchronously; round 2 is the 4321ms timer still in the queue.
+	const slip = armed.filter((t) => t.ms === 4321);
+	assert.equal(slip.length, 1, 'round 2 is armed and untouched by the test clock, gaps: ' + armed.map((t) => t.ms).join(','));
+	const before = h.window.__DSH_DREAM_SKIN_STATUS__;
+	for (const d of h.disposers || []) d();
+	assert.equal(h.window.__DSH_DREAM_SKIN_STATUS__, before, 'unmount itself publishes nothing');
+	const armedBefore = armed.length;
+	slip[0].fn(); // the race: this step already left the timer queue
+	assert.equal(h.window.__DSH_DREAM_SKIN_STATUS__, before, 'an unloaded plugin publishes NOTHING through the ladder either');
+	assert.equal(armed.length, armedBefore, 'and the slipped step arms NOTHING further — the chain died with the fiber');
+});
+
+test('drift probe (T-1): a re-applied ladder supersedes the previous chain instead of stacking a second one', async () => {
+	// The single-owner rule S-3 established for observers has to hold for the
+	// ladder too, or a host that re-enters apply() mid-window gets two
+	// independent chains sampling the DOM and both writing the snapshot.
+	// Invariant order is deliberate: the behavioral half (the stale chain must
+	// be INERT, not merely cancelled) is asserted first, so a break of the
+	// cancellation half still gets its turn to speak (round-3 S-1 lesson).
+	const code = CODE.replace('[0, 300, 1000, 3000]', '[0, 4321, 5432, 6543]');
+	if (code === CODE) throw new Error('ladder anchor moved — update the T-1 supersede test');
+	const armed = [];
+	const cleared = [];
+	const h = buildSandbox({
+		code,
+		setTimeout: (fn, ms) => { const id = setTimeout(fn, ms); armed.push({ id, ms, fn }); return id; },
+		clearTimeout: (id) => { cleared.push(id); clearTimeout(id); },
+		console: { warn() {}, log() {}, error() {} }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(20);
+	const first = armed.filter((t) => t.ms === 4321);
+	assert.equal(first.length, 1, 'the first chain armed one pending round');
+	e.apply(makeApplyContext(h));
+	await sleep(20);
+	assert.equal(armed.filter((t) => t.ms === 4321).length, 2, 'the second chain armed its own round instead of being swallowed');
+	const before = h.window.__DSH_DREAM_SKIN_STATUS__;
+	first[0].fn(); // whatever the stale chain still believes it should do
+	assert.equal(h.window.__DSH_DREAM_SKIN_STATUS__, before, 'the superseded chain publishes NOTHING');
+	assert.ok(cleared.includes(first[0].id), 'and its pending timer was cancelled at the new chain, not left to fire');
+});
+
+test('drift probe (A-1): a late-mounting surface clears itself from the drifted list', async () => {
+	// The settings-area group only mounts when the user opens settings —
+	// possibly after the whole checkpoint ladder. Hit-once memory means any
+	// round that sees it retracts the pending flag for that group; the FINAL
+	// verdict must not blame a surface that mounted late. Here the group
+	// appears at ~15ms (inside the FAST ladder window).
+	const start = Date.now();
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
+		querySelector: (sel) => {
+			if (sel.startsWith('.hHd-Xa_root') && Date.now() - start < 60) return null;
+			return { matched: true };
+		},
+		querySelectorAll: () => [], head: makeEl()
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.anchors.pending, false, 'chain converged after the late mount');
+	assert.deepEqual(status.anchors.drifted, [], 'a surface that mounted at ANY round is not drifted (hit-once memory)');
+});
+
+test('diagnostics: later re-publishes keep the drift anchors via prev-merge (status never downgrades itself)', async () => {
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, seed: { 'dsh-dream-skin:skin': 'abyss' } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	await sleep(250);
 	const before = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.ok(before.anchors && before.checkedAt, 'anchors + timestamp from the boot probe');
 	h.actionBags['dream-skin'].setSkin('ember');
@@ -2361,4 +2762,236 @@ test('migration fingerprint constants are pinned (changing the shipped asset req
 	assert.equal(CODE.includes('dataUrlLength: 115863'), true);
 	assert.equal(CODE.includes('byteLength: 86879,'), true);
 	assert.equal(CODE.includes('hash: 1042845555783671'), true);
+});
+
+test('schema guard (B-3): ready and degraded snapshots expose EXACTLY the same key set', () => {
+	// docs/desktop-support.md promises "字段集完全一致、消费方永不撞
+	// undefined". The only way that promise stays true is an executed
+	// equality check — adding a field to ONE snapshot (either side) reddens
+	// this, which is precisely the one-sided drift B-3 reported.
+	const degradedSrc = CODE.match(/window\[STATUS_GLOBAL_KEY\] = \{([\s\S]*?)\};/);
+	assert.ok(degradedSrc, 'degraded inline snapshot literal found');
+	const degradedKeys = [...degradedSrc[1].matchAll(/^\s*([A-Za-z]+):/gm)].map((m) => m[1]);
+	assert.ok(degradedKeys.length >= 8, 'degraded snapshot keeps its full field set');
+	const ready = buildSandbox({});
+	const e = ready.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(ready));
+	const readyKeys = Object.keys(ready.window.__DSH_DREAM_SKIN_STATUS__);
+	assert.deepEqual(readyKeys.slice().sort(), degradedKeys.slice().sort(), 'ready and degraded expose the identical key set');
+});
+
+test('gradient guard (A-2.1): CSS-escape and comment smuggling are refused at the write gate', () => {
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+	const KEY = 'dsh-dream-skin:wallpaper-gradient';
+	// Every one of these decodes to a value containing `url(` (or otherwise
+	// an external reference) once the CSSOM parser resolves escapes — the
+	// pre-A-2 denylist ran on the RAW string and waved all of them through.
+	// B = literal backslash: CSS escapes must be REAL backslashes in the
+	// value (JS `\\75` writes one, but constructing via a constant keeps the
+	// vectors honest and immune to string-escape confusion — the round-1
+	// "variant ③" was accidentally `ul:` because `\72` is a JS colon).
+	const B = String.fromCharCode(92);
+	const LF = "\n";
+	const CR = String.fromCharCode(13);
+	const FF = String.fromCharCode(12);
+	// The smuggle list carries TWO decodable spellings of "url(": `${B}a`
+	// (CSS escape text — decodes through the hex branch, so it reddens the
+	// R-1 deletion fix) and the real control char `a`/CR/FF (the escape
+	// TEXT's own character, which the pre-normalization raw fence already
+	// refuses — honest redundancy, it pins the fence instead of the decoder).
+	//
+	// ONE VECTOR BELONGS ON THIS LIST'S OPPOSITE SIDE (reviewer's own round-3
+	// correction, and we re-derived it): `ul\a rl(` is NOT a smuggle. `\a`
+	// decodes to a newline only INSIDE the identifier, so CSS reads it as
+	// `ulrl(` — a function name that does not exist. Do not "fix" a red test by
+	// adding it to the must-refuse table; the honest spelling of that attack is
+	// `${B}75${B}a rl(` below, where the escape consumes the `a` and the
+	// continuation joins `u`+`rl`+`(` back into `url(`.
+	const smuggles = [
+		`linear-gradient(${B}75 rl("http://evil.invalid/ping"), red)`, // \75 + space-terminator
+		`linear-gradient(${B}000075rl("http://evil.invalid/ping"), red)`, // full 6-digit form
+		`/*x*/linear-gradient(red, blue), ${B}75${B}rl("http://evil.invalid/ping")`, // comment + \<LF> continuation
+		`linear-gradient(red, blue), ${B}75${B}72${B}6c("http://evil.invalid/ping")`, // fully escaped u-r-l
+		`linear-gradient(red, ${B}75${B}a rl("http://evil.invalid/ping"))`, // R-1: \a must DELETE (continuation), not insert \n
+		`linear-gradient(red, ${B}75${B}${LF}rl("http://evil.invalid/ping"))`, // \<LF> with a REAL newline after the backslash (what `\` + literal-n looks like to a CSS lexer)
+		`linear-gradient(red, ${B}75${B}A rl("http://evil.invalid/ping"))`, // R-1: uppercase \A twin
+		`linear-gradient(red, ${B}75${B}a${B}a rl("http://evil.invalid/ping"))`, // R-1: doubled \a
+		`linear-gradient(red, ${B}75${B}d rl("http://evil.invalid/ping"))`, // R-1: \d (CR) twin — decodes to a real control char, caught by the normalized-form fence
+		`linear-gradient(red, ${B}75${B}c rl("http://evil.invalid/ping"))`, // R-1: \c (FF) twin, same route
+		`linear-gradient(red, ${B}75${B}${CR}rl("http://evil.invalid/ping"))`, // reviewer's \<CR> vector — REAL CR after the backslash (`${B}cr` would decode to 'c', not CR)
+		`linear-gradient(red, ${B}75${B}${FF}rl("http://evil.invalid/ping"))`, // \<FF> literal-continuation twin
+		`linear-gradient(red, ${B}2${B}0rl("http://evil.invalid/ping"))`, // R-1 double gate: decode introduces NUL → normalized-form control fence
+		'linear-gradient(red, blue), \\75\\72\\6c("http://evil.invalid/ping")' // raw-source twin of the u-r-l vector
+	];
+	for (const value of smuggles) {
+		adv.setGradient(value);
+		assert.equal(h.localStorage.getItem(KEY), null, 'escape smuggle must not persist: ' + JSON.stringify(value));
+	}
+	// A literal control character is still rejected (the pre-existing gate).
+	adv.setGradient('linear-gradient(red,\u0001blue)');
+	assert.equal(h.localStorage.getItem(KEY), null, 'raw control char rejected');
+	// Honest gradients — including the multi-layer factory glow — pass.
+	adv.setGradient('linear-gradient(135deg, #000 0%, #fff 100%)');
+	assert.equal(h.localStorage.getItem(KEY), 'linear-gradient(135deg, #000 0%, #fff 100%)', 'plain gradient unaffected');
+});
+
+test('gradient guard (R-1/S-1): normalization must not over-refuse honest escape spellings', () => {
+	// S-1 (external review 9.27.0 round 3): these two assertions LOOK alike and
+	// are not alike — each owns exactly one mutation red, and they own DIFFERENT
+	// mutations (measured in isolation):
+	//   * A (`linear-gradient\28 …`, `\28` decodes to `(`) reddens when
+	//     NORMALIZATION IS BYPASSED and the checks run on the raw string again —
+	//     the literal backslash no longer matches the
+	//     `^(linear|radial|conic)-gradient\(` allowlist. R-1a cannot touch A at
+	//     all (0x28 is not a newline), so A has NO power over the delete
+	//     direction. The round-2 response report claimed both pinned it; that
+	//     attribution was wrong and is corrected here.
+	//   * B (`,\a\a `) is the ONLY assertion that reddens under R-1a: inserting
+	//     the decoded newline back puts a real \n into the normalized form, and
+	//     the control-char fence then refuses an honest value. Deleting B as "a
+	//     duplicate of A" would make R-1a permanently green — CONTRIBUTING
+	//     admission rule (1)'s second documented death mode ("the assertion
+	//     covers only half the fix").
+	// They live in their OWN test on purpose: inside the smuggle test the first
+	// failing vector aborts the run, so A's and B's distinct reds are invisible
+	// there (that masking is how the wrong attribution survived a whole round).
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+	const KEY = 'dsh-dream-skin:wallpaper-gradient';
+	const B = String.fromCharCode(92);
+	adv.setGradient(`linear-gradient${B}28 135deg, #000 0%, #fff 100%)`);
+	assert.equal(h.localStorage.getItem(KEY), `linear-gradient${B}28 135deg, #000 0%, #fff 100%)`, 'A: escaped-paren honest value still adopts (pins normalization-applied)');
+	adv.setGradient(`linear-gradient(red, blue),${B}a${B}a linear-gradient(#000, #fff)`);
+	assert.equal(h.localStorage.getItem(KEY), `linear-gradient(red, blue),${B}a${B}a linear-gradient(#000, #fff)`, 'B: continuation-escape honest value still adopts (the only red for the delete-vs-insert direction)');
+});
+
+test('gradient guard (A-2.2): legacy -webkit- prefixes are a DECLINED policy, refused at write', () => {
+	// Decision recorded in docs/desktop-support.md: the runtime is evergreen
+	// Chromium; `-webkit-linear-gradient` is a different (legacy) grammar and
+	// is NOT admitted. This assertion pins the decision either way — if the
+	// policy flips to "admit", this test must flip with it deliberately.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+	adv.setGradient('-webkit-linear-gradient(135deg, #000, #fff)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), null, '-webkit prefix gradient is refused');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient'), null, '-webkit prefix gradient not persisted');
+});
+
+test('render gate (A-2.2): an unsafe stored gradient is ignored WITH a visible console.warn', () => {
+	// #50/#51 philosophy: a value the render gate refuses must degrade
+	// VISIBLY, not silently blank the wallpaper. Stored junk never reaches
+	// element style, and exactly one warn names what was ignored.
+	const warns = [];
+	const created = [];
+	const doc = {
+		body: makeEl(), createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}), querySelector: () => null, querySelectorAll: () => [], head: makeEl()
+	};
+	const bad = 'radial-gradient(circle, red, blue), url("http://evil.invalid/ping")';
+	const h = buildSandbox({
+		document: doc,
+		console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} },
+		seed: { 'dsh-dream-skin:wallpaper-kind': 'gradient', 'dsh-dream-skin:wallpaper-gradient': bad }
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const leaks = created.filter((el) => Object.values(el.style).some((v) => typeof v === 'string' && v.includes('evil.invalid')));
+	assert.equal(leaks.length, 0, 'the unsafe value still never reaches any element style');
+	assert.ok(warns.some((w) => w.includes('ignored for safety')), 'render-gate refusal is announced, not silent');
+	assert.ok(warns.some((w) => w.includes('radial-gradient')), 'the warn quotes the ignored value');
+});
+
+test('render gate (R-5): the warn dedupe cap EVICTS instead of silencing newer values forever', () => {
+	// External review R-5 (9.27.0 round 2): the old `size > 20 → return` made
+	// every value AFTER the twentieth silently blank the wallpaper again —
+	// exactly the phenomenon A-2.2 removed. The cap now evicts the oldest
+	// entry (FIFO). The dedupe set lives on a SHARED window object (one page
+	// = one cap). An earlier version of this case drove 21 values through 21
+	// freshly required instances with PRIVATE scopes — the cap could never
+	// engage and the case could never fail (mutation-verification caught it;
+	// CONTRIBUTING admission rule #1). Here every sandbox receives the SAME
+	// window, and a repeat-value probe proves the state is genuinely shared,
+	// not merely "a big cap nobody reaches".
+	const warns = [];
+	const created = [];
+	const sharedWindow = {};
+	const mkDoc = () => ({
+		body: makeEl(), createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}), querySelector: () => null, querySelectorAll: () => [], head: makeEl()
+	});
+	const driveApply = (grad) => {
+		const h = buildSandbox({
+			window: sharedWindow,
+			document: mkDoc(),
+			console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} },
+			seed: {
+				'dsh-dream-skin:wallpaper-kind': 'gradient',
+				'dsh-dream-skin:wallpaper-gradient': grad
+			}
+		});
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		e.apply(makeApplyContext(h));
+	};
+	const unsafe = (i) => `radial-gradient(circle, red, blue), url("http://evil.invalid/ping${i}")`;
+	for (let i = 0; i < 21; i++) driveApply(unsafe(i));
+	const gateWarns = warns.filter((w) => w.includes('ignored for safety'));
+	const announced = new Set(gateWarns.map((w) => {
+		const i = w.indexOf('evil.invalid');
+		return i < 0 ? '' : w.slice(i);
+	}));
+	assert.equal(announced.size, 21, 'every distinct refused value is announced — the 21st is not silenced by a full cap');
+	const gateSeen = sharedWindow.__DSH_DREAM_SKIN_RENDER_GATE_SEEN__;
+	assert.ok(gateSeen && typeof gateSeen.add === 'function' && typeof gateSeen.size === 'number',
+		'the warn state is the documented window singleton (shared, not per-instance)');
+	assert.equal(sharedWindow.__DSH_DREAM_SKIN_RENDER_GATE_SEEN__.size, 20,
+		'the cap engaged and EVICTED (21 values seen, set holds exactly RENDER_GATE_WARN_CAP)');
+	// Sharing proof: a 22nd pass with an ALREADY-ANNOUNCED value must stay
+	// deduped — if each instance had its own Set (the old broken shape), this
+	// would double-warn while the size assertion above would also fail.
+	driveApply(unsafe(20));
+	assert.equal(warns.filter((w) => w.includes('ignored for safety')).length, gateWarns.length,
+		'a repeat value through a fresh instance does NOT re-warn (same window, same cap)');
+	const leaks = created.filter((el) => Object.values(el.style).some((v) => typeof v === 'string' && v.includes('evil.invalid')));
+	assert.equal(leaks.length, 0, 'the cap change must not weaken the refusal itself');
+});
+
+test('text hygiene (round-3 self-catch): shipped text files carry no C0 control bytes', () => {
+	// How this was found: while syncing this round's CHANGELOG entries, a
+	// rewrite script wrote the CSS-escape EXAMPLES through a layer that ate one
+	// level of backslash, so the literal text `\2\0` and `\75\a rl(` landed in
+	// the file as the REAL control bytes they name. Two consequences, both
+	// silent: a NUL byte makes git classify the file as binary (a 44-line doc
+	// edit showed up as a 719/675 whole-file rewrite), and the published escape
+	// examples stopped being the escapes they were there to illustrate. The
+	// gradient guard refuses control characters in wallpaper values; this pins
+	// the same fence on our own text, where the same class of bug is invisible
+	// to every other check in the gate.
+	//
+	// Allowed bytes: \t, \n, and \r only as part of a CRLF pair (autocrlf
+	// checkouts). A lone \r is a corruption signal, not a line ending.
+	const root = path.join(__dirname, '..');
+	const targets = ['CHANGELOG.md', 'README.md', 'CONTRIBUTING.md', 'package.json',
+		'lib/client.js', 'lib/index.js']
+		.map((rel) => rel)
+		.concat(fs.readdirSync(path.join(root, 'docs')).filter((f) => f.endsWith('.md')).map((f) => 'docs/' + f))
+		.concat(fs.readdirSync(path.join(root, 'tests')).filter((f) => f.endsWith('.cjs')).map((f) => 'tests/' + f));
+	assert.ok(targets.length >= 10, 'the hygiene scan must actually cover the tree, got: ' + targets.length);
+	for (const rel of targets) {
+		const buf = fs.readFileSync(path.join(root, rel));
+		const bad = [];
+		for (let i = 0; i < buf.length; i++) {
+			const c = buf[i];
+			if (c === 0x09 || c === 0x0a) continue;
+			if (c === 0x0d) { if (buf[i + 1] === 0x0a) { i++; continue; } }
+			if (c < 0x20) bad.push(i + ':0x' + c.toString(16));
+		}
+		assert.deepEqual(bad, [], rel + ' contains C0 control bytes (a backslash-escape example was written as the character it spells): ' + bad.slice(0, 5).join(' '));
+	}
 });

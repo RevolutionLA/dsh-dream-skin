@@ -365,6 +365,37 @@ test('issue #51: unreachable host on first install still seeds the wallpaper (ca
 	assert.ok(h.getItem('dsh-dream-skin:wallpaper') != null, 'wallpaper seeded on the unreachable-host path');
 });
 
+test('B-6: a host that answers {ok:false} still fires the deferred factory seed (three exits agree)', async () => {
+	// External review B-6: loadFromHost has three "no usable answer" exits —
+	// the timeout/unreachable catch, an exception inside the try, and the
+	// parsed.ok !== true early return. The first seeded the deferred factory
+	// wallpaper, the third silently skipped it, so a true first install whose
+	// host answered {ok:false} spent the whole session wallpaper-less. All
+	// "no answer" exits must now seed exactly once — and, being factory
+	// provenance, the seed must NEVER be pushed back to the host.
+	let getCalls = 0;
+	const h = buildSandbox({
+		firstBoot: true,
+		fetchImpl: async (url, init) => {
+			const body = JSON.parse(init.body);
+			if (body.method === 'get') {
+				getCalls += 1;
+				return { ok: true, status: 200, json: async () => ({ ok: false, error: 'host-side rejection' }) };
+			}
+			sent0.push(body.patch);
+			return { ok: true, status: 200, json: async () => ({ ok: true }) };
+		}
+	});
+	const sent0 = h.sent.sets;
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(400);
+	assert.equal(getCalls, 1, 'the probe really answered {ok:false} once');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'kind seeded on the ok:false exit');
+	assert.ok(h.getItem(WP_KEY) != null, 'deferred factory wallpaper seeded on the ok:false exit');
+	assert.equal(sent0.length, 0, 'the factory seed is provisional and never pushed to the host file');
+});
+
 /**
  * 9.26.1 remediation regression gates (adversarial review 9.26.0).
  * The migration-fingerprint triple is rewritten in a patched copy of the
@@ -446,6 +477,20 @@ test('T-02 B: legacy photo living in the host file converges to the new factory 
 	assert.equal(h.getItem(WP_KEY), factoryImage, 'adopted legacy photo migrated locally');
 	assert.ok(h.sent.sets.some((p) => p[WP_KEY] === factoryImage), 'migration pushed as user state — host file converges');
 	assert.ok(!h.sent.sets.some((p) => p[WP_KEY] === fixture), 'the legacy photo is never pushed back');
+	// B-5 (external review): the push above is a CONTROLLED EXCEPTION to
+	// blue-team B1 ("factory never pushes") — without it, the legacy copy in
+	// dream-skin.json would outlive the migration forever. This assertion
+	// pins the write semantics themselves: if someone "fixes" the branch back
+	// to a constant factory-provisional write, this reddens before the
+	// behavioural case above even gets to speak.
+	// R-6 (round 2): match on whitespace-FOLDED source so a formatter
+	// re-flowing this one expression cannot produce a false red — the pin
+	// guards the write SEMANTICS (ternary branches), not the line's formatting.
+	// Deliberately keeps the literal `? {} : { factory: true }` shape: if the
+	// branches ever swap, the behaviour case above must red FIRST.
+	const folded = CODE.replace(/\s+/g, " ");
+	assert.ok(folded.includes("writeStorage(WALLPAPER_KEY, FACTORY_DEFAULTS[WALLPAPER_KEY], hostProbeSettled ? {} : { factory: true })"),
+		'migration write must branch on hostProbeSettled (user-state push after settle) — see the CONTROLLED EXCEPTION comment in migrateLegacyFactoryWallpaper');
 });
 
 test('T-03: host adoption enforces the gradient/URL write gates (tampered state file cannot smuggle fetches)', async () => {
