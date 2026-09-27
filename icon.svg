@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" role="img" aria-label="Dream Skin">
+  <defs>
+    <clipPath id="r">
+      <rect width="64" height="64" rx="15"/>
+    </clipPath>
+    <linearGradient id="base" x1="0" y1="0" x2=".3" y2="1">
+      <stop offset="0" stop-color="#18141f"/>
+      <stop offset=".55" stop-color="#120f1c"/>
+      <stop offset="1" stop-color="#14111e"/>
+    </linearGradient>
+    <radialGradient id="g1" gradientUnits="userSpaceOnUse" cx="53" cy="-4" r="44">
+      <stop offset="0" stop-color="#8b7cf6" stop-opacity=".62"/>
+      <stop offset=".5" stop-color="#8b7cf6" stop-opacity=".2"/>
+      <stop offset="1" stop-color="#8b7cf6" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g2" gradientUnits="userSpaceOnUse" cx="8" cy="60" r="38">
+      <stop offset="0" stop-color="#7e60dc" stop-opacity=".4"/>
+      <stop offset="1" stop-color="#7e60dc" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="g3" gradientUnits="userSpaceOnUse" cx="30" cy="46" r="26">
+      <stop offset="0" stop-color="#38bdf8" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <path id="s" d="M0-11Q1.9-1.9 11 0Q1.9 1.9 0 11Q-1.9 1.9-11 0Q-1.9-1.9 0-11Z"/>
+  </defs>
+  <g clip-path="url(#r)">
+    <rect width="64" height="64" fill="url(#base)"/>
+    <rect width="64" height="64" fill="url(#g1)"/>
+    <rect width="64" height="64" fill="url(#g2)"/>
+    <rect width="64" height="64" fill="url(#g3)"/>
+    <g fill="#f3f0fb">
+      <use href="#s" transform="translate(37 27)"/>
+      <use href="#s" transform="translate(21 41) scale(.42)" opacity=".8"/>
+      <use href="#s" transform="translate(46 44) scale(.3)" opacity=".6"/>
+    </g>
+    <rect x=".75" y=".75" width="62.5" height="62.5" rx="14.25" fill="none" stroke="#c4b5fd" stroke-opacity=".28" stroke-width="1.5"/>
+  </g>
+</svg>
