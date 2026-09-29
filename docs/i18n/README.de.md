@@ -316,7 +316,8 @@ werden vom ThemePresenter von ui-layout als Inline-Custom-Properties auf `<body>
 
 ## 💼 Hinweise zur Speicherung
 
-- Skin & Wallpaper werden in `localStorage` gespeichert (Schlüssel mit Präfix `dsh-dream-skin:`), **pro Browser**.
+- Skin & Wallpaper liegen in **drei Ebenen**: Speicher-Cache (korrekter Erstrahmen), Browser-`localStorage` (Präfix `dsh-dream-skin:`) und **Host-Datei** `$DSH_HOME/dream-skin.json`, gelesen/geschrieben über das eigene Loopback-`/dream-skin/api` des Plugins.
+- Die Datei-Ebene macht **Desktop** robust: DSH Desktop erhält bei jedem Start einen neu vom OS zugewiesenen Port, die Origin wechselt also — mit nur `localStorage` wäre alles vergessen. Die Host-Datei überlebt Portwechsel und Neustarts.
 - Warum nicht Host-Einstellungen? Die Host-Einstellungsleitung legt Browser-Clients nur einen Allowlist-Satz von Namespaces offen
   (`WEB_SETTINGS_NAMESPACES` in `dsh-host-apiproxy`), sodass ein Namespace von Drittanbietern mit `settings-not-exposed` antworten
   würde; das Produkt selbst hält entfernte Browser-Präferenzen prozesslokal. `localStorage` entspricht dieser Grenze und

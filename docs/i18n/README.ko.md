@@ -320,7 +320,8 @@ ui-layout의 ThemePresenter가 `<body>`에 인라인 커스텀 프로퍼티로 �
 
 ## 💼 저장(persistence) 참고 사항
 
-- Skin & wallpaper는 `localStorage`에 저장됩니다 (키 접두사 `dsh-dream-skin:`), **브라우저별로**.
+- 스킨과 벽지는 **세 층**으로 저장됩니다: 메모리 캐시(첫 프레임 정확성), 브라우저 `localStorage`(키 접두사 `dsh-dream-skin:`), 그리고 **호스트 파일** `$DSH_HOME/dream-skin.json`(이 플러그인 자체의 루프백 `/dream-skin/api`로 읽기/쓰기).
+- 데스크톱에서 이 파일 층이 결정적입니다: DSH Desktop은 실행마다 OS가 새 포트를 할당해 origin이 바뀌므로 `localStorage`만 있으면 상태를 모두 잃습니다. 포트 변경·재시작을 넘어서는 정식 상태는 호스트 파일입니다.
 - 왜 Host 설정을 사용하지 않나요? Host 설정 채널은 브라우저 클라이언트에 허용 목록(allowlist)에 있는 네임스페이스만
   노출합니다 (`dsh-host-apiproxy`의 `WEB_SETTINGS_NAMESPACES`), 따라서 서드파티 네임스페이스는
   `settings-not-exposed`로 응답합니다; 제품 자체도 원격 브라우저 환경설정을 프로세스 로컬로 유지합니다.

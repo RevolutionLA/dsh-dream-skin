@@ -321,7 +321,8 @@ are applied as inline custom properties on `<body>` by ui-layout's ThemePresente
 
 ## 💼 Persistence notes
 
-- Skin & wallpaper are stored in `localStorage` (keys prefixed `dsh-dream-skin:`), **per browser**.
+- Skin & wallpaper live in **three layers**: an in-memory cache (correct first frame), browser `localStorage` (keys prefixed `dsh-dream-skin:`), and a **host-side file** `$DSH_HOME/dream-skin.json`, read/written over this plugin's own loopback `/dream-skin/api`.
+- The file layer is what makes **desktop** survive: DSH Desktop gets a new OS-assigned port on every launch, so the browser origin changes and `localStorage` alone would forget everything. The host file is the authoritative state across port changes and restarts.
 - Why not Host settings? The Host settings wire only exposes an allowlisted set of namespaces to browser clients
   (`WEB_SETTINGS_NAMESPACES` in `dsh-host-apiproxy`), so a third-party namespace would answer `settings-not-exposed`;
   the product itself keeps remote browser preferences process-local. `localStorage` matches that boundary and

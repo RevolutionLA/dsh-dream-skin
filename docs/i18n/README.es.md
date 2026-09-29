@@ -327,7 +327,8 @@ alias-tokens se aplican como custom properties inline en `<body>` a través del 
 
 ## 💼 Notas sobre la persistencia
 
-- La skin y el wallpaper se guardan en `localStorage` (claves con prefijo `dsh-dream-skin:`), **por navegador**.
+- La skin y el wallpaper se guardan en **tres niveles**: caché en memoria (primer fotograma correcto), `localStorage` del navegador (prefijo `dsh-dream-skin:`) y **archivo en el host** `$DSH_HOME/dream-skin.json`, leído/escrito mediante el `/dream-skin/api` loopback del propio plugin.
+- El nivel de archivo es lo que hace que **desktop** resista: DSH Desktop recibe un puerto nuevo en cada arranque, así que el origin cambia y con solo `localStorage` se olvidaría todo. El archivo del host sobrevive a cambios de puerto y reinicios.
 - ¿Por qué no en los ajustes del Host? El cable de ajustes del Host solo expone un conjunto de namespaces en lista
   blanca a los clientes del navegador (`WEB_SETTINGS_NAMESPACES` en `dsh-host-apiproxy`), así que un namespace de
   terceros respondería `settings-not-exposed`; el propio producto mantiene las preferencias remotas del navegador a

@@ -321,7 +321,8 @@ sont appliquées comme propriétés personnalisées inline sur `<body>` par le T
 
 ## 💼 Notes de persistance
 
-- Skin & wallpaper sont stockés dans `localStorage` (clés préfixées `dsh-dream-skin:`), **par navigateur**.
+- Skin et wallpaper sont enregistrés sur **trois niveaux** : cache mémoire (première image correcte), `localStorage` du navigateur (préfixe `dsh-dream-skin:`) et **fichier côté hôte** `$DSH_HOME/dream-skin.json`, lu/écrit via l'`/dream-skin/api` loopback du plugin.
+- C'est le fichier hôte qui sauve **le desktop** : DSH Desktop reçoit un nouveau port à chaque lancement, donc l'origin change, et le `localStorage` seul tout oublierait. Le fichier côté hôte survit aux changements de port et aux redémarrages.
 - Pourquoi pas les paramètres Host ? Le câblage des paramètres Host n'expose qu'un ensemble de namespaces autorisés (allowlist) aux clients
   navigateur (`WEB_SETTINGS_NAMESPACES` dans `dsh-host-apiproxy`), donc un namespace tiers répondrait `settings-not-exposed` ; le produit
   lui-même garde les préférences navigateur distantes locales au processus. `localStorage` respecte cette frontière et survit aux rechargements.
