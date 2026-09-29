@@ -156,7 +156,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🌤️ **Bing daily wallpaper (pre-filled)** | Advanced wallpaper ships with the Bing daily photo API pre-filled — hit "Apply" to use; any image URL + auto-refresh works too |
 | 🔤 **Opaque inner surfaces** | Cards, inputs, message bubbles stay readable — never washed out |
 | ↩️ **Default restore** | Back to DSH's built-in appearance (follow system) in one click |
-| 💾 **Local persistence** | Skin & wallpaper stored in `localStorage`, survives reload |
+| 💾 **Three-layer persistence** | Skin & wallpaper live in `localStorage` **and a host-side file** — survives reload, and survives the new port DSH Desktop gets on every launch |
 
 ---
 
@@ -351,19 +351,50 @@ seeds (`react`, `react/jsx-runtime`, …) and registered client bundles (`@deeps
 
 ## 📌 Roadmap
 
-- [x] First release: 8 themes + custom wallpaper (opacity / blur) + local persistence
-- [x] Theme-pack format + import / export / share link (JSON + manifest + validation)
-- [x] Per-user Accent + randomize
-- [x] Wallpaper 2.0 (URL / gradient / per-skin suggestion / auto-dim / Bing daily + scheduled refresh)
-- [x] Local pack library + one-click apply / favorites / surprise-me
-- [x] Full i18n copy & docs (zh / en / ja / ko / es / fr / de / ru)
-- [x] Glass material system: Frosted / Liquid dual-material + independent opacity sliders (v9.13.0)
-- [x] Ready-tuned factory config: a fully styled look on first restart after install (v9.13.0)
-- [x] Host-compat hardening: runtime detection for two host generations + DOM-shape markers against class-name drift (issue #50, v9.13.x)
-- [ ] Full de-dependency on host hashed class names: migrate the remaining decorative rules (sidebar / file panel) to DOM-shape markers too
-- [ ] Online palette / theme-preview Studio (pure frontend, in-browser validation + contrast checker)
-- [ ] Community theme gallery (submit packs to the repo / online gallery; Catppuccin-style derivative palettes via theme packs are welcome)
-- [ ] First-paint (FOUC) improvement
+> **This table lists unfinished work only.** Anything already shipped lives in the Features section above and in [CHANGELOG.md](../../CHANGELOG.md) — keeping it in two places always drifts, and this project has already drifted once. This table translates the Roadmap of the Chinese `README.md`, which stays the source of truth.
+> Every entry carries three things: **why** (from a real issue or measured data, never imagined demand), **size** (S ≈ one evening, M ≈ one feature release, L ≈ needs design before code), **acceptance check** (a check that **can fail** — not "done when I say it is"). Once an item ships, it is deleted from this table. The "won't do" section matters as much as the to-do list: it saves a contributor one wasted round.
+
+### A. Reliability — surviving a host generation change
+
+*Why: measured on `0.2.0-rc.1`, 4 of the 6 host anchor groups drifted; from the user's side, issue #62 looked like "my skins all disappeared overnight".*
+
+- [ ] **M** Drop the last host hashed class names: move the remaining decorative rules (sidebar / file panel) onto our own `data-dsh-dream-skin-*` markers — composer and nav-icon already prove that path works
+      — acceptance: the drift probe reports `drifted: [] && pending: false` on 0.2.x
+- [ ] **S** Turn "pre-check against a host rc" into a fixed release step: the day a new rc lands, run the compatibility table once and one real profile load
+- [ ] **M** Roll the peer window up to `0.3.x` — **only once it has been verified**; if it stays closed, write "not supported" in the docs instead of leaving a silent skip
+- [ ] **S** Make nav-icon idempotent and give it a self-check status (measured: 2 copies of `style#dsh-dream-skin-nav-icon` plus a second MutationObserver on long-lived pages) | PR-welcome
+
+### B. Publishing and the install channel
+
+*Why: on 2026-09-29 installs were rejected on the official Desktop `0.2.0-rc.2`, while the maintenance machine uses a `link:` workspace install — **this class of problem is invisible under a link install**.*
+
+- [ ] **S** Add one step to the release checklist: "actually install it from the registry once" (fresh profile + exact version + `--dump-config` to confirm the loader entry) → write it into `docs/publishing-to-npm.md`
+- [ ] **S** Put the exact version number in every install / update command (three places: README, the skill, the desktop docs), and explain pnpm's 24-hour cooldown
+- [ ] **M** Document an intranet / offline distribution path (the Release tarball mechanism already exists; the copy-pasteable steps don't) | PR-welcome
+
+### C. Desktop operations
+
+*Why: after the official Desktop release a new kind of user showed up — one person looking after a batch of machines. Real contact with that profile is still thin, so take the two cheap items first instead of paving the whole road at once.*
+
+- [ ] **S** Add a schema version field to the state file (upgrades currently rely on tolerant reading; a forward-compatibility drill has never been run)
+- [ ] **M** A machine-readable answer to "did the skin actually take effect": a field-by-field reading guide for `$DSH_HOME/dream-skin.json` and `__DSH_DREAM_SKIN_STATUS__`, so a script can decide instead of a person opening the console
+- [ ] **M** A batch deployment guide (profile directory layout, `link:` vs registry installs, the semantics of `compatibility.json` exemption keys, dynamic ports)
+- [ ] **L** Config presets / policy push (an admin drops in a default skin that is active on first launch) — placeholder, most likely never built
+
+### D. Product experience
+
+*Why: this is what users see first. But every real report from these two days (#61 / #62) was about reliability, not experience, so the whole group sits behind A and B.*
+
+- [ ] **M** Flicker-free first paint (FOUC): **measure first** — the real window from the first frame to `apply()` completing decides the approach. No measurement, no work.
+- [ ] **S** An empty-state hint for linked wallpapers: when "Image URL" is selected but no link has been pasted yet, that mode paints no background, and nothing in the UI explains "why did my background disappear" (one line per language across all 8 — slip it into the next feature release)
+- [ ] **S** Measure the `localStorage` quota: does wallpaper history growth silently squeeze persistence out (a failed write currently **degrades silently**)
+- [ ] **M** Community theme gallery — **settle the governance rules before writing code**. Verified: a theme pack payload contains no image fields whatsoever (tokens + accent colour + metadata only), so submissions carry no image-copyright risk by construction; the entire cost is review burden | PR-welcome
+
+### E. Won't do / pull requests only
+
+- **Rotating several wallpaper URLs** (a side observation from issue #61): the reporter's server-side setup (a random image per request, pre-composited to the screen ratio) already reaches the same effect, while doing it inside the plugin is the most expensive change on this table and the one that leaves the deepest semantic debt.
+- **An online palette / theme-preview Studio**: that is a standalone site, not a plugin capability, and it overlaps with the community theme gallery while costing more.
+- **Anything that injects into or patches the host installer / binary**: it contradicts the "official extension points only" positioning head-on — **never**.
 
 ---
 

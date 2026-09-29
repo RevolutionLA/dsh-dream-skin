@@ -151,7 +151,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🌤️ **Bing-Tagesbild (voreingestellt)** | Der erweiterte Hintergrund enthält die Bing-Tagesbild-API bereits vorausgefüllt — „Übernehmen" genügt; jede beliebige Bild-URL mit Auto-Update funktioniert ebenfalls |
 | 🔤 **Undurchsichtige innere Flächen** | Karten, Eingabefelder und Nachrichtenblasen bleiben lesbar — nie ausgewaschen |
 | ↩️ **Standard-Wiederherstellung** | Mit einem Klick zurück zum eingebauten DSH-Erscheinungsbild (System folgen) |
-| 💾 **Lokale Speicherung** | Skin & Wallpaper werden in `localStorage` gespeichert und überleben ein Neuladen |
+| 💾 **Drei-Ebenen-Speicherung** | Skin & Wallpaper in `localStorage` **und einer Host-Datei** — überleben ein Neuladen und auch den neuen Port, den DSH Desktop bei jedem Start bekommt |
 
 ---
 
@@ -347,19 +347,50 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 
 ## 📌 Roadmap
 
-- [x] v0.1: 8 Themes + benutzerdefiniertes Wallpaper (Deckkraft / Unschärfe) + lokale Speicherung
-- [x] Theme-Pack-Format + Import / Export / Freigabelink (JSON + Manifest + Validierung)
-- [x] Accent pro Nutzer + Zufallsfunktion
-- [x] Wallpaper 2.0 (URL / Gradient / Vorschlag pro Skin / Auto-Abdunkeln / Bing täglich + zeitgesteuert)
-- [x] Lokale Pack-Bibliothek + Anwenden per Klick / Favoriten / Überrasch-mich
-- [x] Vollständige i18n-Texte & Doku (zh / en / ja / ko / es / fr / de / ru)
-- [x] Glasmaterial-System: Frosted Glass / Liquid Glass + separater Transparenzregler (v9.13.0)
-- [x] Fabrikfertige Vorkonfiguration: nach Installation + Neustart direkt der fertig abgestimmte Look (v9.13.0)
-- [x] Host-Kompatibilität gehärtet: Laufzeiterkennung über zwei Host-Generationen + DOM-Form-Marker gegen Klassennamen-Drift (issue #50, v9.13.x)
-- [ ] Vollständige Entkopplung von Host-Hash-Klassennamen: verbleibende Deko-Regeln (Seitenleiste/Datei-Panel) ebenfalls auf DOM-Form-Marker umstellen
-- [ ] Online-Farbpaletten- / Theme-Vorschau-Studio (reines Frontend, Validierung im Browser + Kontrastprüfer)
-- [ ] Community-Theme-Galerie (Packs zum Repo / zur Online-Galerie beitragen; Catppuccin-artige Derivat-Farbgebungen per Theme-Pack ausdrücklich willkommen)
-- [ ] Verbesserung des First-Paint (FOUC)
+> **Diese Tabelle nennt nur Unfertiges.** Was bereits ausgeliefert ist, steht oben bei „Funktionen" und im [CHANGELOG.md](../../CHANGELOG.md) — denselben Bestand an zwei Orten zu pflegen, driftet zwangsläufig, und dieses Projekt ist schon einmal gedriftet. Diese Tabelle ist die Übersetzung der Roadmap aus dem chinesischen `README.md`; maßgeblich bleibt das chinesische Original.
+> Jeder Eintrag bringt drei Dinge mit: **Motiv** (aus einem echten Issue oder Messdaten, nie aus erdachtem Bedarf), **Größe** (S ≈ ein Abend, M ≈ ein Funktionsrelease, L ≈ erst Entwurf nötig), **Abnahmekriterium** (eine Prüfung, die **scheitern kann** — nicht „fertig, wenn ich es sage"). Erledigtes wird aus dieser Tabelle gelöscht. Der „Nicht geplant"-Abschnitt ist so wichtig wie die Todo-Liste: er erspart Mitwirkenden eine leere Runde.
+
+### A. Zuverlässigkeit — einen Host-Generationswechsel überstehen
+
+*Motiv: auf `0.2.0-rc.1` gemessen drifteten 4 von 6 Host-Anker-Gruppen; aus Nutzersicht sah Issue #62 so aus „über Nacht waren alle Skins weg".*
+
+- [ ] **M** Die letzten Hash-Klassennamen des Hosts abwerfen: die verbliebenen Dekorationsregeln (Seitenleiste / Datei-Panel) auf eigene `data-dsh-dream-skin-*`-Marker umstellen — composer und nav-icon haben gezeigt, dass dieser Weg geht
+      — Abnahme: der Drift-Probe liefert auf 0.2.x `drifted: [] && pending: false`
+- [ ] **S** Den „Host-rc-Vortest" als festen Veröffentlichungsschritt verankern: am Tag eines neuen rc die Kompatibilitätstabelle einmal laufen lassen plus einen echten Profil-Ladevorgang
+- [ ] **M** Das peer-Fenster auf `0.3.x` weiterschieben — **erst nach Verifizierung**; bleibt es zu, in den Docs „nicht unterstützt" schreiben statt eines stillen Überspringens
+- [ ] **S** nav-icon idempotent machen und mit Selbsttest-Status ausstatten (gemessen: 2 Exemplare von `style#dsh-dream-skin-nav-icon` und ein zweiter MutationObserver auf langlebigen Seiten) | PR-welcome
+
+### B. Veröffentlichen und Installationskanal
+
+*Motiv: am 2026-09-29 wurden Installationen auf dem offiziellen Desktop `0.2.0-rc.2` abgelehnt; die Pflege-Maschine nutzt aber eine `link:`-Workspace-Installation — **solche Probleme sind bei link-Installationen unsichtbar**.*
+
+- [ ] **S** Der Release-Checkliste einen Schritt „einmal wirklich vom Registry installieren" hinzufügen (neues Profil + exakte Versionsnummer + `--dump-config` zum Prüfen des Loader-Eintrags) → in `docs/publishing-to-npm.md` festschreiben
+- [ ] **S** In jeder Install-/Update-Zeile die exakte Versionsnummer (drei Orte: README, Skill, Desktop-Docs) und pnpm-24-Stunden-Abkühlzeit erklären
+- [ ] **M** Internes / Offline-Vertriebswege dokumentieren (der Release-Tarball-Mechanismus existiert; die kopierbaren Schritte fehlen) | PR-welcome
+
+### C. Desktop-Betrieb
+
+*Motiv: nach dem offiziellen Desktop-Release taucht ein neuer Nutzertyp auf — eine Person betreut mehrere Maschinen. Der echte Kontakt zu diesem Bild ist noch dünn, also erst die zwei billigen Punkte statt gleich die ganze Straße zu pflastern.*
+
+- [ ] **S** Schema-Versionsfeld in die Zustandsdatei (Upgrades verliefen bisher auf tolerantes Lesen; ein Vorwärtskompatibilitäts-Durchlauf wurde nie geübt)
+- [ ] **M** Ein maschinenlesbarer Ausgang für „ist der Skin wirklich wirksam": Feld-für-Feld-Leseanleitung für `$DSH_HOME/dream-skin.json` und `__DSH_DREAM_SKIN_STATUS__`, damit ein Skript entscheidet und nicht ein Mensch in der Konsole
+- [ ] **M** Leitfaden für Rollen in Serie (Profil-Verzeichnisstruktur, Unterschied `link:` vs. Registry-Installation, Bedeutung der Ausnahmeschlüssel in `compatibility.json`, dynamische Ports)
+- [ ] **L** Konfigurationsvorlagen / Richtlinie verteilen (Administrator hinterlegt einen Standard-Skin, ab dem ersten Start wirksam) — Platzhalter, wird höchstwahrscheinlich nicht gebaut
+
+### D. Produkt-Erlebnis
+
+*Motiv: das ist, was Nutzer als Erstes sehen. Aber die echten Meldungen dieser zwei Tage (#61 / #62) betrafen Zuverlässigkeit statt Erlebnis, darum steht die ganze Gruppe hinter A und B.*
+
+- [ ] **M** Flackerfreier Erstrahmen (FOUC): **erst messen** — das tatsächliche Fenster vom ersten Frame bis zum Abschluss von `apply()` bestimmt die Vorgehensweise. Ohne Messung keine Änderung.
+- [ ] **S** Hinweistext für leeren Zustand beim Verknüpfungshintergrund: Ist „Bild-URL" gewählt, aber noch keine Link eingefügt, zeichnet dieser Modus keinen Hintergrund, und die Oberfläche erklärt nirgends, „wo der Hintergrund geblieben ist" (in allen 8 Sprachen je ein Satz, ins nächste Funktionsrelease legen)
+- [ ] **S** `localStorage`-Kontingent ausmessen: verdrängt das Wachstum der Wallpaper-Chronik still die Persistenz (ein fehlgeschlagener Schreibvorgang wird derzeit **still ignoriert**)
+- [ ] **M** Community-Thema-Galerie — **erst die Spielregeln festlegen, dann Code schreiben**. Verifiziert: ein Themenpaket enthält keinerlei Bildfelder (nur Tokens + Akzentfarbe + Metadaten), Einsendungen tragen darum konstruktiv kein Bildurheberrecht-Risiko; die ganze Kostenseite ist der Prüfaufwand | PR-welcome
+
+### E. Nicht geplant / nur Pull Requests
+
+- **Mehrere Wallpaper-URLs im Wechsel** (eine Nebenbeobachtung aus Issue #61): Die Server-Seite des Meldenden (bei jeder Anfrage ein zufälliges Bild + vorher auf das Bildschirmverhältnis zusammengesetzt) erreicht denselben Effekt, während die Variante im Plugin die teuerste Änderung dieser Tabelle ist und die tiefste semantische Schulden hinterlässt.
+- **Online-Farbpalette / Themen-Vorschau-Studio**: das ist eine eigenständige Seite, keine Plugin-Fähigkeit, und es überlappt mit der Community-Thema-Galerie, ist aber teurer.
+- **Alles, was in Host-Installer / Binary injiziert oder sie verändert**: steht direkt im Widerspruch zur Position „nur offizielle Erweiterungspunkte" — **niemals**.
 
 ---
 

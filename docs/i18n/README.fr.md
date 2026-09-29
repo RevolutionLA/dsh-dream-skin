@@ -156,7 +156,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🌤️ **Photo du jour Bing (pré-remplie)** | Le fond avancé est pré-rempli avec l'API photo du jour de Bing : cliquez « Appliquer » et c'est actif ; toute URL d'image + rafraîchissement automatique fonctionne aussi |
 | 🔤 **Surfaces internes opaques** | Cartes, champs de saisie, bulles de message restent lisibles — jamais délavés |
 | ↩️ **Restauration par défaut** | Revenir à l'apparence native de DSH (suivre le système) en un clic |
-| 💾 **Persistance locale** | Skin & wallpaper stockés dans `localStorage`, survivent au rechargement |
+| 💾 **Persistance à trois niveaux** | Skin & wallpaper dans `localStorage` **et un fichier côté hôte** — survivent au rechargement et au nouveau port que DSH Desktop reçoit à chaque lancement |
 
 ---
 
@@ -350,19 +350,50 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 
 ## 📌 Feuille de route
 
-- [x] v0.1 : 8 thèmes + wallpaper personnalisé (opacité / flou) + persistance locale
-- [x] Format de pack de thèmes + import / export / lien de partage (JSON + manifest + validation)
-- [x] Accent par utilisateur + aléatoire
-- [x] Wallpaper 2.0 (URL / gradient / suggestion par skin / auto-assombrissement / photo du jour Bing + rafraîchissement programmé)
-- [x] Bibliothèque locale de packs + application en un clic / favoris / surprise-moi
-- [x] Contenu & documentation i18n complets (zh / en / ja / ko / es / fr / de / ru)
-- [x] Système de matériaux de verre : double verre dépoli / verre liquide + curseurs d'opacité indépendants (v9.13.0)
-- [x] Apparence prête à l'installation : une apparence complète et réglée dès le premier redémarrage (v9.13.0)
-- [x] Consolidation de la compatibilité hôte : détection à l'exécution sur deux générations d'hôte + marqueurs de forme DOM face à la dérive des noms de classe (issue #50, v9.13.x)
-- [ ] Indépendance totale vis-à-vis des noms de classe hachés : les règles décoratives restantes (barre latérale / panneau de fichiers) passeront elles aussi aux marqueurs de forme DOM
-- [ ] Palette en ligne / Studio d'aperçu de thèmes (frontend pur, validation dans le navigateur + vérificateur de contraste)
-- [ ] Bibliothèque de thèmes communautaire (soumettre des packs au dépôt / galerie en ligne ; les dérivés type Catppuccin via packs de thèmes sont bienvenus)
-- [ ] Amélioration du premier rendu sans scintillement (FOUC)
+> **Ce tableau ne liste que l'inachevé.** Ce qui est déjà livré se trouve dans la section Fonctionnalités ci-dessus et dans [CHANGELOG.md](../../CHANGELOG.md) — dupliquer le même inventaire à deux endroits finit toujours par diverger, et ce projet a déjà divergé une fois. Ce tableau traduit la feuille de route du `README.md` chinois, qui reste la référence.
+> Chaque entrée porte trois choses : la **motivation** (issue d'un vrai ticket ou de mesures réelles, jamais d'un besoin imaginaire), la **taille** (S ≈ une soirée, M ≈ une version fonctionnelle, L ≈ une conception préalable), le **critère d'acceptation** (une vérification qui **peut échouer** — pas « c'est fini quand je le dis »). Une entrée terminée est retirée de ce tableau. La section « On ne fera pas » compte autant que la liste des tâches : elle évite à un contributeur un tour à vide.
+
+### A. Fiabilité — survivre au changement de génération de l'hôte
+
+*Motivation : mesuré sur `0.2.0-rc.1`, 4 des 6 groupes d'ancres de l'hôte ont dérivé ; côté utilisateur, le ticket #62 ressemblait à « mes skins ont tous disparu du jour au lendemain ».*
+
+- [ ] **M** Abandonner les derniers noms de classe hachés de l'hôte : migrer les règles décoratives restantes (barre latérale / panneau de fichiers) vers nos propres marqueurs `data-dsh-dream-skin-*` — composer et nav-icon ont déjà prouvé que cette voie fonctionne
+      — acceptation : la sonde de dérive renvoie `drifted: [] && pending: false` sur 0.2.x
+- [ ] **S** Ancrer le « pré-test contre une rc de l'hôte » dans la publication : le jour d'une nouvelle rc, lancer une fois la table de compatibilité et un vrai chargement de profil
+- [ ] **M** Faire glisser la fenêtre peer jusqu'à `0.3.x` — **seulement après vérification** ; si elle reste fermée, écrire « non pris en charge » dans la documentation au lieu de laisser un saut silencieux
+- [ ] **S** Rendre nav-icon idempotent et lui donner un état d'auto-contrôle (mesuré : 2 exemplaires de `style#dsh-dream-skin-nav-icon` et un second MutationObserver sur les pages de longue vie) | PR-welcome
+
+### B. Publication et canal d'installation
+
+*Motivation : le 2026-09-29, des installations ont été refusées sur le Desktop officiel `0.2.0-rc.2` ; or la machine de maintenance est en installation `link:` workspace — **ce type de problème est invisible sous une installation link**.*
+
+- [ ] **S** Ajouter à la checklist de publication « installer vraiment une fois depuis le registry » (nouveau profil + version exacte + `--dump-config` pour contrôler l'entrée du loader) → l'écrire dans `docs/publishing-to-npm.md`
+- [ ] **S** Mettre la version exacte dans toute commande d'installation / mise à jour (trois endroits : README, skill, doc desktop) et expliquer le délai de 24 h de pnpm
+- [ ] **M** Documenter un chemin de distribution intranet / hors ligne (le mécanisme de tarball Release existe déjà ; les étapes copiables manquent) | PR-welcome
+
+### C. Volet exploitation du Desktop
+
+*Motivation : depuis la sortie du Desktop officiel, un nouveau profil d'utilisateur apparaît — une personne qui gère une flotte de machines. Les contacts réels avec ce profil sont encore rares, donc on commence par les deux points les moins chers, sans tout couvrir d'un coup.*
+
+- [ ] **S** Ajouter un champ de version de schéma au fichier d'état (les montées de version reposent aujourd'hui sur une lecture tolérante ; aucun exercice de compatibilité ascendante n'a été fait)
+- [ ] **M** Une sortie lisible par machine pour « le skin est-il réellement appliqué » : guide de lecture champ par champ de `$DSH_HOME/dream-skin.json` et de `__DSH_DREAM_SKIN_STATUS__`, pour qu'un script tranche au lieu d'un humain ouvrant la console
+- [ ] **M** Guide de déploiement en série (arborescence des profils, différence entre installation `link:` et registry, sémantique des clés d'exemption de `compatibility.json`, ports dynamiques)
+- [ ] **L** Préconfiguration / distribution de politique (l'administrateur dépose un skin par défaut, actif au premier lancement) — placeholder, très probablement jamais fait
+
+### D. Expérience produit
+
+*Motivation : c'est ce que l'utilisateur voit en premier. Mais les retours réels reçus ces deux jours (#61 / #62) portaient sur la fiabilité, pas sur l'expérience, donc tout ce groupe passe après A et B.*
+
+- [ ] **M** Premier rendu sans scintillement (FOUC) : **mesurer d'abord** — la fenêtre réelle entre la première image affichée et la fin de `apply()` décide de l'approche ; pas de mesure, pas de travaux
+- [ ] **S** Message d'état vide pour le fond d'écran par lien : quand « URL de l'image » est sélectionné sans lien collé, ce mode ne dessine aucun fond, et l'interface n'a pas la ligne qui explique « où est passé mon fond » (une ligne par langue sur les 8, à glisser dans la prochaine version fonctionnelle)
+- [ ] **S** Mesurer le quota `localStorage` : l'accumulation de l'historique des fonds d'écran peut-elle évincer silencieusement la persistance (un échec d'écriture est aujourd'hui **une dégradation silencieuse**)
+- [ ] **M** Galerie communautaire de thèmes — **figer les règles de gouvernance avant d'écrire du code**. Vérifié : un pack de thème ne contient aucun champ image (tokens + couleur d'accentuation + métadonnées seulement), les contributions ne portent donc structurellement aucun risque de droit d'auteur sur l'image ; tout le coût est dans la charge de relecture | PR-welcome
+
+### E. On ne fera pas / PR seulement
+
+- **Rotation de plusieurs liens de fond d'écran** (observation annexe du ticket #61) : la solution serveur du rapporteur (une image aléatoire par requête + pré-composée au ratio de l'écran) obtient déjà le même effet, tandis que le faire dans le plugin est le changement le plus coûteux de ce tableau et le plus lourd en dette sémantique.
+- **Palette en ligne / Studio de prévisualisation de thèmes** : c'est un site autonome, pas une capacité du plugin, et cela recouvre la galerie communautaire de thèmes en plus cher.
+- **Toute injection modifiant le paquet d'installation ou le binaire de l'hôte** : contradiction directe avec le positionnement « uniquement les points d'extension officiels » — **jamais**.
 
 ---
 

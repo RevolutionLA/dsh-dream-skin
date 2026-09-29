@@ -158,7 +158,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🌤️ **Foto diaria de Bing (predefinida)** | El fondo avanzado incluye la API de la foto diaria de Bing pre-rellenada: pulsa «Aplicar» y funciona; también acepta cualquier URL de imagen con actualización automática |
 | 🔤 **Superficies internas opacas** | Tarjetas, campos de entrada y burbujas de mensaje siguen siendo legibles — nunca lavados |
 | ↩️ **Restaurar el predeterminado** | Vuelve al aspecto integrado de DSH (sigue al sistema) con un clic |
-| 💾 **Persistencia local** | Skin y wallpaper guardados en `localStorage`, sobrevive a la recarga |
+| 💾 **Persistencia en tres niveles** | Skin y wallpaper en `localStorage` **y un archivo en el host** — sobrevive a la recarga y al puerto nuevo que DSH Desktop recibe en cada arranque |
 
 ---
 
@@ -360,19 +360,50 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
 
 ## 📌 Hoja de ruta
 
-- [x] Primera versión: 8 themes + wallpaper personalizado (opacidad / desenfoque) + persistencia local
-- [x] Formato de theme pack + importar / exportar / enlace para compartir (JSON + manifest + validación)
-- [x] Accent por usuario + aleatorizar
-- [x] Wallpaper 2.0 (URL / gradiente / sugerencia por skin / atenuación automática / Bing diario + refresco programado)
-- [x] Biblioteca local de packs + aplicación con un clic / favoritos / sorpréndeme
-- [x] Textos y docs i18n completos (zh / en / ja / ko / es / fr / de / ru)
-- [x] Sistema de materiales de vidrio: doble material esmerilado / líquido + deslizadores de opacidad independientes (v9.13.0)
-- [x] Configuración de fábrica lista al instalar: un aspecto completo y ajustado desde el primer reinicio (v9.13.0)
-- [x] Refuerzo de compatibilidad de host: detección en tiempo de ejecución para dos generaciones + marcadores de forma DOM contra la deriva de nombres de clase (issue #50, v9.13.x)
-- [ ] Eliminar por completo la dependencia de los nombres de clase con hash del host: migrar también las reglas decorativas restantes (barra lateral / panel de archivos) a marcadores de forma DOM
-- [ ] Studio online de paletas / vista previa de themes (frontend puro, validación en el navegador + verificador de contraste)
-- [ ] Galería comunitaria de themes (envía packs al repo / a la galería online; se agradecen paletas derivadas estilo Catppuccin vía theme packs)
-- [ ] Mejora del first-paint (FOUC)
+> **Esta tabla solo lista lo que NO está hecho.** Lo ya entregado vive en la sección Funciones de arriba y en [CHANGELOG.md](../../CHANGELOG.md) — mantener el mismo inventario en dos lugares siempre se desalinea, y este proyecto ya se desalineó una vez. Esta tabla traduce la hoja de ruta del `README.md` en chino, que sigue siendo la fuente autorizada.
+> Cada entrada lleva tres cosas: **motivo** (de un issue real o de datos medidos, nunca de una demanda imaginada), **tamaño** (S ≈ una noche, M ≈ una versión funcional, L ≈ requiere diseño antes del código), **criterio de aceptación** (una comprobación que **puede fallar**, no «terminado cuando yo lo diga»). Cuando algo se entrega, se borra de esta tabla. La sección «No haremos» importa tanto como la lista de pendientes: le ahorra a un contribuyente una ronda en vacío.
+
+### A. Fiabilidad — sobrevivir al cambio de generación del anfitrión
+
+*Motivo: medido en `0.2.0-rc.1`, 4 de los 6 grupos de anclas del anfitrión se movieron; desde el lado del usuario, el issue #62 se veía como «amanecí sin ninguna piel».*
+
+- [ ] **M** Soltar por completo los nombres de clase hasheados del anfitrión: migrar las reglas decorativas restantes (barra lateral / panel de archivos) a nuestros propios marcadores `data-dsh-dream-skin-*` — composer y nav-icon ya probaron que ese camino funciona
+      — aceptación: la sonda de deriva entrega `drifted: [] && pending: false` en 0.2.x
+- [ ] **S** Fijar el «pre-chequeo contra la rc del anfitrión» como paso de publicación: el día que sale una rc nueva, correr una vez la tabla de compatibilidad y una carga real de profile
+- [ ] **M** Correr la ventana peer hasta `0.3.x` — **solo después de verificarla**; si queda cerrada, escribir «no soportado» en los docs en vez de dejar un salto silencioso
+- [ ] **S** Hacer nav-icon idempotente y darle estado de autochequeo (medido: 2 copias de `style#dsh-dream-skin-nav-icon` y un segundo MutationObserver en páginas de larga vida) | PR-welcome
+
+### B. Publicación y canal de instalación
+
+*Motivo: el 2026-09-29 se rechazaron instalaciones en el Desktop oficial `0.2.0-rc.2`, mientras la máquina de mantenimiento usa una instalación `link:` de workspace — **esta clase de problema nunca se ve bajo una instalación link**.*
+
+- [ ] **S** Añadir a la lista de publicación un paso de «instalar de verdad una vez desde el registry» (profile nuevo + número de versión exacto + `--dump-config` para confirmar la entrada del loader) → escribirlo en `docs/publishing-to-npm.md`
+- [ ] **S** Poner el número de versión exacto en todo comando de instalación / actualización (tres lugares: README, skill, docs de escritorio) y explicar el enfriamiento de 24 h de pnpm
+- [ ] **M** Documentar una ruta de distribución intranet / sin conexión (el mecanismo de tarball de Release ya existe; falta lo copiable paso a paso) | PR-welcome
+
+### C. Lado operativo de escritorio
+
+*Motivo: tras el lanzamiento del Desktop oficial apareció un tipo de usuario nuevo — una persona que atiende una tanda de máquinas. El contacto real con ese perfil aún es escaso, así que primero lo barato y no allanar todo de una vez.*
+
+- [ ] **S** Añadir un campo de versión de esquema al archivo de estado (hoy las actualizaciones dependen de lectura tolerante; nunca se ensayó la compatibilidad hacia adelante)
+- [ ] **M** Una salida legible por máquina para «¿surtió efecto la piel?»: guía de lectura campo por campo de `$DSH_HOME/dream-skin.json` y `__DSH_DREAM_SKIN_STATUS__`, para que un script decida en lugar de una persona abriendo la consola
+- [ ] **M** Guía de despliegue por lotes (estructura de directorios de profile, diferencia entre instalación `link:` y registry, semántica de las claves de exención de `compatibility.json`, puertos dinámicos)
+- [ ] **L** Precarga de configuración / distribución de política (el administrador deja una piel por defecto que actúa en el primer arranque) — marcador de posición, casi seguro no se hará
+
+### D. Experiencia de producto
+
+*Motivo: es lo que el usuario ve de entrada. Pero los reportes reales de estos dos días (#61 / #62) fueron de fiabilidad, no de experiencia, así que este grupo va detrás de A y B.*
+
+- [ ] **M** Primer fotograma sin parpadeo (FOUC): **medir primero** — la ventana real entre el primer fotograma y que `apply()` termine decide el enfoque; sin medir, no se toca
+- [ ] **S** Aviso de estado vacío en el fondo por enlace: cuando se elige «URL de la imagen» y todavía no se pegó ningún enlace, esa opción no dibuja fondo, y la interfaz no tiene la línea que explica «por qué desapareció mi fondo» (una línea por idioma en los 8, a meter en la próxima versión funcional)
+- [ ] **S** Medir la cuota de `localStorage`: si el historial de fondos acumulado acaba expulsando en silencio la persistencia (un fallo de escritura hoy **degrada en silencio**)
+- [ ] **M** Galería comunitaria de temas — **definir las reglas de gobernanza antes de escribir código**. Verificado: un paquete de tema no contiene ningún campo de imagen (solo tokens + color de acento + metadatos), así que las contribuciones no traen riesgo de derechos de imagen por construcción; todo el coste está en la carga de revisión | PR-welcome
+
+### E. No haremos / solo PR
+
+- **Rotación de varios enlaces de fondo** (observación lateral del issue #61): la solución por servidor del reportante (imagen aleatoria por solicitud + precompuesta a la proporción de pantalla) ya logra el mismo efecto, mientras que implementarlo dentro del plugin es el cambio más caro de esta tabla y el que deja más deuda semántica.
+- **Paleta en línea / Studio de vista previa de temas**: eso es un sitio independiente, no una capacidad del plugin, y se solapa con la galería comunitaria de temas costando más.
+- **Cualquier práctica que inyecte o modifique el instalador / binario del anfitrión**: choca de frente con el posicionamiento «solo puntos de extensión oficiales» — **nunca**.
 
 ---
 
