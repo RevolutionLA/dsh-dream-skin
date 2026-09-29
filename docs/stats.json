@@ -4,7 +4,7 @@
     "repo": "dsh-dream-skin",
     "package": "dsh-dream-skin",
     "release": "2026-08-15",
-    "generatedAt": "2026-09-28T09:43:28.300Z"
+    "generatedAt": "2026-09-29T09:47:20.476Z"
   },
   "series": [
     {
@@ -100,127 +100,132 @@
     {
       "date": "2026-09-02",
       "stars": 133,
-      "downloads": 23120
+      "downloads": 23962
     },
     {
       "date": "2026-09-03",
       "stars": 137,
-      "downloads": 23120
+      "downloads": 23962
     },
     {
       "date": "2026-09-04",
       "stars": 138,
-      "downloads": 23898
+      "downloads": 24740
     },
     {
       "date": "2026-09-05",
       "stars": 144,
-      "downloads": 24585
+      "downloads": 25427
     },
     {
       "date": "2026-09-06",
       "stars": 146,
-      "downloads": 25226
+      "downloads": 26068
     },
     {
       "date": "2026-09-07",
       "stars": 148,
-      "downloads": 25226
+      "downloads": 26068
     },
     {
       "date": "2026-09-08",
       "stars": 149,
-      "downloads": 25226
+      "downloads": 26068
     },
     {
       "date": "2026-09-09",
       "stars": 150,
-      "downloads": 26000
+      "downloads": 26842
     },
     {
       "date": "2026-09-10",
       "stars": 156,
-      "downloads": 27291
+      "downloads": 28133
     },
     {
       "date": "2026-09-11",
       "stars": 158,
-      "downloads": 28895
+      "downloads": 29737
     },
     {
       "date": "2026-09-12",
       "stars": 158,
-      "downloads": 29851
+      "downloads": 30693
     },
     {
       "date": "2026-09-13",
       "stars": 159,
-      "downloads": 30944
+      "downloads": 31786
     },
     {
       "date": "2026-09-14",
       "stars": 162,
-      "downloads": 33424
+      "downloads": 34266
     },
     {
       "date": "2026-09-15",
       "stars": 165,
-      "downloads": 33424
+      "downloads": 34266
     },
     {
       "date": "2026-09-16",
       "stars": 171,
-      "downloads": 34942
+      "downloads": 35784
     },
     {
       "date": "2026-09-17",
       "stars": 174,
-      "downloads": 34942
+      "downloads": 35784
     },
     {
       "date": "2026-09-18",
       "stars": 175,
-      "downloads": 35965
+      "downloads": 36807
     },
     {
       "date": "2026-09-19",
       "stars": 176,
-      "downloads": 36731
+      "downloads": 37573
     },
     {
       "date": "2026-09-20",
       "stars": 178,
-      "downloads": 37656
+      "downloads": 38498
     },
     {
       "date": "2026-09-21",
       "stars": 178,
-      "downloads": 38451
+      "downloads": 39293
     },
     {
       "date": "2026-09-22",
       "stars": 179,
-      "downloads": 39132
+      "downloads": 39974
     },
     {
       "date": "2026-09-23",
       "stars": 182,
-      "downloads": 40197
+      "downloads": 41039
     },
     {
       "date": "2026-09-24",
       "stars": 183,
-      "downloads": 41191
+      "downloads": 42033
     },
     {
       "date": "2026-09-25",
       "stars": 185,
-      "downloads": 41927
+      "downloads": 42769
     },
     {
       "date": "2026-09-26",
       "stars": 188,
-      "downloads": 42944
+      "downloads": 43786
+    },
+    {
+      "date": "2026-09-27",
+      "stars": 190,
+      "downloads": 45109
     }
   ]
 }
