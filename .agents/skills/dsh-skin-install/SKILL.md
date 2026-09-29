@@ -44,6 +44,14 @@ dsh plugin --profile web add <所选来源>
 - 安装会更新 profile 的 `package.json` 依赖并把插件注册进 `dsh.profile.bundles`（无需手动改配置）。
 - 若 pnpm 报 `ERR_PNPM_IGNORED_BUILDS` 等构建脚本审批类错误：这是环境既有策略，link 类依赖通常已生效；用
   `dsh --profile web --dump-config | grep -A2 dream-skin` 验证 loader 条目是否出现。
+- **若报 `dsh: installation rejected: Plugin dsh-dream-skin@<旧版本> is incompatible with dsh <运行时>` 并紧跟
+  `dsh: restored package.json, pnpm-lock.yaml, and node_modules.`**：先怀疑**静默降级**，不要当成"插件不支持该宿主"。
+  pnpm 的 `minimumReleaseAge`（新版本冷静期）会把不带版本号的 `add` 解析成上一个成熟版本（输出里只有
+  `+ dsh-dream-skin ^<旧版>` 和一行 `(<新版> is available)` 提示），而那个旧包的 peer 范围可能不覆盖当前运行时。
+  处置：读 `package.json` 里的当前版本号，改用**显式版本号**重装 ——
+  `dsh plugin --profile web add dsh-dream-skin@<该版本>`（显式版本会让 pnpm 自动把它写进 profile 的
+  `pnpm-workspace.yaml` → `minimumReleaseAgeExclude`，实测即通过）。**不要**用 `dsh plugin allow-version` 给旧版开豁免：
+  那只是让不兼容的旧 peer 范围强行装上，宿主换代损伤一个没修。
 
 ### 5. 验证与重启
 

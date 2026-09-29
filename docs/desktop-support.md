@@ -13,7 +13,7 @@
 | DSH Web（`0.1.0-rc.6` ~ `0.1.x`） | ✅ 支持，回归测试覆盖 | 双代 seed 探测（`lib/client.js` 顶部 `seedProbe` / `requireSeed` 块），回归门 122/122（Node 18/20/22/24） |
 | DSH Web（`0.2.0-rc.1` ~ `0.2.x`） | ✅ 支持：peer 闸门已放宽并离线钉死，本机 `0.2.0-rc.1` 实机复核已过（挂载 + 设置项 + 填充方式三档） | issue #62：0.2.0-rc.1 起宿主 boot 阶段校验 `@deepseek-ai/dsh*` peer 范围，不满足即整包跳过；本版 peer 收敛为 `>=0.1.0-rc.6 <0.3.0-0`，判定表由宿主真实 `evaluatePluginCompatibility()` 生成（`tests/package.host_compat.test.cjs` / `tests/fixtures/host_compat_verdicts.json`）；实机复核方法与"进程未重启"的口径限制见上「宿主 peer 兼容闸门」一节最后一条 |
 | 第三方 DSH Desktop 壳（Electron，动态端口） | ✅ 支持，含桌面专属修复 | issue #50/#51/#55（v9.14.1 / 9.15.2 / 9.16.0），动态端口重启用例（`tests/client.persistence.test.cjs` 之 "blue-team B1" / "T-02" 系列） |
-| **官方 DSH Desktop 预览版**（2026-09-25 发布） | 🟡 预期兼容，**真机验证进行中** | 官方报道确认桌面端为 Electron、平移 Web 前端并**继承既有插件运行机制**；未在本机安装官方包逐项验证前不作像素级承诺 |
+| **官方 DSH Desktop**（`0.2.0-rc.2`，2026-09-29 用户实机安装受阻后排查） | 🟡 peer 判定已离线+产品路径证实放行；**运行期挂载未验** | 用户侧报错的真实原因是 pnpm 冷静期把 `@latest` 静默退回 9.27.1（旧 peer 范围不含 0.2.x）而非桌面壳不兼容；显式写版本号即可装上 9.29.0，复现与对照实验见「已验证」清单最后一条。本机仅装到 `0.2.0-rc.1`，rc.2 桌面壳里插件是否真挂载、像素效果如何，均未在本机验证 |
 | 宿主未来任意版本 | 🟢 安全降级 | 全 seed 换代时降级为哑模块 + `console.warn` + 机读 degraded 快照，绝不拖垮 shell（issue #43 根治，`requireSeed` 全失败后的哑模块返回路径） |
 
 ## 接入方式：为什么不需要"注入"
@@ -133,10 +133,12 @@ DSH Desktop 每次启动绑定 OS 分配端口（`--port 0`）→ 浏览器 orig
 - 出厂壁纸迁移：负向路径（同长度走私 / 同字节数空白载荷 / 同三元组差一哈希 / 当前出厂图幂等）与**正向路径**；**v9.27.1 起 entry 2 改走真实资产反算**——`tests/fixtures/legacy_factory_raster_9_27_0.txt` 保存 v9.27.0 标签实际随包的那张位图串，测试用独立实现重算三重指纹再与源码字面量比对。此前所有正向用例都在 patched 副本里把三元组改写成合成载荷自己的值，**常量数值没有任何检查能翻红**（自证式探针），首版手写的 entry 2 哈希因此错了也无人报，真机上迁移静默不生效——发版前实机自查发现并改正；entry 1 的照片字节仍不进仓库，只有字面量钉子 + 合成载荷算法用例，其数值由本轮对 git 标签（v9.14.2…v9.16.0、v9.23.0）与本机历史串复算核对一致；迁移 × 宿主采纳的双向语义（宿主"已清空"不被工厂写复活；宿主持有旧图的会话迁移后以用户态推送、host 文件收敛，含"同 origin 重启、本地与宿主两侧都仍是旧图"的真实形态用例）；真机复核（`dsh@0.1.7-rc.2`，9.27.1）：宿主 `dream-skin.json`、localStorage、DOM 壁纸层三处均收敛为矢量图，用户既有的 opacity/模糊/皮肤未被迁移改动；受控例外（B-5）由源码正则钉子守卫，注释删除即翻红；
 - 宿主 `ok: false` 拒绝出口与网络失败出口同语义播种（B-6），且不产生任何回写；
 - 诊断快照跟随宿主采纳刷新，重发布经 prev-merge 保住探针结果。
+- **安装期闸门实机复现与规避（2026-09-29，本机 dsh `0.2.0-rc.1`，pnpm 11.6.0）**：宿主自身的 `evaluatePluginCompatibility()` 在 rc.2 代码上对 9.27.1 判**拒**（5 个 peer 不落）、对 9.29.0 判**放行**——与本插件无关，纯粹是 peer 范围。产品路径复现：`dsh plugin --profile <p> add dsh-dream-skin`（不带版本号）→ pnpm 输出 `+ dsh-dream-skin ^9.27.1`（旁注 `(9.29.0 is available)`）→ 宿主 `dsh: installation rejected: Plugin dsh-dream-skin@9.27.1 is incompatible with dsh …` → `dsh: restored package.json, pnpm-lock.yaml, and node_modules.`。`dsh plugin --profile <p> add dsh-dream-skin@9.29.0`（显式版本）→ pnpm 自动把该版本写进 profile 的 `pnpm-workspace.yaml` 之 `minimumReleaseAgeExclude` → `+ dsh-dream-skin 9.29.0`，`package.json` 记 `"dsh-dream-skin": "9.29.0"`，`dsh --profile <p> --dump-config` 出现 `- id: dream-skin` 条目。对照实验：`--config.minimumReleaseAge=0` 同样放行（备选手段）；把 `.npmrc` 里写 `minimum-release-age=0` **无效**（仍装旧版），即只有 CLI 形态被证实；`pnpm config get minimumReleaseAge` 返回 `undefined` 也拦不住默认行为，所以"我没配过这个策略"不是排除理由。
 - **实机复核（v9.29.0，本机 dsh `0.2.0-rc.1`，走访客同款通道=内置浏览器 `evaluate_script` 读计算样式/DOM 树序/`aria-pressed`）**：宿主 profile 载入 19/19 不跳过、入口含本插件；`__DSH_DREAM_SKIN_STATUS__` = `9.29.0` / `ready`；皮肤 / 强调色 / 壁纸三档 / 填充方式 / 应用链接 / 清除壁纸 设置行齐全；填充方式点选后 `background-size` 与落库值同步变化，`模糊填充` 溢出层确实排在图片层**之前**（`body` 子节点 index 0）且 `filter` 为 `blur(51px)`（用户 3px + 48px），切回 `裁剪填满` 后溢出层摘除；选中「渐变」时整行填充方式消失、切回「本地图片」又出现。**这是机读复核，不是像素目视**——内置浏览器仍截不到图（`visibilityState=hidden`）。
 
 **未验证 / 无法承诺**：
-- **npm 正式包的安装期闸门路径**：本机是 `link:` 工作区安装，`dsh plugin add` 的判定入口在 `dsh-plugin-manager`（与 boot 期 `dsh-app-boot` 不是同一处调用点），本轮未实机跑一次"移除后从 npm 装 9.29.0"；离线判定表只覆盖 boot 期那份函数。
+- **npm 正式包的安装期闸门路径**：本机是 `link:` 工作区安装，`dsh plugin add` 的判定入口在 `dsh-plugin-manager`（与 boot 期 `dsh-app-boot` 不是同一处调用点）。**这一条已在 2026-09-29 实机跑到**（见上"已验证"清单最后一条），但它带出一个新的、与兼容窗口无关的失败模式：pnpm 11 的 `minimumReleaseAge`（新版本冷静期）会把不带版本号的 `add`/`update` **静默解析成上一个成熟版本**，于是"发版后 24 小时内的全新安装"必然装到旧包、再被宿主的 peer 闸门拒——错误信息长得像"插件不兼容"，实际是没装上最新兼容版。规避方式已在 README 写明（显式写版本号）。
+- 官方桌面版（`0.2.0-rc.2`）**运行期**是否真的挂载本插件：本机只装到 `0.2.0-rc.1`，验证止于"安装期放行 + `--dump-config` 里出现 `- id: dream-skin` 条目"，**没有**在 rc.2 桌面壳里读到 `__DSH_DREAM_SKIN_STATUS__`。
 - 「渐变档不显示填充方式控件」是 JSX 条件渲染（`kind !== "gradient"`），本套假 DOM 不建树、**离线门覆盖不到**——v9.29.0 已实机点视确认，但回归保护仍缺一条（同「无头渲染 React 树」这一既有欠账）。
 - 官方 Desktop 预览版的像素级真机效果（假 DOM 测试无法替代，需装官方包逐项截图核对）；
 - `docs/screenshots/` 两张截图仍是旧出厂壁纸时期的真机图（已移出 npm 包，仓库内待真机重截为新壁纸版本，不用合成图冒充）；
