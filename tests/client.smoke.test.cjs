@@ -51,15 +51,37 @@ const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
 if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Mini-DOM with REAL tree semantics for the two things issue #61 needs to see:
+// child ORDER (the blur-fill layer must land before the wallpaper layer — both
+// are fixed at z-index -1, so tree order alone decides who paints on top) and
+// DETACHMENT (a fill-mode switch must remove the stale bleed layer). The old
+// stub answered `contains()` with "only the element itself" and dropped every
+// child, so each re-render silently created a brand-new layer and neither
+// invariant was observable from a test.
 function makeEl() {
-	return {
-		style: {}, dataset: {}, children: [],
+	const el = {
+		style: {}, dataset: {}, children: [], parentElement: null,
 		setAttribute() {}, removeAttribute() {},
-		appendChild(c) { this.children.push(c); },
-		append(c) { this.children.push(c); },
-		prepend() {}, click() {}, remove() { this.removed = true; },
-		contains(el) { return el && this === el; }
+		appendChild(c) { this.children.push(c); if (c) c.parentElement = this; },
+		append(c) { this.children.push(c); if (c) c.parentElement = this; },
+		prepend(c) { this.children.unshift(c); if (c) c.parentElement = this; },
+		insertBefore(c, ref) {
+			const i = this.children.indexOf(ref);
+			if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
+			if (c) c.parentElement = this;
+		},
+		click() {},
+		remove() {
+			this.removed = true;
+			const p = this.parentElement;
+			if (p) {
+				const i = p.children.indexOf(this);
+				if (i >= 0) p.children.splice(i, 1);
+			}
+		},
+		contains(c) { return !!c && this.children.includes(c); }
 	};
+	return el;
 }
 
 function buildSandbox(overrides = {}) {
@@ -107,7 +129,11 @@ function buildSandbox(overrides = {}) {
 	// overrides.code lets a test patch the bundle source (e.g. pin the migration
 	// fingerprint constants to a synthetic fixture) without touching lib/client.js.
 	vm.runInContext((overrides.code || CODE) + '\nwindow.__LOGGED__=1;', context);
-	return { factory, loc, localStorage, document, window: sandbox.window, registered: [], slots: { count: 0 } };
+	// Return the document the bundle ACTUALLY sees. The local `document` const is
+	// the default mock, so whenever a test passed a `document:` override it used to
+	// get the unused one back — and anything patched through `h.document` (a
+	// createElement interceptor, a head detach) silently missed the running code.
+	return { factory, loc, localStorage, document: sandbox.document, window: sandbox.window, registered: [], slots: { count: 0 } };
 }
 
 function makeApplyContext(harness, { captureActions = false } = {}) {
@@ -952,7 +978,7 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 		const body = src.slice(start, end);
 		const keys = [...body.matchAll(/"([a-zA-Z0-9.]+)":\s*"/g)].map((m) => m[1]);
 		dicts[lang] = new Set(keys);
-		assert.equal(keys.length, 64, `${lang} has ${keys.length} keys (expected 64)`);
+		assert.equal(keys.length, 68, `${lang} has ${keys.length} keys (expected 68)`);
 	}
 	const zhKeys = dicts.zh;
 	for (const lang of langs.slice(1)) {
@@ -2218,6 +2244,7 @@ test('round-6: first launch applies factory defaults (shipped look)', async () =
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.4', 'factory composer opacity applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'factory material applied (frosted IS the shipped look, blue-team B5)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), '{"on":0,"hours":24}', 'factory refresh schedule OFF (blue-team B7: third-party polling is opt-in)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-fit'), 'cover', 'factory fill mode is part of the shipped look record');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:factory-applied'), '1', 'one-shot marker stamped');
 });
 
@@ -2658,8 +2685,12 @@ test('drift probe (S-3): a re-applied probe supersedes the live observer instead
 	await sleep(250);
 	assert.equal(lateMOs(observers, baseLen, doc).length, 1, 'first chain armed one observer');
 	assert.notEqual(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'and it is still live (no unload happened)');
-	// Re-apply WITHOUT unmounting (the host can re-enter apply(); the material
-	// sheet gets re-injected, so the probe chain runs again).
+	// Re-apply WITHOUT unmounting (the host can re-enter apply()). ensureMaterialStyle
+	// keeps its <style> node, so a chain only re-arms once that node has actually
+	// left the document — which is the real scenario this pins: a host hot reload /
+	// head rebuild that dropped our sheet while the previous probe chain is still
+	// live. Detach it the way the DOM would, then re-apply.
+	h.document.head.children.slice().forEach((node) => node.remove());
 	e.apply(makeApplyContext(h));
 	await sleep(250);
 	const armed = lateMOs(observers, baseLen, doc);
@@ -2764,6 +2795,10 @@ test('drift probe (T-1): a re-applied ladder supersedes the previous chain inste
 	await sleep(20);
 	const first = armed.filter((t) => t.ms === 4321);
 	assert.equal(first.length, 1, 'the first chain armed one pending round');
+	// Drop the injected <style> node from the document, exactly as a host head
+	// rebuild would: that is the only state in which ensureMaterialStyle
+	// re-injects and therefore re-arms a chain while the old one is still live.
+	h.document.head.children.slice().forEach((node) => node.remove());
 	e.apply(makeApplyContext(h));
 	await sleep(20);
 	assert.equal(armed.filter((t) => t.ms === 4321).length, 2, 'the second chain armed its own round instead of being swallowed');
@@ -3052,4 +3087,314 @@ test('text hygiene (round-3 self-catch): shipped text files carry no C0 control 
 		}
 		assert.deepEqual(bad, [], rel + ' contains C0 control bytes (a backslash-escape example was written as the character it spells): ' + bad.slice(0, 5).join(' '));
 	}
+});
+// ── issue #61 — wallpaper fill mode (cover / contain / blurred bleed) ────────
+// The wallpaper layer used to hard-code `background-size:cover`, so every photo
+// whose aspect ratio differed from the viewport lost its top and bottom (or
+// left and right) to cropping, with no way to ask for the whole frame.
+const FIT_KEY = 'dsh-dream-skin:wallpaper-fit';
+const BLEED_MARK = 'transform:scale(1.2)';
+
+/**
+ * A document mock that keeps every element the plugin creates, so a test can
+ * read the LIVE style objects of the two wallpaper layers instead of guessing
+ * which one a flat write-log referred to.
+ */
+function mkWallpaperDoc() {
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const isBleed = (el) => String(el.style.cssText).includes(BLEED_MARK);
+	const live = (el) => !el.removed && doc.body.children.includes(el);
+	const painted = () => created.filter((el) => typeof el.style.backgroundImage === 'string' && el.style.backgroundImage !== '');
+	return {
+		doc,
+		created,
+		// The image the user sees on top (the only non-bleed painted layer).
+		main: () => {
+			const l = painted().filter((el) => !isBleed(el) && live(el));
+			assert.equal(l.length, 1, 'exactly one live wallpaper layer, saw ' + l.length);
+			return l[0];
+		},
+		bleeds: () => painted().filter((el) => isBleed(el) && live(el)),
+		bleedEverCount: () => created.filter(isBleed).length
+	};
+}
+
+test('issue #61 (fill mode): the wallpaper layer\'s background-size follows the stored fit', () => {
+	const g = mkWallpaperDoc();
+	const h = buildSandbox({
+		document: g.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	// An existing user must not wake up to a moved wallpaper: no key stored means
+	// the pre-#61 behavior (cover) is still the default.
+	assert.equal(h.localStorage.getItem(FIT_KEY), null, 'the boot render does not invent a fit key');
+	assert.equal(g.main().style.backgroundSize, 'cover', 'default fill mode is cover');
+
+	for (const [fit, size] of [['contain', 'contain'], ['blur', 'contain'], ['cover', 'cover']]) {
+		adv.setFit(fit);
+		assert.equal(h.localStorage.getItem(FIT_KEY), fit, `setFit(${fit}) persisted`);
+		assert.equal(g.main().style.backgroundSize, size, `setFit(${fit}) renders background-size:${size}`);
+		// Intermediate snapshot: leaving blur must not leave its bleed layer running.
+		assert.equal(g.bleeds().length, fit === 'blur' ? 1 : 0, `bleed layer count after setFit(${fit})`);
+	}
+
+	// Restore path in a fresh instance (a reload), for a LOCAL photo — the shape
+	// the reporter actually had cropped. Reading the key back is a different code
+	// path from the click handler, and it is the one that decides the first paint.
+	const r = mkWallpaperDoc();
+	const h2 = buildSandbox({
+		document: r.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'image',
+			'dsh-dream-skin:wallpaper': 'data:image/jpeg;base64,AAAA',
+			[FIT_KEY]: 'contain'
+		}
+	});
+	const e2 = h2.factory(makeRequire(makeRuntime().RT));
+	e2.apply(makeApplyContext(h2, { captureActions: true }));
+	assert.equal(r.main().style.backgroundSize, 'contain', 'stored fit paints on boot without any interaction');
+});
+
+test('issue #61 (fill mode): the row store receives fit so the active chip tracks the value', () => {
+	// Own test on purpose (CONTRIBUTING admission rule 1): the render assertion
+	// above cannot see a break HERE, because `syncAdvWallpaper` passes its fields
+	// POSITIONALLY — dropping the fit argument shifts `revision` into `fit` and
+	// the wallpaper still paints correctly while the chip stops tracking.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	assert.equal(h.storeStates['dream-skin-wallpaper-advanced'].fit, 'cover', 'store starts at the default');
+	h.actionBags['dream-skin-wallpaper-advanced'].setFit('blur');
+	assert.equal(h.storeStates['dream-skin-wallpaper-advanced'].fit, 'blur', 'store mirrors the click');
+});
+
+test('issue #61 (blur fill): the bleed layer paints BEHIND the image and detaches when the mode leaves', () => {
+	const g = mkWallpaperDoc();
+	const h = buildSandbox({
+		document: g.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			'dsh-dream-skin:wallpaper-blur': '7'
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	assert.equal(g.bleeds().length, 0, 'no bleed layer before blur mode');
+	assert.equal(g.bleedEverCount(), 0, 'and none was even created by the cover render');
+
+	adv.setFit('blur');
+	const bleed = g.bleeds();
+	assert.equal(bleed.length, 1, 'blur mode creates exactly one bleed layer');
+	const layer = g.main();
+	// Tree order is the ONLY thing that puts the bleed behind the image: both
+	// layers are position:fixed at z-index:-1, so appendChild() would paint the
+	// heavily blurred copy ON TOP of the sharp one — the same visual result a
+	// background-size bug would produce, and invisible to every other assertion.
+	assert.ok(g.doc.body.children.indexOf(bleed[0]) < g.doc.body.children.indexOf(layer),
+		'the bleed precedes the wallpaper layer in tree order (insertBefore, not append)');
+	assert.equal(bleed[0].style.backgroundImage, layer.style.backgroundImage, 'the bleed carries the same image');
+	assert.ok(String(bleed[0].style.cssText).includes('background-size:cover'), 'the bleed fills (cover) while the top layer contains');
+	assert.ok(String(bleed[0].style.cssText).includes(BLEED_MARK), 'the bleed is overscaled so the blur cannot eat a transparent ring at the viewport edge');
+	assert.equal(bleed[0].style.filter, 'blur(55px)', 'bleed blur = user blur (7) + the 48px bleed constant');
+	assert.equal(layer.style.filter, 'blur(7px)', 'the top layer keeps the user\'s own blur');
+	assert.equal(layer.style.backgroundSize, 'contain', 'the top layer is the whole image');
+
+	adv.setFit('cover');
+	assert.equal(g.bleeds().length, 0, 'leaving blur detaches the bleed layer');
+	assert.equal(bleed[0].removed, true, 'the node that was live is the one removed');
+	assert.equal(g.doc.body.children.indexOf(bleed[0]), -1, 'it is out of the tree, not merely unreferenced');
+
+	adv.setFit('blur');
+	assert.equal(g.bleeds().length, 1, 're-entering blur arms a fresh bleed layer');
+	assert.notEqual(g.bleeds()[0], bleed[0], 'which is a new node, not the detached one resurrected');
+
+	adv.clearAll();
+	assert.equal(g.bleeds().length, 0, 'clearing the wallpaper tears the bleed layer down too');
+});
+
+test('issue #61 (fill mode): a gradient ignores it, and both gates whitelist the value', () => {
+	// A gradient has no intrinsic aspect ratio, so `fit` must not change how it
+	// renders — and it must not conjure a bleed layer behind it.
+	const g = mkWallpaperDoc();
+	const hg = buildSandbox({
+		document: g.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'gradient',
+			'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #000 0%, #fff 100%)',
+			[FIT_KEY]: 'blur'
+		}
+	});
+	hg.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(hg, { captureActions: true }));
+	assert.equal(g.main().style.backgroundSize, 'cover', 'a gradient renders cover even with fit=blur stored');
+	assert.equal(g.bleedEverCount(), 0, 'the gradient path never creates a bleed layer');
+
+	// Write gate: the value goes straight into `style.backgroundSize` (CSSOM), so
+	// anything but the three literals must be refused BEFORE persisting — a
+	// hand-typed or hand-edited value cannot smuggle declarations.
+	const h = buildSandbox();
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+	const refused = [
+		'contain; background-image:url("http://evil.invalid/x")',
+		'blur;filter:blur(999px)',
+		'CONTAIN',
+		'contain ',
+		'cover,contain',
+		'',
+		undefined,
+		null,
+		42,
+		{ toString: () => 'cover' }
+	];
+	for (const bad of refused) {
+		assert.doesNotThrow(() => adv.setFit(bad), 'setFit must not throw on: ' + String(bad));
+		assert.equal(h.localStorage.getItem(FIT_KEY), null, 'refused write: ' + JSON.stringify(bad));
+	}
+	adv.setFit('contain');
+	assert.equal(h.localStorage.getItem(FIT_KEY), 'contain', 'the gate still admits the real values');
+
+	// Render gate: a state file edited outside the UI reaches readWallpaperFit
+	// directly, so the whitelist has to hold there too — not only on the click.
+	const r = mkWallpaperDoc();
+	const h2 = buildSandbox({
+		document: r.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			[FIT_KEY]: 'contain; background-image:url("http://evil.invalid/x")'
+		}
+	});
+	h2.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(h2, { captureActions: true }));
+	assert.equal(r.main().style.backgroundSize, 'cover', 'a tampered stored fit falls back to the default at render time');
+	assert.ok(!JSON.stringify(r.main().style).includes('evil.invalid'), 'the tampered value never reaches the layer style');
+});
+
+test('issue #61 (apply link): re-applying the same URL re-fetches it even with the schedule off', async () => {
+	// Second half of the report: pressing "应用链接" persisted the URL but rendered
+	// a byte-identical background, so the browser answered from cache and a
+	// daily-wallpaper link that had just rolled over kept showing the OLD picture
+	// until a full page reload. A manual apply now means "fetch it now": bump the
+	// stamp, render with it, and re-phase the schedule honestly.
+	const probes = [];
+	const g = mkWallpaperDoc();
+	const h = buildSandbox({
+		document: g.doc,
+		Image: function () {
+			this.onload = null;
+			this.onerror = null;
+			Object.defineProperty(this, 'src', {
+				configurable: true,
+				get() { return ''; },
+				set(v) { probes.push(v); }
+			});
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	const rendered = () => (/url\("([^"]+)"\)/.exec(g.main().style.backgroundImage) || [])[1] || g.main().style.backgroundImage;
+
+	adv.setUrl('https://cdn.example.com/daily.jpg?v=2');
+	const first = rendered();
+	assert.ok(/[?&]t=\d{13}$/.test(first), 'a manual apply renders a cache-busted URL, got: ' + first);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://cdn.example.com/daily.jpg?v=2', 'the persisted URL stays clean (R6)');
+	// The probe must verify exactly the URL that renders, or a "link is dead"
+	// notice describes a different request than the one the page makes (review P3).
+	assert.equal(probes[probes.length - 1], first, 'the preload probe checks the URL that actually renders');
+
+	// Date.now() has millisecond resolution, so the two applies have to be
+	// separated by real time — otherwise an identical stamp would make "different
+	// request" unprovable.
+	await sleep(3);
+	adv.setUrl('https://cdn.example.com/daily.jpg?v=2');
+	const second = rendered();
+	assert.notEqual(second, first, `re-applying the same link must produce a different request, both: ${second}`);
+	assert.ok(/[?&]t=\d{13}$/.test(second), 'the second apply is stamped too, got: ' + second);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://cdn.example.com/daily.jpg?v=2', 'stored URL is still the pristine one');
+
+	const cfg = JSON.parse(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh') || '{}');
+	assert.ok(!cfg.on, 'a manual apply does not silently enable the schedule');
+	assert.ok(Math.abs(Date.now() - cfg.lastFiredAt) < 5000, `lastFiredAt re-phased to now, got: ${cfg.lastFiredAt}`);
+
+	// And with the schedule OFF the stamp still lands in the render layer: the
+	// old code only busted while `on` was true, which is the exact shape of the
+	// reported "nothing happened" case.
+	assert.equal(g.bleeds().length, 0, 'no bleed layer for the default cover mode');
+});
+
+test('issue #61: the fill-mode key is a sentinel — an upgrader whose only stored preference is fill mode keeps their state', () => {
+	// Blue-team B2/F1: the first-install probe has to recognize a user by EVERY
+	// user-visible key. `wallpaper-fit` is new in this build, so an existing user
+	// who had only ever touched the fill chips is invisible to the probe unless the
+	// key is listed — and they would then get the whole factory look pushed over
+	// their own choices on the next boot.
+	const h = buildSandbox();
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	h.localStorage.setItem(FIT_KEY, 'contain');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), null, 'no factory skin pushed onto the upgrader');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), null, 'the bundled wallpaper is not seeded');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), null, 'factory numbers stay dormant');
+	assert.equal(h.localStorage.getItem(FIT_KEY), 'contain', 'their own fill mode survives');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:factory-applied'), '1', 'marker stamped so later boots skip the probe');
+});
+
+
+test('R13 follow-up (found on the live machine): apply with an empty URL box changes NOTHING', () => {
+	// The URL box is uncontrolled (defaultValue) and its local state starts empty, so
+	// a stray "应用链接" click sends "". R13 stopped that from wiping an existing URL
+	// wallpaper, but the other half of the branch still ran: it rewrote kind/url and,
+	// worse, forced 壁纸跟随主题 off (`wallpaper-follows-skin -> "0"`) from a misclick.
+	// A click that has nothing to apply must leave every stored value alone.
+	const h = buildSandbox({
+		seed: {
+			// Reachable state: the user picked the 外链 kind but has not pasted a
+			// link yet, and still has "壁纸跟随主题" switched on.
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper': 'data:image/png;base64,AAAA',
+			'dsh-dream-skin:wallpaper-follows-skin': '1'
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const adv = h.actionBags['dream-skin-wallpaper-advanced'];
+
+	const before = {
+		kind: h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'),
+		url: h.localStorage.getItem('dsh-dream-skin:wallpaper-url'),
+		follows: h.localStorage.getItem('dsh-dream-skin:wallpaper-follows-skin')
+	};
+	adv.setUrl('');
+	const after = {
+		kind: h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'),
+		url: h.localStorage.getItem('dsh-dream-skin:wallpaper-url'),
+		follows: h.localStorage.getItem('dsh-dream-skin:wallpaper-follows-skin')
+	};
+
+	assert.equal(before.url, null, 'precondition: this user has never stored a URL');
+	assert.deepEqual(after, { kind: 'url', url: null, follows: '1' }, 'nothing-to-apply click left kind, url and follows-skin exactly as they were');
 });

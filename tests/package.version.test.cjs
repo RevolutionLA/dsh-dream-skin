@@ -30,3 +30,12 @@ test('release: package-lock.json keeps the package name (a renamed lock means it
 	const l = lock();
 	assert.equal(l.name, pkg.name, `lock name ${l.name} != package name ${pkg.name}`);
 });
+
+test('release: package-lock.json repeats the manifest peer ranges verbatim', () => {
+	// The host's 0.2.0 compatibility gate reads package.json, but an installer
+	// may read the lock — and this file already lied once (the lock kept
+	// `^0.1.0-rc.6` for dsh-client-store after package.json moved it to `*`).
+	const l = lock();
+	assert.deepEqual(l.packages[''].peerDependencies, pkg.peerDependencies, 'root peerDependencies differ between package.json and package-lock.json');
+	assert.deepEqual(l.packages[''].peerDependenciesMeta, pkg.peerDependenciesMeta, 'root peerDependenciesMeta differ between package.json and package-lock.json');
+});

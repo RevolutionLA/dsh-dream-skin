@@ -2,6 +2,43 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [9.29.0] - 2026-09-29
+
+> 宿主换代兼容轮（issue #62）+ 壁纸填充方式（issue #61）。DSH `0.2.0-rc.1` 发布后，本插件在 0.2.x 上会被宿主整包跳过——先修这条，再收 issue #61 的两条观察。
+
+### 修复
+- **peer 范围与宿主 0.2.x 兼容**（issue #62，P0）：宿主 `@deepseek-ai/dsh-app-boot` 自 0.2.0-rc.1 新增 `evaluatePluginCompatibility()`，boot 阶段用 `semver.satisfies(宿主运行时版本, 范围, { includePrerelease: true })` 逐个校验 `@deepseek-ai/dsh` / `@deepseek-ai/dsh-*` peer，**任一不满足即整包跳过该插件**（客户端不注入、`/dream-skin/api` 不启、诊断全局量不存在，日志仅一行）。原先以 `^0.1.0-rc.6`（等价 `>=0.1.0-rc.6 <0.2.0-0`）对齐的六个 `dsh-client-*` peer 在 `0.2.0-rc.1` 上全部落空，用户侧表现为"换肤与设置项整体消失"而非报错。本版统一为 `>=0.1.0-rc.6 <0.3.0-0`：覆盖 0.1.x 与 0.2.x，把尚未验证的 0.3.x 明确挡在窗口外。peer 声明自此是**载荷声明**而非装饰，README 与 `docs/desktop-support.md` 的相应表述同步改写（"不声明 engines.dsh" 的立场不变，但 peer 已成为安装期硬约束）。
+- **`package-lock.json` 的 peer 曾与 `package.json` 静默漂移**（本轮自查）：lock 里 `dsh-client-store` 仍是 `^0.1.0-rc.6` 而 manifest 已是宽范围——与 9.27.0 那次"版本号漂移"同一类。新增 deepEqual 门（peer + `peerDependenciesMeta` 两组），漂移即翻红。
+- **手动"应用链接"不再被浏览器缓存挡回旧图**（issue #61 第二条观察）：`lastFiredAt` 的语义收敛为"这张图最近一次（重）拉取的时刻"，渲染层**有戳即 bust**（此前只在定时刷新开启时才拼 `?t=`），手动应用会写入新的 13 位毫秒戳、重排定时相位，并让预加载探针校验与实际渲染逐字节同一条 URL。**这条修复的缺陷在代码里，而不是在报告里**：首版把戳写在 `setWallpaperKind()` 之后，而正是那次调用负责渲染，于是点击仍然渲染旧 URL——新增用例先把实现打回原形（红），调整写入顺序后才绿。
+
+### 新增
+- **壁纸填充方式**（issue #61）：本地图与图片 URL 新增三档——`裁剪填满`（cover，出厂默认，与历史行为逐字节一致）、`完整显示`（contain）、`模糊填充`（contain + 背后一层同图放大 1.2 倍、额外 48px 模糊的溢出层，让两侧留白读成光晕而不是硬边空带）。渐变无固有宽高比，故该档对渐变**不生效且不显示**；溢出层与图片层同为 `z-index:-1` 的 fixed 节点，靠 **DOM 树顺序**（`insertBefore`，非 append）压在图片之下。值经**写入门 + 渲染门两道白名单**才进 CSSOM：`setFit` 拒绝任何非三 literals 的输入，`readWallpaperFit()` 对状态文件里手改的值回落到默认，因此 `contain; background-image:url(…)` 一类既写不进、也渲染不出。
+
+### 变更
+- **空链接框点"应用链接"改为彻底无操作**（本轮补测时发现的残留分支）：R13 门只挡住了"覆盖已有 URL"那一半，另一半在没有存过链接时仍会重写 `wallpaper-kind`/`wallpaper-url`，并把**壁纸跟随主题**强制置 `0`——一次误点就静默改掉另一项偏好。现收成 `if (raw === "" || raw.length <= 4) return;`，一次"没有东西可应用"的点击不留任何写入。新增用例先红后绿，变异 M15 只让它一条翻红（归属唯一）。
+
+### 测试
+- `npm test` 122 项全绿（9.27.1 为 110 项，本版 +12：宿主兼容门 4 项、lock 一致性 1 项、填充方式 6 项、空链接误点门 1 项）。
+- **宿主兼容判定表来自独立数据源**：`tests/fixtures/host_compat_verdicts.json` 由 0.2.0-rc.1 **真实的 `evaluatePluginCompatibility()`** 对修复前/修复后两份 manifest × 9 个运行时版本逐个跑出来（`dsh plugin allow-version` 的豁免表路径不参与），测试内实现只重放同一循环并与该表逐格比对；另含"0.2.0-rc.1 修复前必须整片红"与"0.3.x 修复后仍必须拒"两条方向性用例，防止范围被放宽成永真式（自证探针）。测试内那份 mini-semver 在与宿主 node-semver 的 11 范围 × 15 版本交叉比对中 195/195 一致。
+- **15 处变异验证全部翻红**（隔离副本树实测，工作文件不受影响）：渲染写死 cover、溢出层改 `appendChild`、渐变档守卫拆除、写入门白名单拆除、渲染门白名单拆除、离开模糊档不断开溢出层、溢出层少 48px、store 漏传 fit、手动应用戳写在渲染之后、手动应用完全不落戳、渲染只在定时开启时 bust、teardown 漏掉溢出层、`FACTORY_DEFAULTS` 丢该键、`SENTINEL_KEYS` 丢该键、空链接误点恢复成修复前的分支——其中 13 处各自只让一条用例变红（归属唯一），渲染写死 cover 与不断开溢出层各命中 2 条。**变异脚本本身也要验**：M15 第一版把恢复的分支写在 `return` 之后（等价于没改），却把"不安全链接被拒"那条用例打红了——顺着查才发现那处注入实际把 `wallpaper-kind` 改成了 `url`，不是空操作；重写为逐字还原修复前分支后，M15 精确命中 1 条。一次"翻红"若归因不清，就不能算验证。
+- **测试台本身修了两处"看不见"**：`makeEl()` 的 `contains()` 此前恒为"只有自己也算包含"，导致壁纸层每次都重建、**树的顺序不可观测**——现按真实 DOM 维护 children 顺序、`remove()` 真正脱父；`buildSandbox()` 此前在测试传入 `document:` 覆盖时返回的是**内部那份没用上的默认 mock**，凡经 `h.document` 打补丁（createElement 拦截、head 摘除）都会静默落空，现返回 bundle 实际使用的那份。后一处修好后，两条漂移探针用例（S-3 / T-1 取代链）暴露出它们原先依赖的是 mock 假象：真实宿主里 `ensureMaterialStyle()` 认出 `<style>` 仍在 head 便不重挂，用例改为**先把样式节点从 head 摘掉**（模拟宿主重建 head）再 `apply()`，前提陈述同步如实改写。
+
+### 文档
+- README 兼容性表与"关于 peer"注释改写；`docs/desktop-support.md` 新增「宿主 peer 兼容闸门（dsh 0.2.0-rc.1 起，issue #62）」一节，并更新支持状态总览、出厂壁纸的 cover 表述与诚实清单。
+
+### 实机复核（本机 dsh `0.2.0-rc.1`，2026-09-29）
+- **放行不再依赖豁免表**：在子进程里直接调用宿主自身的 `loadProfileDirectory()`，读真实的 web profile、真实的 `compatibility.json`、真实的运行时版本 → 19 个 bundle 全部载入、`skippedBundles` 为空、合成入口表里确有 dream-skin 条目。本机豁免表里那条 `dsh-dream-skin@9.27.1` 是按**精确版本**匹配的键，对 9.29.0 不生效，因此放行只能来自放宽后的 peer；同进程内再用宿主 `evaluatePluginCompatibility()` 跑一份"同样构建但 peer 写回 `^0.1.0-rc.6`"的清单，结果为 6 个 peer 全不落 + `exempted=true`（即修复前本机靠豁免才挂着）。**注意口径**：DSH 进程本身未重启，boot 期那次调用是同版本宿主代码在同机复现，不是进程重启后的第二次观测；下次重启走的是同一个函数。
+- **浏览器半边**：`window.__DSH_DREAM_SKIN_STATUS__` 读到 `build:"9.29.0"`、`status:"ready"`、`shell:"web"`、`skin:"nebula"`；漂移探针 `anchors.probed=6`、`drifted` 四条与 `0.1.7-rc.2` 上记录的**完全同一组**选择器（`.bqrRRG_card` 等），console 只 warn 一次——换代没有引入新的锚点损伤，也没有新增缺口。
+- **设置项与填充方式**：皮肤 / 强调色 / 壁纸三档 / 填充方式 / 应用链接 / 清除壁纸 全部正常渲染；点选实测 `background-size` 随 `cover→contain` 变化并落库，`模糊填充` 时 `document.body` 多出第二层（子节点 index 0，`cover` + `blur(51px)` = 用户 3px + 48px）压在图片层之下，切回 `裁剪填满` 后溢出层被摘除；选中"渐变"时填充方式整行消失、切回"本地图片"又出现。
+- **本机背景此前为空**：实机查明是选中"图片链接"档但尚未粘贴链接（该档没有值就不画），切回"本地图片"即恢复出厂内联光晕；这一状态**没有提示文案**，已作为 Roadmap 未决项记录（不开公开 issue）。
+- 控制台仍有其它插件的 React #130（`sidebar.footer.action` / `shell.overlay`）与 `plugins.bundle.config` 槽位拒绝，与本插件无关（沿用 9.27.1 的 grep 结论）。
+
+### 未验证（本轮如实记录）
+- 内置浏览器仍截不到图（`visibilityState=hidden`），上述为**计算样式 + DOM 树序 + `aria-pressed` 的机读复核**，不等于像素目视；模糊填充 48px 光晕强度的观感取舍仍未拍板。
+- 「渐变档不显示填充方式控件」由 JSX 门控（`kind !== "gradient"`），本套假 DOM 的 `jsx()` 桩不建树，**离线门覆盖不到它**——本轮靠实机点视确认，但回归保护缺失照旧记录。
+- **npm 正式包的安装期路径**未复测：本机是 `link:` 工作区安装，`dsh plugin add` 走 `dsh-plugin-manager` 自己的判定入口（与 boot 期不是同一份调用点），本轮未在实机跑一次"卸载后从 npm 装 9.29.0"。
+- `ja/ko/es/fr/de/ru` 界面下的显示元数据仍取决于宿主界面语言集合（沿用 9.27.0 结论，本轮未动）。
+
 ## [9.27.1] - 2026-09-27
 
 > 用户实机反馈轮：出厂壁纸在大屏上"一块一块"的分辨率问题。

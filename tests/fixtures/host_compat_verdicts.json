@@ -1,0 +1,149 @@
+{
+ "generated_from": "@deepseek-ai/dsh-app-boot@0.2.0-rc.1 evaluatePluginCompatibility()",
+ "plugin": "dsh-dream-skin",
+ "table": [
+  {
+   "runtime": "0.1.0-rc.6",
+   "before": {
+    "ok": true,
+    "peers": []
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.1.1-rc.2",
+   "before": {
+    "ok": true,
+    "peers": []
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.1.5-rc.1",
+   "before": {
+    "ok": true,
+    "peers": []
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.1.7-rc.2",
+   "before": {
+    "ok": true,
+    "peers": []
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.2.0-rc.1",
+   "before": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.2.0",
+   "before": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.2.5-rc.3",
+   "before": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   },
+   "after": {
+    "ok": true,
+    "peers": []
+   }
+  },
+  {
+   "runtime": "0.3.0-rc.1",
+   "before": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   },
+   "after": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-store",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   }
+  },
+  {
+   "runtime": "0.9.0",
+   "before": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   },
+   "after": {
+    "ok": false,
+    "peers": [
+     "@deepseek-ai/dsh-client-locale",
+     "@deepseek-ai/dsh-client-runtime",
+     "@deepseek-ai/dsh-client-store",
+     "@deepseek-ai/dsh-client-ui-settings",
+     "@deepseek-ai/dsh-client-ui-settings-general",
+     "@deepseek-ai/dsh-client-ui-theme"
+    ]
+   }
+  }
+ ]
+}
