@@ -1770,6 +1770,57 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	assert.ok(css.includes(', 94%'), 'adjustable fill keeps the readable default fallback');
 });
 
+test('popup transparency: 弹窗不透明度 drives the question and approval cards, not just the menus', () => {
+	// The slider only moved `--dsw-alias-bg-overlay` / `--dsw-specific-menu`
+	// (dropdown + menu surfaces). On DSH 0.2.0-rc.2 the two cards a user calls a
+	// popup paint themselves from `--dsw-specific-input-major`, so dragging the
+	// slider changed NOTHING on them (measured against the live app: 0 of 560k
+	// pixels, while the menus did move). Both cards are addressed through stable
+	// hooks the host itself publishes, so the rule survives DSH's build-hash churn:
+	//   * the question card root carries aria-labelledby="question-<key>-<n>";
+	//   * the approval root carries data-approval-key and the card is its single child.
+	const created = [];
+	const vars = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty: (name, value) => { vars.set(name, value); } },
+			setAttribute() {},
+			removeAttribute() {}
+		},
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc, seed: { 'dsh-dream-skin:modal-opacity': '0.4' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
+
+	assert.equal((css.match(/\{/g) || []).length, (css.match(/\}/g) || []).length, 'injected sheet braces balance');
+	assert.ok(!/\},/.test(css), 'no `}` is directly followed by `,` (that eats the next rule)');
+
+	const block = css.match(/@supports\s*\(background:\s*color-mix\(in srgb,\s*red 50%,\s*transparent\)\)\s*\{[^}]*\[aria-labelledby\^='question-'\][^}]*\[data-approval-key\]\s*>\s*\*[^}]*\}/);
+	assert.ok(block, 'the card rule is emitted inside the color-mix @supports gate, covering both cards');
+	assert.ok(/background:\s*color-mix\(in srgb,\s*var\(--dsw-specific-input-major\)\s*var\(--dsh-dream-skin-modal-fill,\s*94%\),\s*transparent\)\s*!important/.test(block[0]),
+		'each card keeps its OWN token mix, scaled by the adjustable fill weight');
+	// Reverse guard: re-basing the fill on the canvas colour would REPLACE the design
+	// instead of tuning it, and the two sliders would then fight each other.
+	assert.ok(!/--dsw-alias-bg-base/.test(block[0]), 'the card fill is not re-based on the canvas colour');
+
+	// Behavioural half: the variable that rule consumes moves through the public
+	// action, so the slider and the cards cannot drift apart (two time points).
+	assert.equal(vars.get('--dsh-dream-skin-modal-fill'), '40%', 'the stored weight is published at boot');
+	h.actionBags['dream-skin-glass'].setModalOpacity(0);
+	assert.equal(vars.get('--dsh-dream-skin-modal-fill'), '0%', 'dragging to 0% publishes a fully see-through fill');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0', 'and persists the chosen weight');
+});
+
+
 test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on the DSH Desktop shell', () => {
 	// In the Electron shell the upstream sidebar renders inside the shell's own
 	// <aside class="dshDesktopSidebarSurface">, and that element re-declares
