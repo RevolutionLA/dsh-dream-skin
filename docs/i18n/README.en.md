@@ -356,13 +356,14 @@ seeds (`react`, `react/jsx-runtime`, …) and registered client bundles (`@deeps
 
 ### A. Reliability — surviving a host generation change
 
-*Why: measured on `0.2.0-rc.1`, 4 of the 6 host anchor groups drifted; from the user's side, issue #62 looked like "my skins all disappeared overnight".*
+*Why: measured on `0.2.0-rc.1`, 4 of the 6 host anchor groups drifted — 3 confirmed hash re-rolls, plus 1 (the `lXshSW_*` group) that is host CSS which still exists and whose surface simply is not mounted (split out as `notMounted` since 10.5.0); from the user's side, issue #62 looked like "my skins all disappeared overnight".*
 
 - [ ] **M** Drop the last host hashed class names: move the remaining decorative rules (sidebar / file panel) onto our own `data-dsh-dream-skin-*` markers — composer and nav-icon already prove that path works
       — acceptance: the drift probe reports `drifted: [] && pending: false` on 0.2.x
 - [ ] **S** Turn "pre-check against a host rc" into a fixed release step: the day a new rc lands, run the compatibility table once and one real profile load
 - [ ] **M** Roll the peer window up to `0.3.x` — **only once it has been verified**; if it stays closed, write "not supported" in the docs instead of leaving a silent skip
-- [ ] **S** Make nav-icon idempotent and give it a self-check status (measured: 2 copies of `style#dsh-dream-skin-nav-icon` plus a second MutationObserver on long-lived pages) | PR-welcome
+- [ ] **S** The drift probe cannot cover mount-on-demand surfaces: the question and approval cards only enter the DOM once a conversation actually asks something, so a boot-time sampling ladder would report them as permanently drifted — 10.5.0 keeps them out of the probe on purpose
+      — acceptance: after one real question, `anchors` reports hit / miss for both functional anchors, while a freshly opened page still reads `drifted: []`
 
 ### B. Publishing and the install channel
 

@@ -30,6 +30,7 @@ research/
 /docs/review-findings-*.md
 .rivals/
 .probe/
+.workbuddy/
 
 # Local image-generation scratch sources (not distributed)
 vibe_images/

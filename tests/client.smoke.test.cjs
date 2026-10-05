@@ -51,6 +51,137 @@ const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
 if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// --- Structural CSS matcher (T1, adversarial review 10.5.0) -----------------
+// WHY THIS EXISTS: the readability-fill assertions used to check that the sheet
+// STRING contains the stamp selectors (`selectors.includes('[data-approval-key] > div')`).
+// That test stays green while the selector is broken — it also "passes" for
+// `[data-approval-key] > div:nth-child(2)` (substring!), which no longer matches
+// the host's actual markup. The reviewer's requirement: assert MATCHABILITY —
+// take the selector list the sheet really holds, parse it, and evaluate it
+// against a fixture that mirrors the host's rendered structure. Only this
+// subset of CSS is needed (attribute presence/=/^=, tag, .class, :nth-child(n),
+// descendant and child combinators); anything this matcher does not understand
+// FAILS CLOSED (no match), so a future selector using an unsupported construct
+// shows up as a red test, not as silent coverage.
+function cssNode(tag, attrs = {}, children = []) {
+	const el = { tag: String(tag).toUpperCase(), attrs: {}, className: '', children: [], parent: null };
+	for (const [k, v] of Object.entries(attrs)) {
+		if (k === 'class') { el.className = String(v); continue; }
+		el.attrs[k.toLowerCase()] = String(v);
+	}
+	for (const c of children) { c.parent = el; el.children.push(c); }
+	return el;
+}
+function splitSelectorList(list) {
+	const out = [];
+	let buf = '', depth = 0, quote = '';
+	for (const ch of list) {
+		if (quote) { buf += ch; if (ch === quote) quote = ''; continue; }
+		if (ch === '"' || ch === "'") { quote = ch; buf += ch; continue; }
+		if (ch === '[' || ch === '(') depth++;
+		if (ch === ']' || ch === ')') depth--;
+		if (ch === ',' && depth === 0) { out.push(buf.trim()); buf = ''; continue; }
+		buf += ch;
+	}
+	if (buf.trim()) out.push(buf.trim());
+	return out;
+}
+function parseChain(selector) {
+	const compounds = [];
+	const combinators = [];
+	let buf = '', depth = 0, quote = '';
+	let pendingChild = false;
+	const flush = () => {
+		const t = buf.trim();
+		buf = '';
+		if (!t) return;
+		if (compounds.length > 0) combinators.push(pendingChild ? 'child' : 'desc');
+		compounds.push(t);
+		pendingChild = false;
+	};
+	for (const ch of selector) {
+		if (quote) { buf += ch; if (ch === quote) quote = ''; continue; }
+		if (ch === '"' || ch === "'") { quote = ch; buf += ch; continue; }
+		if (ch === '[' || ch === '(') { depth++; buf += ch; continue; }
+		if (ch === ']' || ch === ')') { depth--; buf += ch; continue; }
+		if (depth === 0 && ch === '>') { flush(); pendingChild = true; continue; }
+		if (depth === 0 && /\s/.test(ch)) { flush(); continue; }
+		buf += ch;
+	}
+	flush();
+	return { compounds, combinators };
+}
+function matchesCssCompound(el, compound) {
+	let i = 0;
+	const tag = /^[A-Za-z][A-Za-z0-9-]*/.exec(compound);
+	if (tag) {
+		if (el.tag !== tag[0].toUpperCase()) return false;
+		i = tag[0].length;
+	}
+	while (i < compound.length) {
+		const ch = compound[i];
+		if (ch === '[') {
+			const close = compound.indexOf(']', i);
+			if (close < 0) return false;
+			const spec = compound.slice(i + 1, close);
+			const spec2 = /^([A-Za-z0-9_-]+)\s*(?:([\^$*]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\]\s]+)))?$/.exec(spec);
+			if (!spec2) return false;
+			const name = spec2[1].toLowerCase();
+			if (!Object.prototype.hasOwnProperty.call(el.attrs, name)) return false;
+			if (spec2[2] !== undefined) {
+				const want = spec2[3] !== undefined ? spec2[3] : spec2[4] !== undefined ? spec2[4] : spec2[5];
+				const got = String(el.attrs[name]);
+				if (spec2[2] === '=' && got !== want) return false;
+				if (spec2[2] === '^=' && got.indexOf(want) !== 0) return false;
+				if (spec2[2] === '$=' && !got.endsWith(want)) return false;
+				if (spec2[2] === '*=' && got.indexOf(want) === -1) return false;
+			}
+			i = close + 1;
+			continue;
+		}
+		if (ch === '.') {
+			const cm = /^\.([A-Za-z0-9_-]+)/.exec(compound.slice(i));
+			if (!cm) return false;
+			if (!String(el.className).split(/\s+/).includes(cm[1])) return false;
+			i += cm[0].length;
+			continue;
+		}
+		if (ch === ':') {
+			const pm = /^:nth-child\(\s*(\d+)\s*\)/.exec(compound.slice(i));
+			if (!pm) return false; // unknown pseudo — fail closed
+			const idx = el.parent ? el.parent.children.indexOf(el) + 1 : 1;
+			if (idx !== parseInt(pm[1], 10)) return false;
+			i += pm[0].length;
+			continue;
+		}
+		if (ch === '*') { i += 1; continue; }
+		return false; // unknown construct — fail closed
+	}
+	return true;
+}
+function matchesChain(el, chain, i) {
+	if (!matchesCssCompound(el, chain.compounds[i])) return false;
+	if (i === 0) return true;
+	if (chain.combinators[i - 1] === 'child') {
+		return el.parent !== null && matchesChain(el.parent, chain, i - 1);
+	}
+	let p = el.parent;
+	while (p !== null) {
+		if (matchesChain(p, chain, i - 1)) return true;
+		p = p.parent;
+	}
+	return false;
+}
+/** Does ANY selector in the (comma-separated) list structurally match `el`? */
+function covers(selectorList, el) {
+	for (const sel of splitSelectorList(selectorList)) {
+		if (sel === '') continue;
+		const chain = parseChain(sel);
+		if (chain.compounds.length > 0 && matchesChain(el, chain, chain.compounds.length - 1)) return true;
+	}
+	return false;
+}
+
 // Mini-DOM with REAL tree semantics for the two things issue #61 needs to see:
 // child ORDER (the blur-fill layer must land before the wallpaper layer — both
 // are fixed at z-index -1, so tree order alone decides who paints on top) and
@@ -62,9 +193,24 @@ function makeEl() {
 	const el = {
 		style: {}, dataset: {}, children: [], parentElement: null,
 		setAttribute() {}, removeAttribute() {},
-		appendChild(c) { this.children.push(c); if (c) c.parentElement = this; },
-		append(c) { this.children.push(c); if (c) c.parentElement = this; },
-		prepend(c) { this.children.unshift(c); if (c) c.parentElement = this; },
+		// Real DOM insertion semantics: a node cannot occupy two slots, so re-appending an
+		// existing child MOVES it. The material sheet's "last in <head>" gate (B9) is only
+		// observable under this rule — with a naive push the mock would show two copies of one
+		// node and every ordering assertion would pass for the wrong reason.
+		place(c, atStart) {
+			if (!c) return;
+			const mine = this.children.indexOf(c);
+			if (mine >= 0) this.children.splice(mine, 1);
+			if (c.parentElement && c.parentElement !== this) {
+				const other = c.parentElement.children.indexOf(c);
+				if (other >= 0) c.parentElement.children.splice(other, 1);
+			}
+			c.parentElement = this;
+			if (atStart) this.children.unshift(c); else this.children.push(c);
+		},
+		appendChild(c) { this.place(c); },
+		append(c) { this.place(c); },
+		prepend(c) { this.place(c, true); },
 		insertBefore(c, ref) {
 			const i = this.children.indexOf(ref);
 			if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
@@ -133,7 +279,17 @@ function buildSandbox(overrides = {}) {
 	// the default mock, so whenever a test passed a `document:` override it used to
 	// get the unused one back — and anything patched through `h.document` (a
 	// createElement interceptor, a head detach) silently missed the running code.
-	return { factory, loc, localStorage, document: sandbox.document, window: sandbox.window, registered: [], slots: { count: 0 } };
+	return {
+		factory, loc, localStorage, document: sandbox.document, window: sandbox.window, registered: [], slots: { count: 0 },
+		// Evaluate the SAME bundle again in the SAME context/document. Needed by the
+		// injection-idempotency cases: the module-scope caches go empty on a second
+		// evaluation while the DOM keeps the first copy's nodes — exactly what a
+		// long-lived page does. Returns the NEW factory instance.
+		rerun(code) {
+			vm.runInContext((code || overrides.code || CODE) + '\nwindow.__RERUN__=1;', context);
+			return factory;
+		}
+	};
 }
 
 function makeApplyContext(harness, { captureActions = false } = {}) {
@@ -1688,7 +1844,18 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
 		createTextNode: () => ({}),
 		querySelector: () => null,
-		querySelectorAll: () => []
+		// T9 fixture fidelity: the nav hook's ensureSheet() runs again on every
+		// apply (arm → same-copy refresh). An answer of [] misses the sheet the
+		// eval-time hook just created, so the refresh appends ANOTHER nav
+		// <style> — and `appended` (the last appended node) becomes the nav
+		// sheet instead of the material sheet this test inspects. Answer the
+		// id lookup truthfully, like a real document would.
+		querySelectorAll(sel) {
+			if (sel === 'style#dsh-dream-skin-nav-icon') {
+				return headChildren.filter((el) => el && el.id === 'dsh-dream-skin-nav-icon' && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+			}
+			return [];
+		}
 	};
 	const h = buildSandbox({ document: documentMock });
 	const e = h.factory(makeRequire(makeRuntime().RT));
@@ -1770,6 +1937,715 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	assert.ok(css.includes(', 94%'), 'adjustable fill keeps the readable default fallback');
 });
 
+test('10.5.0: the question / approval / plan card readability fill rides host stable stamps, not a hash', () => {
+	// This block CORRECTS a diagnosis written earlier in the same cycle and disproved by
+	// the blue-team pass (B2). It claimed DSH had re-rolled the hash and that the cards fell
+	// back to an 8%-alpha fill — both halves are false on host 0.2.0-rc.1: `.Mbwy4a_card` is
+	// *still* the user-questions option card (dsh-client-ui-user-questions lib/client.js:346),
+	// and `--dsw-specific-input-major` is OPAQUE (bluish-00 #fff / bluish-850 #2c2c2e), so no
+	// conversation ever bled through it. What the audit actually found, and what this test
+	// now pins, is three different things:
+	//   1. the fill was reachable ONLY through a hashed class name, which issue #50 forbids:
+	//      one host rebuild would drop the readability layer of the panel the user is reading,
+	//      silently, while every offline test stayed green because the CSS STRING still
+	//      contained the old name;
+	//   2. two of the three card components had no override at all. The approval card
+	//      (`[data-approval-key] > div`) was never in the selector list, and `.LVzXQa_card` is
+	//      PlanReviewPanel's hash (user-questions lib/client.js:214) — not the option card;
+	//   3. where the fill did apply, it mixed the washed `--dsw-alias-bg-base`, so the
+	//      壁纸不透明度 slider compounded into it (pinned by the next test).
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		getElementById: () => null
+	};
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply injects the material sheet');
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
+
+	// Flat-rule scan, so each assertion binds SELECTOR LIST ↔ DECLARATIONS together. A
+	// substring check over the whole sheet cannot tell "the hook is in the fill rule"
+	// from "the hook is in some unrelated rule" — which is how the hash-only drift hid.
+	const rules = [];
+	for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+		rules.push({ selectors: m[1].replace(/[ \t]*\/\/[^\n]*/g, ''), body: m[2] });
+	}
+	const fillRules = rules.filter((r) => r.body.includes('color-mix') && r.body.includes('--dsh-dream-skin-modal-fill'));
+	assert.equal(fillRules.length, 1, `exactly one rule owns the popup fill (got ${fillRules.length}; per-family drift starts where two rules claim it)`);
+	const fill = fillRules[0];
+	// T1 (adversarial review 10.5.0): the three stamp anchors are asserted
+	// STRUCTURALLY — the selector list is parsed and RUN against a fixture that
+	// mirrors the host's rendered structure (the shape documented above
+	// `QUESTION_CARD_SELECTOR` in lib/client.js). String containment was not
+	// enough: it also "passes" for `[data-approval-key] > div:nth-child(2)`, a
+	// selector that matches nothing the host renders. The two negative controls
+	// prove the matcher can say NO — without them this upgrade would just be a
+	// fancier rubber stamp.
+	const qWrap = cssNode('div', { 'data-question-key': 'k1' }, [cssNode('section', { 'aria-labelledby': 'question-k1-0' })]);
+	const qCard = qWrap.children[0];
+	const aWrap = cssNode('div', { 'data-approval-key': 'k2' }, [cssNode('div')]);
+	const aCard = aWrap.children[0];
+	const pWrap = cssNode('div', { 'data-plan-review-key': 'k3' }, [cssNode('section')]);
+	const pCard = pWrap.children[0];
+	assert.ok(covers(fill.selectors, qCard),
+		'the fill MATCHES the user-questions card the host renders (data-question-key wrapper + aria-labelledby^="question-" section)');
+	assert.ok(covers(fill.selectors, aCard),
+		'the fill MATCHES the approval card (stamp wrapper > its only child div) — it had no override at all before');
+	assert.ok(covers(fill.selectors, pCard),
+		'the fill MATCHES the plan-review card (stamp wrapper > section) — the third component the user has to read');
+	assert.ok(!covers(fill.selectors, cssNode('section', { 'aria-labelledby': 'question-x-0' })),
+		'negative control: a labelled section WITHOUT the data-question-key ancestor is NOT covered');
+	assert.ok(!covers(fill.selectors, cssNode('div')),
+		'negative control: a bare div is NOT covered by any branch of the fill rule');
+	assert.ok(fill.selectors.includes('.Mbwy4a_card'),
+		'the legacy hash branch is kept so hosts older than the stamps do not lose the fill');
+	assert.ok(!fill.selectors.includes('.LVzXQa_card'),
+		'no NEW hashed class is taken as an anchor — the plan card rides its host stamp, not PlanReviewPanel\'s hash');
+	const decls = fill.body;
+	const fallbackAt = decls.indexOf('background: var(--dsh-dream-skin-modal-base, var(--dsw-alias-bg-overlay))');
+	const mixAt = decls.indexOf('background: color-mix');
+	assert.ok(fallbackAt >= 0, 'the no-color-mix() fallback declaration is present');
+	assert.ok(mixAt > fallbackAt, 'color-mix comes AFTER the fallback, so a webview that understands one declaration but not the other still gets a readable card');
+	// B5 (numbers fact-checked by the 10.5.0 audit, T4): the fallback must be readable
+	// ON ITS OWN. The bare overlay token is driven by OUR OWN applyModalOverlay to
+	// rgba(base, popup-slider alpha) — factory seed 0.6, measured live rgba(18,16,26,0.5)
+	// at a 50% slider — NOT an opaque value. (The earlier "0.94 at the factory defaults"
+	// conflated the JS default used when nothing is stored with the `94%` fallback inside
+	// the mix line; neither is this token's actual value.) A near-transparent overlay alone
+	// would leave the card unreadable where color-mix is unsupported, so the fix tries the
+	// OPAQUE modal base token first.
+	assert.ok(/background:\s*var\(--dsh-dream-skin-modal-base,\s*var\(--dsw-alias-bg-overlay\)\)/.test(decls),
+		'the fallback prefers the OPAQUE modal base token instead of the near-transparent overlay alone');
+	assert.ok(decls.includes('var(--dsh-dream-skin-modal-base, var(--dsw-alias-bg-base))'),
+		'the mix draws on the OPAQUE modal base token (the washed --dsw-alias-bg-base would compound alphas)');
+	assert.ok(/backdrop-filter:\s*blur\(var\(--dsh-dream-skin-glass-blur/.test(decls),
+		'the cards keep the shared single frost knob');
+	// Reverse guard: the liquid rim must not be painted over the approval card's warn ring.
+	const rims = rules.filter((r) => r.selectors.includes('html[data-dsh-material="liquid"]') && r.body.includes('outline:'));
+	assert.ok(rims.length >= 1, 'the liquid material still gives its cards a hairline rim');
+	const cardRim = rims.find((r) => r.selectors.includes('.Mbwy4a_card'));
+	assert.ok(cardRim, 'the question card keeps the rim through the legacy hash');
+	assert.ok(cardRim.selectors.includes('[data-question-key]'), 'and through the host stamp');
+	assert.ok(cardRim.selectors.includes('[data-plan-review-key] > section'),
+		'the plan card keeps the rim too (host CSS gives it border: 0, so the hairline costs the host nothing)');
+	assert.ok(!cardRim.selectors.includes('[data-approval-key]'),
+		'the approval card is excluded: its own warn border is a semantic affordance, not decoration');
+});
+
+test('10.5.0: the card fill mixes an alpha-free base so 壁纸不透明度 cannot thin it', () => {
+	// Blue-team B1 was applied to the composer in 9.x and the same compounding was left
+	// in the popup path: `--dsw-alias-bg-base` is published as rgba(base, canvasAlpha),
+	// so `color-mix(in srgb, that token 60%, transparent)` yields 0.6 × canvasAlpha —
+	// dragging the wallpaper slider silently thinned the option card. The fix publishes
+	// the same colour WITHOUT alpha under its own token name.
+	const h = buildSandbox({
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'gradient',
+			'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #222 0%, #444 100%)',
+			'dsh-dream-skin:wallpaper-opacity': '0.8',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const overrides = new Map();
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() {
+			return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#0b0b0e' } }, themes: [], revision: 1 };
+		},
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply({ ...baseCtx, theme }));
+	const wash = overrides.get('dsh-dream-skin:appearance');
+	assert.ok(wash, 'the wallpaper wash published its token layer');
+	const washDark = wash['--dsw-alias-bg-base'];
+	assert.ok(washDark, 'the wallpaper layer publishes the canvas (bg-base) token');
+	assert.match(washDark.dark, /rgba\(/, 'the canvas token really does carry the wash alpha (that is why mixing it compounds)');
+	const modalBase = wash['--dsh-dream-skin-modal-base'];
+	assert.ok(modalBase, 'the wallpaper layer also publishes an OPAQUE modal base for the popups');
+	assert.equal(modalBase.dark, '#0b0b0e',
+		'the modal base is the ACTIVE SKIN HEX, byte for byte, with no alpha channel');
+});
+
+test('10.5.0: the shipped popup weight is the slider value, not the CSS 94% fallback', () => {
+	// The 94% inside the rule is only what a webview uses when NOBODY publishes the
+	// variable. A fresh profile gets the factory weight and the two numbers differ —
+	// pinning them apart is what keeps docs and reviews from quoting "94%" as the
+	// default (PR #64 did).
+	const vars = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty: (name, value) => { vars.set(name, value); } },
+			setAttribute() {},
+			removeAttribute() {}
+		},
+		createElement: () => makeEl(),
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc });
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied'); // true first launch
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
+	const weight = vars.get('--dsh-dream-skin-modal-fill');
+	const stored = h.localStorage.getItem('dsh-dream-skin:modal-opacity');
+	assert.ok(weight, 'the popup fill weight is published on :root at boot');
+	assert.ok(stored, 'and the slider value it derives from is persisted');
+	assert.equal(weight, Math.round(Number(stored) * 100) + '%',
+		'the published weight is the stored slider value x 100 (derived, never a copied literal)');
+	assert.notEqual(weight, '94%', 'a fresh install does NOT sit on the CSS fallback — the shipped look is thinner than 94%');
+	// Second time point (test-admission gate 1): moving 弹窗不透明度 re-publishes the SAME
+	// variable the card rule consumes, so the weight is live rather than a constant.
+	const glassBags = h.actionBags['dream-skin-glass'];
+	assert.ok(glassBags && typeof glassBags.setModalOpacity === 'function', 'the glass row exposes setModalOpacity');
+	glassBags.setModalOpacity(25);
+	assert.equal(vars.get('--dsh-dream-skin-modal-fill'), '25%', 'the slider owns the fill weight');
+});
+
+test('10.5.0: the material sheet is adopted by document id — a re-evaluated bundle cannot double-inject it', () => {
+	// Measured on a long-lived page: two `style#dsh-dream-skin-nav-icon` nodes, which
+	// proved the bundle gets evaluated more than once per document. The material sheet
+	// had the same hole — its cache handle is MODULE scope, so a second copy appended a
+	// full second copy of every glass rule.
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		// T9 fixture fidelity: same class of defect as the leaf-card test — the
+		// nav refresh path re-adopts by id on every apply, and an unfaithful []
+		// answer appends a fresh nav sheet AFTER the material re-adoption MOVE,
+		// stealing the head-tail assertions at the end of this test.
+		querySelectorAll(sel) {
+			if (sel === 'style#dsh-dream-skin-nav-icon') {
+				return doc.head.children.concat(doc.body.children).filter((el) => el && el.id === 'dsh-dream-skin-nav-icon' && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+			}
+			return [];
+		},
+		// Real id lookup: the sheets live in <head>.
+		getElementById: (id) => doc.head.children.concat(doc.body.children).find((el) => el && el.id === id) || null
+	};
+	const h = buildSandbox({ document: doc });
+	const sheetsOf = (id) => doc.head.children.concat(doc.body.children).filter((el) => el && el.id === id);
+	const MAT = 'dsh-dream-skin:material:liquid-glass';
+	const e1 = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e1.apply(makeApplyContext(h)), 'first mount');
+	assert.equal(sheetsOf(MAT).length, 1, 'one material sheet after the first mount');
+	assert.ok(sheetsOf(MAT)[0].textContent.length > 1000, 'the first sheet carries the rule set');
+	// A host CSS chunk lands AFTER our sheet — the state a long-lived page actually reaches.
+	const lateHostStyle = makeEl();
+	lateHostStyle.id = 'host-late-chunk';
+	doc.head.appendChild(lateHostStyle);
+	assert.equal(doc.head.children[doc.head.children.length - 1], lateHostStyle, 'the host chunk is the last node in <head> before the remount');
+
+	// Second evaluation of the SAME bundle in the SAME document: fresh module scope, so
+	// the module-level cache is empty again — the state the live measurement found.
+	const factory2 = h.rerun();
+	const e2 = factory2(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e2.apply(makeApplyContext(h)), 'second mount');
+	assert.equal(sheetsOf(MAT).length, 1, 'the second mount adopts the existing sheet instead of appending a twin');
+	// B9: adoption must restore "ours is LAST in <head>" *at the moment of the remount*. Appending
+	// a fresh copy (the pre-10.5.0 behaviour) kept that by accident; leaving the adopted node where
+	// it sat would hand a late host chunk the tie-break until the next re-apply. Transient by
+	// construction — measured live our sheet ends up at head index 131 of 217 with 85 later nodes,
+	// and these three assertions only pin the MOVE, not permanent supremacy (see docs L3 note).
+	assert.equal(doc.head.children[doc.head.children.length - 1], sheetsOf(MAT)[0],
+		'the remount moves our sheet back to the END of <head>, behind the late host chunk');
+	assert.equal(doc.head.children.filter((el) => el === sheetsOf(MAT)[0]).length, 1,
+		'the move is a MOVE, not a duplicate insert');
+	assert.equal(created.filter((el) => el.id === MAT).length, 1,
+		'createElement was called for the sheet exactly once across both mounts');
+	assert.ok(sheetsOf(MAT)[0].textContent.length > 1000, 'the adopted sheet stays fully texted (adoption is not a no-op)');
+});
+
+test('10.5.0: the settings-nav icon hook is idempotent and self-reports through the status snapshot', async () => {
+	// The same audit found the icon IIFE — which sits OUTSIDE the loader's downgrade
+	// path — installing a second sheet AND a second body observer on a re-evaluated
+	// bundle, while publishing nothing: "0 marked buttons" was uninterpretable, because
+	// the settings dialog being CLOSED and the hook being DEAD looked identical.
+	// The lock is the published `armed` flag, NOT a property of the sheet node: the node
+	// can be replaced by anything, and a flag that dies with it either lets a second
+	// observer in or claims ownership without ever arming (B1/B3, pinned below).
+	const created = [];
+	const navObservers = { count: 0, instances: [] };
+	const marked = [];
+	const foreignMarked = [];
+	const themeShopMarked = [];
+	// Labels measured live on host 0.2.0-rc.1: OUR row is the section WE register, with
+	// `label: "Theme / 外观"` — a string this repo declares. The bare 「皮肤」 row
+	// belongs to a THIRD-PARTY plugin (@linxin666/dsh-client-ui-skin-center), and marking
+	// it was the L1 walk-on: our palette over somebody else's icon. `Theme Shop` is the
+	// T7 walk-on: a plain substring test for "Theme" painted it even though this repo
+	// declares no such row — the full-label containment must refuse it.
+	const buttons = [
+		{ textContent: '常规', setAttribute(k, v) { this[k] = v; }, removeAttribute(k) { delete this[k]; } },
+		{
+			textContent: 'Theme / 外观',
+			setAttribute(k, v) { this[k] = v; if (k === 'data-dsh-dream-skin-nav') marked.push(this); },
+			removeAttribute(k) { if (k === 'data-dsh-dream-skin-nav') { const i = marked.indexOf(this); if (i >= 0) marked.splice(i, 1); } delete this[k]; }
+		},
+		{
+			textContent: '皮肤',
+			setAttribute(k, v) { this[k] = v; if (k === 'data-dsh-dream-skin-nav') foreignMarked.push(this); },
+			removeAttribute(k) { if (k === 'data-dsh-dream-skin-nav') { const i = foreignMarked.indexOf(this); if (i >= 0) foreignMarked.splice(i, 1); } delete this[k]; }
+		},
+		{
+			textContent: 'Theme Shop',
+			setAttribute(k, v) { this[k] = v; if (k === 'data-dsh-dream-skin-nav') themeShopMarked.push(this); },
+			removeAttribute(k) { if (k === 'data-dsh-dream-skin-nav') { const i = themeShopMarked.indexOf(this); if (i >= 0) themeShopMarked.splice(i, 1); } delete this[k]; }
+		}
+	];
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	// A foreign node wearing our sheet id. `style#id` must not match a <div>, so the hook
+	// creates its own element instead of treating somebody else's node as its sheet.
+	const hostile = { id: SHEET, tagName: 'DIV', textContent: 'KEEP ME' };
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: (tag) => { const el = makeEl(); el.tagName = String(tag || '').toUpperCase(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: (sel) => {
+			if (sel === '[role="dialog"] nav button') return buttons;
+			if (sel === '[role="dialog"]') return [{ role: 'dialog' }];
+			// Faithful `style#id`: only STYLE elements with that id match, and the lookup
+			// sees the whole document, not just the nodes this mock happens to hold.
+			if (sel === 'style#' + SHEET) return doc.head.children.concat(doc.body.children, [hostile])
+				.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+			// The bare `#id` form is answered too (a real browser would match the div here), so
+			// a mutation that drops the STYLE qualifier cannot hide behind an empty mock response.
+			if (sel === '#' + SHEET) return doc.head.children.concat(doc.body.children, [hostile]).filter((el) => el && el.id === SHEET);
+			return [];
+		},
+		getElementById: (id) => doc.head.children.concat(doc.body.children).find((el) => el && el.id === id) || null,
+		addEventListener() {}
+	};
+	doc.body.children.push(hostile);
+	const liveSheets = () => doc.head.children.concat(doc.body.children)
+		.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+	class CountingMutationObserver {
+		constructor(fn) { this.fn = fn; navObservers.instances.push(this); }
+		observe(_target, opts) { if (opts && opts.characterData === true) navObservers.count++; }
+		disconnect() {}
+	}
+	const h = buildSandbox({ document: doc, MutationObserver: CountingMutationObserver });
+	assert.equal(hostile.textContent, 'KEEP ME', 'the foreign id-holder is not adopted as our sheet');
+	assert.equal(liveSheets().length, 1, 'one icon sheet on the first evaluation');
+	assert.equal(navObservers.count, 1, 'one body observer on the first evaluation');
+	assert.equal(marked.length, 1, 'exactly one nav row is marked');
+	assert.equal(marked[0] && marked[0].textContent, 'Theme / 外观', 'and the row we marked is the section WE registered');
+	assert.deepEqual(foreignMarked.map((b) => b.textContent), [], 'the third-party 皮肤 row is not marked');
+	assert.deepEqual(themeShopMarked.map((b) => b.textContent), [], 'T7: a `Theme Shop` row sharing a word with our label is not marked either');
+	const nav = h.window.__DSH_DREAM_SKIN_NAV__;
+	assert.ok(nav, 'the hook publishes its own hit counts');
+	assert.deepEqual({ dialogs: nav.dialogs, buttons: nav.buttons, marked: nav.marked, sheets: nav.sheets, armed: nav.armed },
+		{ dialogs: 1, buttons: 4, marked: 1, sheets: 1, armed: true },
+		'the self-check tells "panel closed" (dialogs 0) apart from "hook dead" (no object / armed false)');
+
+	// Re-evaluate in the same document: adopt the sheet, do NOT install a second observer.
+	const factory2 = h.rerun();
+	assert.equal(typeof factory2, 'function', 'the rerun hands back the second module instance');
+	assert.equal(liveSheets().length, 1,
+		'the second evaluation adopts the existing sheet instead of appending a twin');
+	assert.equal(navObservers.count, 1, 'and leaves the bookkeeping to the copy that owns the hook');
+
+	// B3: the lock may not live on the sheet node. Drop our sheet, then evaluate a THIRD
+	// copy. It must re-inject the sheet it needs (a node-scoped flag would have been
+	// cleared along with the node) and still refuse to arm a second observer.
+	liveSheets()[0].remove();
+	assert.equal(liveSheets().length, 0, 'the sheet is really gone from the DOM');
+	h.rerun();
+	assert.equal(liveSheets().length, 1, 'the third copy re-injects the sheet it needs');
+	assert.equal(navObservers.instances.length, 1, 'yet exactly one observer exists: the lock is the published flag, not the node');
+
+	// The owning copy is the one that reports, so its next scan must describe the CURRENT
+	// DOM — one sheet, not the twin a node-scoped lock would have allowed.
+	navObservers.instances[0].fn();
+	await sleep(200);
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.sheets, 1, 'the owner re-counts one sheet after its node was replaced and re-injected');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, true, 'and it still reports itself as armed');
+
+	// T6 (adversarial review 10.5.0): `sheets` must be a LIVE count, not a cached
+	// or literal value. A twin node (host-side clone, or verbatim pre-10.5.0
+	// residue) has to show up in the report — otherwise the one metric that
+	// exposes duplicate injection cannot see duplicates — and the count must
+	// follow the DOM back down when the twin leaves.
+	const twin = makeEl();
+	twin.id = SHEET;
+	twin.tagName = 'STYLE';
+	twin.textContent = '/* twin */';
+	doc.head.appendChild(twin);
+	navObservers.instances[0].fn();
+	await sleep(200);
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.sheets, 2, 'a second sheet node is counted — the report is a live count');
+	twin.remove();
+	navObservers.instances[0].fn();
+	await sleep(200);
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.sheets, 1, 'and the count follows the DOM back down');
+
+	// The status snapshot carries the hook state, so tooling reads one object.
+	const e = factory2(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(status.navIcon, 'the ready snapshot exposes the nav hook state (same field set as the degraded one)');
+	assert.equal(status.navIcon.marked, 1, 'and it is the live count, not a stale literal');
+	assert.equal(status.navIcon.armed, true, 'the ready snapshot carries the armed flag, so a script can tell dead from idle');
+});
+
+test('10.5.0: the nav hook stays live when the window gets no animation frames', async () => {
+	// The icon scan is coalesced into one wake per batch, and a real browser services
+	// requestAnimationFrame by pausing it outright for a hidden or fully occluded
+	// window. If the wake ONLY ever asks for a frame, both the icon marking and the
+	// self-report freeze at whatever the last painted frame saw (measured live: a
+	// 9-minute-old checkedAt on an idle background page), and tooling reading
+	// __DSH_DREAM_SKIN_NAV__ cannot tell idle from dead. The timer below is what
+	// keeps the hook honest; this case pins it by never firing the frame.
+	const buttons = [{
+		textContent: 'Theme / 外观',
+		setAttribute(k, v) { this[k] = v; },
+		removeAttribute(k) { delete this[k]; }
+	}];
+	const created = [];
+	const observers = [];
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	// T8 (adversarial review 10.5.0): this fixture used to answer a bare
+	// `#dsh-dream-skin-nav-icon` lookup the code never asks for — so the REAL
+	// `style#…` query missed every time and each ensureSheet call stacked a fresh
+	// sheet while nothing asserted adoption. The preset sheet below, the faithful
+	// id answer, and the adoption assertions after the build close that hole.
+	const preset = makeEl();
+	preset.id = SHEET;
+	preset.tagName = 'STYLE';
+	preset.textContent = '/* preset */';
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: (tag) => { const el = makeEl(); el.tagName = String(tag || '').toUpperCase(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: (sel) => {
+			if (sel === '[role="dialog"] nav button') return buttons;
+			if (sel === '[role="dialog"]') return [{ role: 'dialog' }];
+			if (sel === 'style#' + SHEET) return doc.head.children.concat(doc.body.children)
+				.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+			return [];
+		},
+		getElementById: (id) => doc.head.children.concat(doc.body.children).find((el) => el && el.id === id) || null
+	};
+	doc.head.appendChild(preset);
+	class FramelessObserver {
+		constructor(fn) { this.fn = fn; observers.push(this); }
+		observe() {}
+		disconnect() {}
+	}
+	const frames = [];
+	const h = buildSandbox({
+		document: doc,
+		MutationObserver: FramelessObserver,
+		// A frame is handed out only if the test asks for one — the page stays backgrounded.
+		requestAnimationFrame: (cb) => { frames.push(cb); return frames.length; }
+	});
+	assert.equal(observers.length, 1, 'the hook installed its body observer');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.marked, 1, 'the initial synchronous pass marked the nav button');
+	assert.equal(created.filter((el) => el.id === SHEET).length, 0, 'the run ADOPTS the existing sheet — createElement is never called for it');
+	assert.ok(preset.textContent.includes('data-dsh-dream-skin-nav') && preset.textContent.includes('::before'),
+		'adoption is not a no-op: the adopted sheet carries the marker CSS');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.sheets, 1, 'and the self-report counts the one real sheet');
+
+	// A second "Theme / 外观" button appears while no frame will ever arrive.
+	buttons.push({
+		textContent: 'Theme / 外观',
+		setAttribute(k, v) { this[k] = v; },
+		removeAttribute(k) { delete this[k]; }
+	});
+	observers[0].fn();
+	await sleep(200);
+	assert.equal(frames.length, 1, 'one wake asks for exactly one frame, not one per mutation record');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.marked, 2, 'the timer fallback still ran the scan, so a background window still marks and still reports');
+
+	// And the flag must not let the frame that finally arrives double-run the batch.
+	const before = h.window.__DSH_DREAM_SKIN_NAV__.checkedAt;
+	frames[0]();
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.checkedAt, before, 'the stale frame is a no-op once the timer already ran this batch');
+});
+
+test('10.5.0: a nav hook that ran before <body> existed arms itself on DOMContentLoaded', () => {
+	// B1: with the lock on the sheet node, a copy that evaluated while document.body was
+	// still null claimed ownership, installed no observer — and every later copy then
+	// skipped. The gear icon survived the whole session while the self-report read exactly
+	// like a closed panel. Now `armed` is set only once an observer really watches the body,
+	// and a body-less pass hangs a one-shot DOMContentLoaded recovery instead.
+	const created = [];
+	const observers = [];
+	const listeners = [];
+	const buttons = [
+		{ textContent: 'Theme / 外观', setAttribute(k, v) { this[k] = v; }, removeAttribute(k) { delete this[k]; } }
+	];
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	const doc = {
+		body: null, // the bundle was evaluated before the parser reached <body>
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: (tag) => { const el = makeEl(); el.tagName = String(tag || '').toUpperCase(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: (sel) => {
+			if (sel === '[role="dialog"] nav button') return doc.body ? buttons : [];
+			if (sel === '[role="dialog"]') return doc.body ? [{ role: 'dialog' }] : [];
+			if (sel === 'style#' + SHEET) return doc.head.children.filter((el) => el && el.id === SHEET);
+			return [];
+		},
+		getElementById: (id) => doc.head.children.find((el) => el && el.id === id) || null,
+		addEventListener(type, fn, opts) { listeners.push({ type, fn, opts }); }
+	};
+	class Observer { constructor(fn) { this.fn = fn; observers.push(this); } observe() {} disconnect() {} }
+	const h = buildSandbox({ document: doc, MutationObserver: Observer });
+	const nav = h.window.__DSH_DREAM_SKIN_NAV__;
+	assert.ok(nav, 'a body-less pass still publishes a report instead of throwing (this IIFE has no downgrade path)');
+	assert.equal(nav.armed, false, '"nothing is watching" is distinguishable from "the settings panel is closed"');
+	assert.equal(observers.length, 0, 'and it does not claim to observe a body it never had');
+	assert.equal(listeners.length, 1, 'it hangs exactly one recovery listener');
+	assert.equal(listeners[0].type, 'DOMContentLoaded');
+	assert.equal(listeners[0].opts && listeners[0].opts.once, true, 'the recovery is one-shot');
+
+	// The parser reaches <body> and the host fires the event.
+	doc.body = makeEl();
+	listeners[0].fn();
+	assert.equal(observers.length, 1, 'the deferred arm installs the body observer');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, true, 'only now does the report say the hook is live');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.marked, 1, 'the pending "Theme / 外观" button gets marked on the arm pass');
+
+	// A second copy on the now-armed page must not double-observe.
+	h.rerun();
+	assert.equal(observers.length, 1, 'an armed page gets one observer, whichever copy evaluates');
+	assert.equal(created.filter((el) => el.id === SHEET).length, 1, 'and one sheet');
+});
+
+// Shared fixture for the T9 lifecycle trio below: a minimal wired page (one
+// settings row, a faithful `style#id` lookup) plus a MutationObserver stand-in
+// that records observe-target/options and disconnects. The nav observer is
+// identified by `characterData: true` in its options — the ONLY observer in the
+// codebase that asks for characterData (the composer marker watches
+// documentElement, the drift probe watches body without characterData).
+function makeNavHookDoc(SHEET) {
+	const marked = [];
+	const buttons = [{
+		textContent: 'Theme / 外观',
+		// Presence tracker, faithful to setAttribute semantics: setting the same
+		// attribute on an already-marked row does not duplicate anything. (An
+		// unconditional push here would grow with every sync pass and make
+		// "still marked" unassertable.)
+		setAttribute(k, v) { this[k] = v; if (k === 'data-dsh-dream-skin-nav' && marked.indexOf(this) === -1) marked.push(this); },
+		removeAttribute(k) { if (k === 'data-dsh-dream-skin-nav') { const i = marked.indexOf(this); if (i >= 0) marked.splice(i, 1); } delete this[k]; }
+	}];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: (tag) => { const el = makeEl(); el.tagName = String(tag || '').toUpperCase(); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: (sel) => {
+			if (sel === '[role="dialog"] nav button') return buttons;
+			if (sel === '[role="dialog"]') return [{ role: 'dialog' }];
+			if (sel === 'style#' + SHEET) return doc.head.children.concat(doc.body.children)
+				.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+			return [];
+		},
+		getElementById: (id) => doc.head.children.concat(doc.body.children).find((el) => el && el.id === id) || null,
+		addEventListener() {}
+	};
+	return { doc, marked, buttons };
+}
+
+test('10.5.0 (T9a): unloading the fiber disposes the nav hook — observer disconnected, marks lifted, sheet removed, armed:false', async () => {
+	// T9 (adversarial review 10.5.0): the nav IIFE is page-scope and outlives the
+	// fiber; before this fix a plugin unload/reload left a live body observer, a
+	// marked row and the sheet behind — residue the "unload leaves nothing
+	// behind" tenet forbids. The fiber now hands its generation token to the
+	// hook's published (non-enumerable) dispose handle on teardown.
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	const observers = [];
+	class RecordingMO {
+		constructor(fn) { this.fn = fn; this.disconnected = false; observers.push(this); }
+		observe(target, opts) { this.target = target; this.opts = opts; }
+		disconnect() { this.disconnected = true; }
+	}
+	const { doc, marked } = makeNavHookDoc(SHEET);
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: RecordingMO, console: { warn() {}, log() {}, error() {} } });
+	const navMO = () => observers.find((o) => o.opts && o.opts.characterData === true);
+	const liveSheets = () => doc.head.children.concat(doc.body.children)
+		.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+	assert.ok(navMO(), 'the hook installed its body observer at evaluation');
+	assert.equal(navMO().target, doc.body, 'watching document.body — a host head rebuild cannot blind it');
+	assert.equal(marked.length, 1, 'the row is marked before unload');
+	assert.equal(liveSheets().length, 1, 'the sheet is in the DOM before unload');
+
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, true, 'apply keeps the hook armed (same-generation refresh, not a re-install)');
+	assert.equal(observers.filter((o) => o.opts && o.opts.characterData === true).length, 1, 'and does not stack a second body observer');
+	assert.equal(marked.length, 1, 'the mark survives the refresh');
+
+	// Unload the fiber exactly like the host does: run the effect disposers.
+	for (const d of h.disposers || []) d();
+	assert.equal(navMO().disconnected, true, 'unload disconnects the body observer');
+	assert.equal(marked.length, 0, 'unload lifts the nav mark');
+	assert.equal(liveSheets().length, 0, 'unload removes our sheet node');
+	const after = h.window.__DSH_DREAM_SKIN_NAV__;
+	assert.equal(after.armed, false, 'and republishes armed:false — tooling reads "hook gone", never a stale live count');
+	assert.equal(after.marked, 0, 'counts are zeroed');
+	assert.equal(after.sheets, 0, 'the sheet count follows the DOM');
+
+	// M26 witness: a wake QUEUED just before dispose (the 120ms fallback timer of
+	// a mutation batch that arrived in the final milliseconds) must not re-mark
+	// or re-report for a dead fiber. The live gate in sync() is the only thing
+	// standing between an unloaded fiber and a resurrected mark — if it is
+	// removed, this late wake walks straight through.
+	navMO().fn(); // queue a wake on the (now dead) fiber's observer callback
+	await sleep(200); // past the 120ms fallback
+	assert.equal(marked.length, 0, 'the queued wake cannot re-mark the row after dispose');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__, after, 'nor republish anything — the snapshot stays frozen at armed:false');
+});
+
+test('10.5.0 (T9b): after an unload, a re-apply re-arms the hook and re-creates exactly one sheet', () => {
+	// The other half of T9: teardown must not burn the hook for the rest of the
+	// page's life. A settings reload / profile switch re-applies the plugin on a
+	// page whose nav hook was disposed — the generation-stamped arm() call must
+	// re-install the body observer and the sheet WITHOUT stacking a second copy
+	// of either, and the disposed observer must stay dead (never resurrected).
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	const observers = [];
+	class RecordingMO {
+		constructor(fn) { this.fn = fn; this.disconnected = false; observers.push(this); }
+		observe(target, opts) { this.target = target; this.opts = opts; }
+		disconnect() { this.disconnected = true; }
+	}
+	const { doc, marked } = makeNavHookDoc(SHEET);
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: RecordingMO, console: { warn() {}, log() {}, error() {} } });
+	const navMOs = () => observers.filter((o) => o.opts && o.opts.characterData === true);
+	const liveSheets = () => doc.head.children.concat(doc.body.children)
+		.filter((el) => el && el.id === SHEET && String(el.tagName || 'STYLE').toUpperCase() === 'STYLE');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	for (const d of h.disposers || []) d(); // full unload
+	assert.equal(navMOs().length, 1, 'one observer before the unload');
+	assert.equal(navMOs()[0].disconnected, true, 'and the unload disconnected it');
+	assert.equal(liveSheets().length, 0, 'the unload also removed the sheet');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, false, 'the hook reports itself gone');
+
+	// The host re-mounts the plugin on the same page.
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	assert.equal(navMOs().length, 2, 'the re-arm installed exactly ONE new body observer');
+	assert.equal(navMOs()[1].disconnected, false, 'the new observer is live');
+	assert.equal(navMOs()[0].disconnected, true, 'the disposed observer stays dead — never resurrected');
+	assert.equal(liveSheets().length, 1, 'and exactly ONE sheet exists again (re-created, not stacked)');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, true, 'the hook is armed again');
+	assert.equal(marked.length, 1, 'the row is marked again');
+});
+
+test('10.5.0 (T9c): a same-copy re-apply re-stamps the generation — the older apply\'s dispose is a stale no-op', () => {
+	// Hot reload, order A: the host re-enters apply() on the SAME copy (each
+	// apply mints a fresh generation token), and the FIRST apply's fiber unloads
+	// AFTER the second one landed. Its dispose() hands back a token that is no
+	// longer current — the gate must refuse it, or the freshest apply would lose
+	// its hook to a stale teardown. The stale dispose must not even republish:
+	// the snapshot object published by the newer generation stays untouched.
+	const SHEET = 'dsh-dream-skin-nav-icon';
+	const observers = [];
+	class RecordingMO {
+		constructor(fn) { this.fn = fn; this.disconnected = false; observers.push(this); }
+		observe(target, opts) { this.target = target; this.opts = opts; }
+		disconnect() { this.disconnected = true; }
+	}
+	const { doc, marked } = makeNavHookDoc(SHEET);
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: RecordingMO, console: { warn() {}, log() {}, error() {} } });
+	const hud = () => h.window.__DSH_DREAM_SKIN_NAV__;
+	const navMO = () => observers.find((o) => o.opts && o.opts.characterData === true);
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctxA = makeApplyContext(h);
+	assert.doesNotThrow(() => e.apply(ctxA));
+	const afterFirst = (h.disposers || []).length;
+	const snapshotAfterFirst = hud();
+	assert.equal(snapshotAfterFirst.armed, true, 'the first apply armed the hook');
+
+	// Second apply, same copy: arm() re-stamps the generation on the surviving
+	// hook (refresh path — no new observer, no new sheet).
+	const ctxB = makeApplyContext(h);
+	assert.doesNotThrow(() => e.apply(ctxB));
+	assert.equal(observers.filter((o) => o.opts && o.opts.characterData === true).length, 1, 'the re-apply refreshes instead of re-installing');
+	const snapshotAfterSecond = hud();
+	assert.notEqual(snapshotAfterSecond, snapshotAfterFirst, 'the refresh republished a live snapshot');
+
+	// The FIRST apply's fiber unloads (the stale side). Nothing may change.
+	for (const d of (h.disposers || []).slice(0, afterFirst)) d();
+	assert.equal(navMO().disconnected, false, 'a stale dispose does NOT tear down the hook the new generation owns');
+	assert.equal(marked.length, 1, 'the mark survives a stale dispose');
+	assert.equal(hud().armed, true, 'and the snapshot still says armed');
+	assert.equal(hud(), snapshotAfterSecond, 'a stale dispose does not even republish — it no-ops at the generation gate');
+
+	// The newest generation's unload is the one that wins.
+	for (const d of (h.disposers || []).slice(afterFirst)) d();
+	assert.equal(navMO().disconnected, true, "the newest generation's unload tears the hook down");
+	assert.equal(hud().armed, false, 'and republishes armed:false');
+});
+
+test('10.5.0: a foreign node wearing the material sheet id is neither re-texted nor removed on unload', () => {
+	// B10: the material sheet is adopted by document id, so getElementById can hand back
+	// something that is not ours — another script keeping a <div> under the same name.
+	// Re-texting it would drop the whole glass rule set into somebody else's element, and
+	// teardownMaterial() would then REMOVE that element from the page. The guard adopts
+	// <style> only and, in that hostile case, injects an UN-NAMED sheet so the id stays theirs.
+	const MAT = 'dsh-dream-skin:material:liquid-glass';
+	const created = [];
+	const hostile = {
+		id: MAT, tagName: 'DIV', textContent: 'somebody elses node', children: [], parentElement: null,
+		style: {}, dataset: {}, setAttribute() {}, removeAttribute() {},
+		appendChild(c) { this.children.push(c); if (c) c.parentElement = this; },
+		append(c) { this.appendChild(c); }, remove() { this.removed = true; }
+	};
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: (tag) => { const el = makeEl(); el.tagName = String(tag || '').toUpperCase(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		getElementById: (id) => (id === MAT ? hostile : null)
+	};
+	doc.head.children.push(hostile);
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply still injects a material sheet next to a hostile id-holder');
+	assert.equal(hostile.textContent, 'somebody elses node', 'the foreign node keeps its own content');
+	const ours = created.find((el) => el.tagName === 'STYLE' && String(el.textContent || '').includes('--dsh-dream-skin-modal-fill'));
+	assert.ok(ours, 'the rule set landed in a style element we created');
+	assert.ok(!ours.id, 'our sheet does NOT claim the id while somebody else holds it (a duplicate id would confuse the next lookup)');
+	// Unmount runs teardownMaterial(): the removal must land on OUR node only.
+	for (const d of h.disposers || []) d();
+	assert.notEqual(hostile.removed, true, 'unload does not remove the foreign id-holder');
+	assert.equal(ours.removed, true, 'unload removes the sheet we actually own');
+});
 test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on the DSH Desktop shell', () => {
 	// In the Electron shell the upstream sidebar renders inside the shell's own
 	// <aside class="dshDesktopSidebarSurface">, and that element re-declares
@@ -2655,6 +3531,117 @@ test('drift probe (A-1): one replaced anchor group is reported as exactly that g
 	assert.equal(status.anchors.pending, false, 'liveness proven (five groups matched ≥ the two-group gate)');
 	assert.deepEqual(status.anchors.drifted, [driftedSel], 'drifted lists exactly the one unmatched group');
 	assert.ok(warns.some((w) => w.includes(driftedSel)), 'the console line names the drifted group');
+	// B8: "harmless, cosmetic only" is only true for the anchors the probe samples. The
+	// question / approval / plan cards mount on demand and are NOT in the probe, so the
+	// human-facing line has to say where its own authority ends.
+	assert.ok(warns.some((w) => w.includes('NOT probed') && w.includes('question / approval / plan')),
+		'the console line declares its own coverage limit instead of implying every refinement was checked');
+});
+
+test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drifted (ownership classifier)', async () => {
+	// T3 (adversarial review 10.5.0): after the ladder ends, "0 hits" has two
+	// causes — a renamed hash vs a surface this page never mounted — and the old
+	// merged `drifted` field mislabeled the second as the first. The
+	// discriminator is host ownership: a group whose class token appears in a
+	// HOST-OWNED stylesheet (`style[data-plugin-css]`, the attribute the host's
+	// css loader stamps on its own chunks) is a healthy-but-unmounted surface;
+	// a group no host sheet vouches for is drift.
+	//
+	// The fixture also carries OUR sheet — it REALLY DOES contain the dead
+	// hashes (they are the legacy branches of the material rules) — and answers
+	// the bare `"style"` selector with it. That is the M21 differential: if the
+	// classifier ever drops the `[data-plugin-css]` qualifier, our own sheet
+	// would vouch for our own dead selectors and this test goes red.
+	const warns = [];
+	const hostSheet = makeEl();
+	hostSheet.textContent = '.lXshSW_root{display:block}.host-other-chunk{color:red}';
+	const ourSheet = makeEl();
+	ourSheet.textContent = '.bqrRRG_card{padding:0}.qDHVXG_fade{opacity:1}.nArs4W_panel{background:none}';
+	const MOUNTED = new Set([
+		'.uV2eYG_root',
+		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'
+	]);
+	const observers = [];
+	class FakeMO {
+		constructor(cb) { this.cb = cb; observers.push(this); }
+		observe() {}
+		disconnect() { this.disconnected = true; }
+	}
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+		querySelector: (sel) => (MOUNTED.has(sel) ? { matched: true } : null),
+		querySelectorAll: (sel) => {
+			if (sel === 'style[data-plugin-css]') return [hostSheet];
+			if (sel === 'style') return [hostSheet, ourSheet];
+			return [];
+		}
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(t0.anchors.pending, false, 'terminal verdict reached (liveness via the two mounted groups)');
+	assert.deepEqual(t0.anchors.notMounted, ['.lXshSW_root, ._7yHdaG_panel'],
+		'the group the host CSS still owns reads notMounted — a healthy host that never opened that surface');
+	assert.deepEqual(t0.anchors.drifted,
+		['.bqrRRG_card', '.nArs4W_panel, .nArs4W_pane, .nArs4W_paneContent, .nArs4W_workbench, .nArs4W_explorerBody', '.qDHVXG_fade'],
+		'groups no host sheet vouches for stay drifted (our own sheet earns nothing — legacy branches are not host ownership)');
+	const driftWarns = warns.filter((w) => w.includes('drifted'));
+	assert.equal(driftWarns.length, 1, 'the drift warn fires once for the renamed hashes');
+	assert.ok(driftWarns[0].includes('.bqrRRG_card'), 'the warn names the drifted groups');
+	assert.ok(!driftWarns[0].includes('lXshSW'), 'an unmounted-but-owned surface is NOT an alarm');
+	assert.ok(observers.length >= 1, 'late-correction observer armed after a drifted terminal');
+});
+
+test('drift probe (T3): a surface mounting late leaves the notMounted pool through the same one-way observer', async () => {
+	// T3 second half: the notMounted pool is not a life sentence. When the
+	// surface DOES mount after the terminal verdict (user opens settings a
+	// minute in), the debounced resample retracts it from notMounted — the
+	// drifted pool is untouched, nothing is ever added, and the warn does not
+	// repeat.
+	const warns = [];
+	const hostSheet = makeEl();
+	hostSheet.textContent = '.lXshSW_root{display:block}';
+	const ourSheet = makeEl();
+	ourSheet.textContent = '.bqrRRG_card{padding:0}';
+	const LATE_GROUP = '.lXshSW_root, ._7yHdaG_panel';
+	const MOUNTED = new Set([
+		'.uV2eYG_root',
+		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'
+	]);
+	const observers = [];
+	class FakeMO {
+		constructor(cb) { this.cb = cb; observers.push(this); }
+		observe() {}
+		disconnect() { this.disconnected = true; }
+	}
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+		querySelector: (sel) => (MOUNTED.has(sel) ? { matched: true } : null),
+		querySelectorAll: (sel) => {
+			if (sel === 'style[data-plugin-css]') return [hostSheet];
+			if (sel === 'style') return [hostSheet, ourSheet];
+			return [];
+		}
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.deepEqual(t0.anchors.notMounted, [LATE_GROUP], 'terminal snapshot names the unmounted group');
+	assert.deepEqual(t0.anchors.drifted.length, 3, 'three renamed groups drifted');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'terminal drift warns once');
+	// User opens the surface "a minute later": the group mounts, DOM mutates.
+	MOUNTED.add(LATE_GROUP);
+	for (const o of observers) o.cb([]);
+	await sleep(400); // debounce (300ms) + resample
+	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.deepEqual(t1.anchors.notMounted, [], 'the late mount retracts the notMounted entry (one-way improvement)');
+	assert.deepEqual(t1.anchors.drifted, t0.anchors.drifted, 'the drifted pool is untouched by a notMounted retraction');
+	assert.equal(t1.anchors.pending, false, 'the corrected snapshot stays conclusive');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'correction never re-warns');
 });
 
 test('drift probe (R-4): the ladder array is RELATIVE gaps — an early terminal would change observable state', async () => {
@@ -3522,3 +4509,8 @@ test('R13 follow-up (found on the live machine): apply with an empty URL box cha
 	assert.equal(before.url, null, 'precondition: this user has never stored a URL');
 	assert.deepEqual(after, { kind: 'url', url: null, follows: '1' }, 'nothing-to-apply click left kind, url and follows-skin exactly as they were');
 });
+
+
+
+
+

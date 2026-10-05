@@ -352,13 +352,14 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 
 ### A. Zuverlässigkeit — einen Host-Generationswechsel überstehen
 
-*Motiv: auf `0.2.0-rc.1` gemessen drifteten 4 von 6 Host-Anker-Gruppen; aus Nutzersicht sah Issue #62 so aus „über Nacht waren alle Skins weg".*
+*Motiv: auf `0.2.0-rc.1` gemessen drifteten 4 von 6 Host-Anker-Gruppen — davon 3 bestätigte Hash-Neuauswürfe und 1 (die Gruppe um `lXshSW_*`) Host-CSS, das noch existiert und dessen Fläche lediglich nicht eingehängt ist (seit 10.5.0 als `notMounted` getrennt geführt); aus Nutzersicht sah Issue #62 so aus „über Nacht waren alle Skins weg".*
 
 - [ ] **M** Die letzten Hash-Klassennamen des Hosts abwerfen: die verbliebenen Dekorationsregeln (Seitenleiste / Datei-Panel) auf eigene `data-dsh-dream-skin-*`-Marker umstellen — composer und nav-icon haben gezeigt, dass dieser Weg geht
       — Abnahme: der Drift-Probe liefert auf 0.2.x `drifted: [] && pending: false`
 - [ ] **S** Den „Host-rc-Vortest" als festen Veröffentlichungsschritt verankern: am Tag eines neuen rc die Kompatibilitätstabelle einmal laufen lassen plus einen echten Profil-Ladevorgang
 - [ ] **M** Das peer-Fenster auf `0.3.x` weiterschieben — **erst nach Verifizierung**; bleibt es zu, in den Docs „nicht unterstützt" schreiben statt eines stillen Überspringens
-- [ ] **S** nav-icon idempotent machen und mit Selbsttest-Status ausstatten (gemessen: 2 Exemplare von `style#dsh-dream-skin-nav-icon` und ein zweiter MutationObserver auf langlebigen Seiten) | PR-welcome
+- [ ] **S** Die Drift-Sonde kann keine Flächen erfassen, die erst bei Bedarf eingehängt werden: Frage- und Genehmigungskarte tauchen im DOM erst auf, wenn die Unterhaltung wirklich etwas fragt — eine Abstufung beim Start würde sie permanent als Drift melden, deshalb lässt 10.5.0 sie bewusst aus der Sonde
+      — Abnahme: nach einer echten Frage meldet `anchors` Treffer / Fehlschlag bei beiden funktionalen Ankern, und eine frisch geöffnete Seite bleibt bei `drifted: []`
 
 ### B. Veröffentlichen und Installationskanal
 

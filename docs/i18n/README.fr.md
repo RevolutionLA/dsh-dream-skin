@@ -355,13 +355,14 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 
 ### A. Fiabilité — survivre au changement de génération de l'hôte
 
-*Motivation : mesuré sur `0.2.0-rc.1`, 4 des 6 groupes d'ancres de l'hôte ont dérivé ; côté utilisateur, le ticket #62 ressemblait à « mes skins ont tous disparu du jour au lendemain ».*
+*Motivation : mesuré sur `0.2.0-rc.1`, 4 des 6 groupes d'ancres de l'hôte ont dérivé — 3 re-tirages de hash confirmés, plus 1 (le groupe `lXshSW_*`) qui est du CSS hôte toujours présent, dont la surface n'est simplement pas montée (séparé en `notMounted` depuis 10.5.0) ; côté utilisateur, le ticket #62 ressemblait à « mes skins ont tous disparu du jour au lendemain ».*
 
 - [ ] **M** Abandonner les derniers noms de classe hachés de l'hôte : migrer les règles décoratives restantes (barre latérale / panneau de fichiers) vers nos propres marqueurs `data-dsh-dream-skin-*` — composer et nav-icon ont déjà prouvé que cette voie fonctionne
       — acceptation : la sonde de dérive renvoie `drifted: [] && pending: false` sur 0.2.x
 - [ ] **S** Ancrer le « pré-test contre une rc de l'hôte » dans la publication : le jour d'une nouvelle rc, lancer une fois la table de compatibilité et un vrai chargement de profil
 - [ ] **M** Faire glisser la fenêtre peer jusqu'à `0.3.x` — **seulement après vérification** ; si elle reste fermée, écrire « non pris en charge » dans la documentation au lieu de laisser un saut silencieux
-- [ ] **S** Rendre nav-icon idempotent et lui donner un état d'auto-contrôle (mesuré : 2 exemplaires de `style#dsh-dream-skin-nav-icon` et un second MutationObserver sur les pages de longue vie) | PR-welcome
+- [ ] **S** La sonde de dérive ne peut pas couvrir les surfaces montées à la demande : la carte de questions et la carte d'approbation n'entrent dans le DOM que lorsque la conversation pose réellement une question ; un échantillonnage au démarrage les signalerait donc comme dérivées en permanence — 10.5.0 les laisse volontairement hors de la sonde
+      — critère d'acceptation : après une vraie question, `anchors` rapporte touché / raté pour les deux ancrages fonctionnels, tandis qu'une page fraîchement ouverte conserve `drifted: []`
 
 ### B. Publication et canal d'installation
 

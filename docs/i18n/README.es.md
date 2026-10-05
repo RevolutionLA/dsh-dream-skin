@@ -365,13 +365,14 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
 
 ### A. Fiabilidad — sobrevivir al cambio de generación del anfitrión
 
-*Motivo: medido en `0.2.0-rc.1`, 4 de los 6 grupos de anclas del anfitrión se movieron; desde el lado del usuario, el issue #62 se veía como «amanecí sin ninguna piel».*
+*Motivo: medido en `0.2.0-rc.1`, 4 de los 6 grupos de anclas del anfitrión se movieron — 3 son re-barajados de hash confirmados y 1 (el grupo `lXshSW_*`) es CSS del anfitrión que sigue existiendo, con su superficie simplemente sin montar (separado como `notMounted` desde 10.5.0); desde el lado del usuario, el issue #62 se veía como «amanecí sin ninguna piel».*
 
 - [ ] **M** Soltar por completo los nombres de clase hasheados del anfitrión: migrar las reglas decorativas restantes (barra lateral / panel de archivos) a nuestros propios marcadores `data-dsh-dream-skin-*` — composer y nav-icon ya probaron que ese camino funciona
       — aceptación: la sonda de deriva entrega `drifted: [] && pending: false` en 0.2.x
 - [ ] **S** Fijar el «pre-chequeo contra la rc del anfitrión» como paso de publicación: el día que sale una rc nueva, correr una vez la tabla de compatibilidad y una carga real de profile
 - [ ] **M** Correr la ventana peer hasta `0.3.x` — **solo después de verificarla**; si queda cerrada, escribir «no soportado» en los docs en vez de dejar un salto silencioso
-- [ ] **S** Hacer nav-icon idempotente y darle estado de autochequeo (medido: 2 copias de `style#dsh-dream-skin-nav-icon` y un segundo MutationObserver en páginas de larga vida) | PR-welcome
+- [ ] **S** La sonda de deriva no puede cubrir las superficies que se montan bajo demanda: la tarjeta de preguntas y la de aprobación solo entran en el DOM cuando la conversación plantea una pregunta real, así que un muestreo al arrancar las reportaría como derivadas de forma permanente — 10.5.0 las deja fuera de la sonda a propósito
+      — aceptación: tras una pregunta real, `anchors` informa acierto / fallo de ambos anclajes funcionales, y una página recién abierta sigue leyendo `drifted: []`
 
 ### B. Publicación y canal de instalación
 
