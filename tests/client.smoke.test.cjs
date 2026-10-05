@@ -1734,6 +1734,14 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// overwrite the nested override snapshot after a theme selection.
 	handlers.push((value) => { presentedTokens = value.active.tokens; });
 	skin.setSkin('midnight');
+	await new Promise((resolve) => setTimeout(resolve, 10));
+	// Issue #67 gate: boot already baked the SEEDED skin's (rose) popup fills, so
+	// the final-state assertion below alone cannot see the deferred re-resolve —
+	// it only discriminates on the MID-SWITCH skin, whose palette differs from
+	// both the boot bake and the final selection. Without the re-resolve the
+	// dialogs would keep rose through the midnight leg of the round-trip.
+	assert.match(theme.getTheme().active.tokens['--dsw-alias-bg-layer-2'], /rgba\(22,\s*22,\s*28,\s*0\.5\)/,
+		'the deferred wallpaper re-shade re-resolves layer-2 for the mid-switch skin (midnight)');
 	skin.setSkin('rose');
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	const tokens = theme.getTheme().active.tokens;
@@ -1743,6 +1751,9 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 		'popup opacity remains active after the wallpaper re-shade');
 	assert.equal(tokens['--dsw-alias-brand-primary'], '#123456',
 		'custom accent remains active after the wallpaper re-shade');
+	// End state settles back to the seeded skin's own layer-2 hue (issue #67).
+	assert.match(tokens['--dsw-alias-bg-layer-2'], /rgba\(255,\s*253,\s*253,\s*0\.5\)/,
+		'the deferred wallpaper re-shade re-resolves layer-2 to the settled rose hue');
 	assert.equal(activeLayerRemovals, 0,
 		'same-source replacement never publishes an intermediate unshaded theme');
 	assert.match(presentedTokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
@@ -3408,20 +3419,27 @@ test('issue #67 follow-up: the composer fill weight is remapped per material —
 
 	// Test-admission gate: the material chip must re-publish the remapped weight
 	// when the identity changes, or a chip switch leaves a stale mapping behind.
-	glass.setComposerOpacity(100);
+	// The endpoints (100/0) cannot see this — liquid remap is the identity at
+	// both — so the discriminator sits mid-range: 50 on liquid is 57%.
+	glass.setComposerOpacity(50);
 	glass.setMaterialPreset('liquid');
-	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '100%', 'chip switch re-publishes the remapped weight (100% stays 100% on liquid)');
-	glass.setComposerOpacity(0);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '57%', 'chip switch re-publishes the remapped weight (50% -> 57% on liquid)');
 	glass.setMaterialPreset('frosted');
-	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '0%', 'chip switch back re-publishes too (frosted floor is 0, not liquid 15%)');
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '50%', 'chip switch back re-publishes too (frosted floor is 0, not liquid 15%)');
 
 	// The CSS must no longer multiply — double scaling (JS remap × CSS fillScale)
-	// would cap liquid right back down. The ::before fill references the fill
-	// var directly.
+	// would cap liquid right back down. The ::before fill rule consumes the
+	// published weight var RAW, so assert on the LINE: it must carry the fill
+	// var inside its color-mix and contain no `*` at all (the old shape was
+	// `calc(var(--dsh-dream-skin-composer-fill, 85%) * var(--…fill-scale…))`;
+	// a reintroduction could also be `* 0.15`, which the old needle missed).
 	const sheet = documentMock.head.children.find((c) => c.textContent && c.textContent.includes('--dsh-dream-skin-composer-fill'));
 	assert.ok(sheet, 'composer fill var consumed in material CSS');
-	assert.ok(sheet.textContent.includes('var(--dsh-dream-skin-composer-fill'), '::before fill reads the published weight var');
-	assert.ok(!sheet.textContent.includes('* var(--dsh-dream-skin-glass-fill-scale'), 'the fillScale multiply is gone from the CSS (weight is pre-remapped in JS)');
+	const fillLines = sheet.textContent.split('\n').filter((l) => l.includes('--dsh-dream-skin-composer-fill'));
+	assert.equal(fillLines.length, 1, 'exactly one CSS line consumes the composer fill var');
+	assert.ok(fillLines[0].includes('color-mix') && fillLines[0].includes('background'), '::before fill line reads the published weight var');
+	assert.ok(!fillLines[0].includes('*'), 'no multiplication anywhere on the fill line (weight is pre-remapped in JS)');
+	assert.ok(!sheet.textContent.includes('--dsh-dream-skin-glass-fill-scale'), 'the retired fill-scale var never re-enters the sheet');
 });
 
 test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the skin\'s own hue', () => {
@@ -3462,6 +3480,76 @@ test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the
 	glass.setModalOpacity(100);
 	const solid = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
 	assert.equal(solid.dark, 'rgba(22, 22, 28, 1)', 'solid end = alpha 1 — the dialog fully occludes the window content');
+});
+
+test('issue #67: a pack skin whose layer-2 does not parse falls back to the skin base (slider keeps full range)', () => {
+	// Pack themes may legally declare hsl()/hsla() (docs/themes-spec.md accepts
+	// them via looksLikeColor). The legacy toRgba "silent pin" ships such a value
+	// through UNCHANGED — alpha intact — so writeModalOpacity would appear dead on
+	// that skin's dialogs. The layer-2 driver must detect the unparseable case and
+	// fall back to the scheme base instead: the slider then still spans 0..1.
+	const overrides = new Map();
+	const theme = {
+		setTheme() {},
+		getTheme() {
+			return { preference: 'packed', active: { id: 'dsh-dream-skin-pack:packed', colorScheme: 'dark', tokens: {
+				'--dsw-alias-bg-base': '#101014',
+				'--dsw-alias-bg-layer-2': 'hsl(220, 40%, 20%)'
+			} }, themes: [], revision: 1 };
+		},
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox();
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '1');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply({ ...baseCtx, theme }));
+
+	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(entry.dark, 'rgba(16, 16, 20, 1)', 'unparseable layer-2 falls back to the skin base at the slider alpha (full occlusion still reachable)');
+	assert.ok(!`${entry.light}|${entry.dark}`.includes('hsl'), 'the raw hsl value never reaches the host as its own override (that was the silent slider death)');
+});
+
+test('issue #67: without a live wash, a skin switch still re-resolves the layer-2 popup fills (deferred)', async () => {
+	// The wallpaper path re-resolves after applyWallpaper2; the no-wallpaper
+	// path must do its own deferred pass, or a skin switch leaves the dialogs on
+	// the previous skin's palette until the next slider move or reload.
+	const published = new Map();
+	let activeTheme = { id: 'midnight', colorScheme: 'dark', tokens: {
+		'--dsw-alias-bg-base': '#0b0b0e',
+		'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+	} };
+	let revision = 1;
+	const handlers = [];
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: activeTheme.id, active: activeTheme, themes: [activeTheme], revision }; },
+		overrideTokens(source, tokens) { published.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox(); // no wallpaper seeds: wallpaperBackgroundCss() stays null
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	const ctx = { ...baseCtx, theme };
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') handlers.push(fn); return () => {}; };
+	assert.doesNotThrow(() => e.apply(ctx));
+	await sleep(10); // let the boot-deferred pass settle
+
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.6)',
+		'boot resolves layer-2 from the midnight skin');
+
+	// Host-side skin switch: the snapshot now carries ember. The re-resolve is
+	// deliberately deferred (setTimeout 0) like the wallpaper re-shade.
+	activeTheme = { id: 'ember', colorScheme: 'dark', tokens: {
+		'--dsw-alias-bg-base': '#16110d',
+		'--dsw-alias-bg-layer-2': 'rgba(36, 28, 20, 0.85)'
+	} };
+	revision += 1;
+	for (const fn of handlers) fn(theme.getTheme());
+	await sleep(10);
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.6)',
+		'the deferred pass republishes the SETTLED skin hue (ember) without any slider move');
 });
 
 /**
