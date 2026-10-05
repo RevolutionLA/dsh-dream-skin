@@ -3283,9 +3283,15 @@ test('round-7 F1: upgrader without marker is NOT factory-seeded (per-key gap)', 
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:factory-applied'), '1', 'marker stamped for the upgrader too');
 });
 
-test('round-8: liquid material switches the glass tint to neutral white', () => {
-	// User: liquid glass read TEA-colored (skin base x high saturation). The
-	// tint var must be material-driven: liquid = #ffffff, frosted = skin base.
+test('issue #67 follow-up: liquid material fills with the skin base, not neutral white', () => {
+	// Round-8 made the tint var material-driven to kill the TEA read: liquid =
+	// #ffffff, frosted = skin base. Issue #67's follow-up moves liquid onto the
+	// skin base TOO: the white was designed for the 15% fill cap, where a breath
+	// of white reads as "clear glass". Now that the slider's solid end truly
+	// reaches 100% (next test), a white fill boards up as PURE WHITE and the
+	// LIGHT input text on dark skins becomes unreadable on it. Both materials
+	// now fill with the scheme-aware skin base; the liquid character lives in
+	// the tone / sheen layers, not the fill color.
 	const styleProps = {};
 	const documentMock = {
 		body: { contains: () => false },
@@ -3303,7 +3309,7 @@ test('round-8: liquid material switches the glass tint to neutral white', () => 
 	const glass = h.actionBags['dream-skin-glass'];
 
 	glass.setMaterialPreset('liquid');
-	assert.equal(styleProps['--dsh-dream-skin-glass-tint'], '#ffffff', 'liquid glass fills neutral white (no tea tint)');
+	assert.equal(styleProps['--dsh-dream-skin-glass-tint'], 'var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))', 'liquid glass fills with the skin base (dark-on-dark, light-on-light)');
 
 	glass.setMaterialPreset('frosted');
 	assert.equal(styleProps['--dsh-dream-skin-glass-tint'], 'var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))', 'frosted keeps the skin-base tint');
@@ -3336,10 +3342,12 @@ test('round-17: liquid slider drives glass thickness (extra backdrop blur)', () 
 	const glass = h.actionBags['dream-skin-glass'];
 
 	// Thickness mapping: opacity 0.5 -> +12px of extra backdrop blur; the
-	// composer fill var is still published (frosted path uses it).
+	// composer fill var carries the LIQUID-REMAPPED weight now (issue #67
+	// follow-up): 0.5 + 0.5 × 0.15 = 0.575, which IEEE-754 lands at
+	// 0.5749999999999999… — rounds to 57%.
 	glass.setMaterialPreset('liquid');
 	glass.setComposerOpacity(50);
-	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '50%', 'fill var still published (frosted path uses it)');
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '57%', 'fill var carries the liquid-remapped weight (0.5 -> 0.575 -> 57%)');
 	assert.equal(styleProps['--dsh-dream-skin-liquid-thickness'], '12px', 'opacity 0.5 maps to +12px glass thickness');
 
 	// Max opacity = thickest glass (+24px); zero transparency = thin (0px).
@@ -3354,6 +3362,106 @@ test('round-17: liquid slider drives glass thickness (extra backdrop blur)', () 
 	assert.ok(styleEl, 'liquid thickness var consumed in material CSS');
 	assert.ok(styleEl.textContent.includes('backdrop-filter'), 'liquid rule uses backdrop-filter (not filter:url)');
 	assert.ok(!styleEl.textContent.includes('url(#dsh-liquid-refract)'), 'SVG refraction experiment fully removed');
+});
+
+test('issue #67 follow-up: the composer fill weight is remapped per material — liquid reaches 100% at the solid end', () => {
+	// The slider's promise is "leftmost = most solid" (composer.hint: 越往左越实、
+	// 文字越清晰). The old CSS multiply (fill% × fillScale 0.15) broke it on liquid:
+	// 100% weight painted a 15% fill, so the window content bled through the input
+	// area no matter how far left the slider went — and 85% of the travel did
+	// almost nothing. The remap publishes effective = raw + (1 − raw) × floor
+	// (liquid floor 0.15, frosted floor 0 — the floor form degenerates to the raw
+	// weight on frosted, so its behaviour is unchanged bit for bit).
+	const styleProps = {};
+	const documentMock = {
+		body: { contains: () => false },
+		head: { children: [], contains() { return false; }, appendChild(c) { this.children.push(c); }, append(c) { this.children.push(c); } },
+		createElement: () => ({ style: {}, dataset: {}, textContent: '', remove() {} }),
+		createTextNode: () => ({}),
+		getElementById: () => null,
+		querySelector: () => null,
+		querySelectorAll: () => [],
+		documentElement: {
+			style: { setProperty(k, v) { styleProps[k] = v; } },
+			setAttribute() {}
+		},
+		addEventListener() {}, removeEventListener() {}
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.actionBags['dream-skin-glass'];
+
+	// Liquid: transparent end keeps the 15% clear-glass floor, solid end is 100%.
+	glass.setMaterialPreset('liquid');
+	glass.setComposerOpacity(100);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '100%', 'liquid at the solid end is TRULY opaque (was 15% before)');
+	glass.setComposerOpacity(0);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '15%', 'liquid at the transparent end keeps its clear-glass floor');
+
+	// Frosted: identity — the floor form must not touch the stock behaviour.
+	glass.setMaterialPreset('frosted');
+	glass.setComposerOpacity(85);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '85%', 'frosted publishes the raw weight (identity, unchanged)');
+	glass.setComposerOpacity(30);
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '30%', 'frosted at low weight is the raw weight too');
+
+	// Test-admission gate: the material chip must re-publish the remapped weight
+	// when the identity changes, or a chip switch leaves a stale mapping behind.
+	glass.setComposerOpacity(100);
+	glass.setMaterialPreset('liquid');
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '100%', 'chip switch re-publishes the remapped weight (100% stays 100% on liquid)');
+	glass.setComposerOpacity(0);
+	glass.setMaterialPreset('frosted');
+	assert.equal(styleProps['--dsh-dream-skin-composer-fill'], '0%', 'chip switch back re-publishes too (frosted floor is 0, not liquid 15%)');
+
+	// The CSS must no longer multiply — double scaling (JS remap × CSS fillScale)
+	// would cap liquid right back down. The ::before fill references the fill
+	// var directly.
+	const sheet = documentMock.head.children.find((c) => c.textContent && c.textContent.includes('--dsh-dream-skin-composer-fill'));
+	assert.ok(sheet, 'composer fill var consumed in material CSS');
+	assert.ok(sheet.textContent.includes('var(--dsh-dream-skin-composer-fill'), '::before fill reads the published weight var');
+	assert.ok(!sheet.textContent.includes('* var(--dsh-dream-skin-glass-fill-scale'), 'the fillScale multiply is gone from the CSS (weight is pre-remapped in JS)');
+});
+
+test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the skin\'s own hue', () => {
+	// Host modal dialogs (`Modal.module.css` .dialog) and settings panels paint
+	// from --dsw-alias-bg-layer-2, which every dark skin hard-codes at 0.85
+	// (mist 0.6). POPUP_TOKENS never carried it, so even at the most-solid end
+	// the dialog stayed 15–40% see-through and the window content bled into the
+	// dialog's input area (issue #67). The override layer must now carry the
+	// token, keep each skin's OWN layer-2 hue, and let only the alpha follow
+	// the slider.
+	const overrides = new Map();
+	const theme = {
+		setTheme() {},
+		getTheme() {
+			return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {
+				'--dsw-alias-bg-base': '#0b0b0e',
+				'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+			} }, themes: [], revision: 1 };
+		},
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox();
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply({ ...baseCtx, theme }));
+
+	const layer = overrides.get('dsh-dream-skin:appearance');
+	assert.ok(layer, 'the appearance layer is published');
+	const popupDark = layer['--dsw-alias-bg-layer-2'];
+	assert.ok(popupDark, 'layer-2 rides the popup-opacity override layer now (was unreachable by the slider)');
+	assert.equal(popupDark.dark, 'rgba(22, 22, 28, 0.6)', 'layer-2 keeps the SKIN\'s own hue (22,22,28) at the stored slider alpha 0.6');
+	assert.ok(layer['--dsw-alias-bg-overlay'], 'overlay token still driven as before');
+	assert.ok(layer['--dsw-specific-menu'], 'menu token still driven as before');
+
+	// Slider move re-publishes with the new alpha; 100% weight = full occlusion.
+	const glass = h.actionBags['dream-skin-glass'];
+	glass.setModalOpacity(100);
+	const solid = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(solid.dark, 'rgba(22, 22, 28, 1)', 'solid end = alpha 1 — the dialog fully occludes the window content');
 });
 
 /**
