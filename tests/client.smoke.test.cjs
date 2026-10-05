@@ -1742,6 +1742,15 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// dialogs would keep rose through the midnight leg of the round-trip.
 	assert.match(theme.getTheme().active.tokens['--dsw-alias-bg-layer-2'], /rgba\(22,\s*22,\s*28,\s*0\.5\)/,
 		'the deferred wallpaper re-shade re-resolves layer-2 for the mid-switch skin (midnight)');
+	// Adjudication 10.5.1 P1 (R4-style): pin BOTH scheme entries of the
+	// mid-switch override. The inactive (light) scheme must be painted from the
+	// scheme base — removing fillFor's colorScheme gate (kill-mutation E4)
+	// leaks midnight's dark hue into the light entry and reddens here.
+	const midLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
+	assert.equal(midLayer.light, 'rgba(255, 255, 255, 0.5)',
+		'the light entry of the mid-switch layer-2 is the scheme base (white), not the dark skin hue');
+	assert.equal(midLayer.dark, 'rgba(22, 22, 28, 0.5)',
+		'the dark entry of the mid-switch layer-2 keeps midnight\'s own hue at the seeded alpha');
 	skin.setSkin('rose');
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	const tokens = theme.getTheme().active.tokens;
@@ -1754,6 +1763,14 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// End state settles back to the seeded skin's own layer-2 hue (issue #67).
 	assert.match(tokens['--dsw-alias-bg-layer-2'], /rgba\(255,\s*253,\s*253,\s*0\.5\)/,
 		'the deferred wallpaper re-shade re-resolves layer-2 to the settled rose hue');
+	// Adjudication 10.5.1 P1: the settled (rose, light-scheme) override keeps
+	// rose's own hue in the light entry; the inactive dark entry falls back to
+	// the scheme base (21, 21, 23).
+	const roseLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
+	assert.equal(roseLayer.light, 'rgba(255, 253, 253, 0.5)',
+		'the settled rose layer-2 keeps rose\'s own (light) hue in the light entry');
+	assert.equal(roseLayer.dark, 'rgba(21, 21, 23, 0.5)',
+		'the inactive dark entry of the settled rose layer-2 falls back to the scheme base');
 	assert.equal(activeLayerRemovals, 0,
 		'same-source replacement never publishes an intermediate unshaded theme');
 	assert.match(presentedTokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
@@ -3253,6 +3270,7 @@ test('round-6: first launch applies factory defaults (shipped look)', async () =
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'bing-daily default URL visible');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.19', 'factory wallpaper opacity applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.4', 'factory composer opacity applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.6', 'factory modal opacity applied (adjudication R6 pin)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'factory material applied (frosted IS the shipped look, blue-team B5)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), '{"on":0,"hours":24}', 'factory refresh schedule OFF (blue-team B7: third-party polling is opt-in)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-fit'), 'cover', 'factory fill mode is part of the shipped look record');
@@ -3550,6 +3568,223 @@ test('issue #67: without a live wash, a skin switch still re-resolves the layer-
 	await sleep(10);
 	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.6)',
 		'the deferred pass republishes the SETTLED skin hue (ember) without any slider move');
+});
+
+// ============================================================================
+// ADJUDICATION 10.5.1 REGRESSION GATES (ADJUDICATION-10.5.1.md §6.1, R1-R6)
+// These close the blind spots the review proved on this suite: under each of
+// the six mutations (E4/E5/E6/E7 + the two 0.94/0.6 literal swaps) the whole
+// shipped suite stayed green. Kill map: R1<-E5, R2<-E6, R3<-E7, R4<-E4,
+// R5<-model default 0.94 swap, R6<-factory seed "0.6" swap. Every gate ends
+// in a LITERAL assertion (no derived round(Number(...)% ...) forms).
+// ============================================================================
+
+test('adjudication R1: a skin switch without a live wash settles after one guarded re-resolve pass (emitting host)', async () => {
+	// The host answers EVERY overrideTokens() publish with a synchronous
+	// theme/change emit (real-machine history, CHANGELOG [0.2.1]). Kill-mutation
+	// E5 strips the _applyingWallpaper guard from the no-wallpaper deferred
+	// callback: each pass then re-arms itself on its own publish, and the
+	// publish count keeps climbing between the two samples.
+	const handlers = [];
+	let publishes = 0;
+	let active = { id: 'midnight', colorScheme: 'dark', tokens: {
+		'--dsw-alias-bg-base': '#0b0b0e',
+		'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+	} };
+	const published = new Map();
+	const snapshot = () => ({ preference: active.id, active, themes: [active], revision: publishes });
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return snapshot(); },
+		overrideTokens(source, tokens) {
+			publishes += 1;
+			published.set(source, tokens);
+			// mimic ThemeRuntime.publish: emit theme/change synchronously — to
+			// EVERY registered handler, including our own syncSkin listener.
+			for (const fn of [...handlers]) fn(snapshot());
+			return () => {};
+		}
+	};
+	const h = buildSandbox(); // no wallpaper seeds: the no-wash branch is live
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	const ctx = { ...baseCtx, theme };
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') handlers.push(fn); return () => {}; };
+	assert.doesNotThrow(() => e.apply(ctx));
+	assert.ok(handlers.length >= 1, 'syncSkin registered a theme/change listener');
+	await sleep(120); // boot + its deferred pass + the nested guarded pass
+	const base = publishes;
+
+	// Host-side skin switch: the snapshot now carries ember.
+	active = { id: 'ember', colorScheme: 'dark', tokens: {
+		'--dsw-alias-bg-base': '#16110d',
+		'--dsw-alias-bg-layer-2': 'rgba(36, 28, 20, 0.85)'
+	} };
+	for (const fn of [...handlers]) fn(snapshot());
+	await sleep(500);
+	const s1 = publishes;
+	await sleep(2000);
+	const s2 = publishes;
+
+	assert.equal(s2, s1, `no-wallpaper re-resolve settles: no publishes in the +500ms..+2500ms window (got ${s1} then ${s2})`);
+	assert.ok(s2 - base < 10, `a single skin switch publishes a bounded number of times (base ${base}, settled ${s2})`);
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.6)',
+		'the settled layer-2 carries the ember hue at the stored alpha');
+});
+
+test('adjudication R2: a skin switch WITH a live wash settles after one guarded reshade pass (emitting host)', async () => {
+	// Same convergence contract on the wallpaper branch (kill-mutation E6 strips
+	// the _applyingWallpaper guard around the deferred applyWallpaper2 +
+	// applyModalOverlay pass). The settled override must carry the NEW skin's
+	// hue — mid-switch staleness is what the deferred re-resolve fixes.
+	const handlers = [];
+	let publishes = 0;
+	let active = { id: 'midnight', colorScheme: 'dark', tokens: {
+		'--dsw-alias-bg-base': '#0b0b0e',
+		'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+	} };
+	const published = new Map();
+	const snapshot = () => ({ preference: active.id, active, themes: [active], revision: publishes });
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return snapshot(); },
+		overrideTokens(source, tokens) {
+			publishes += 1;
+			published.set(source, tokens);
+			for (const fn of [...handlers]) fn(snapshot());
+			return () => {};
+		}
+	};
+	const h = buildSandbox({ seed: {
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #000 0%, #fff 100%)',
+		'dsh-dream-skin:wallpaper-follows-skin': '0'
+	} });
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	const ctx = { ...baseCtx, theme };
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') handlers.push(fn); return () => {}; };
+	assert.doesNotThrow(() => e.apply(ctx));
+	assert.ok(handlers.length >= 1, 'syncSkin registered a theme/change listener');
+	await sleep(120);
+	const base = publishes;
+
+	// Host-side skin switch to a LIGHT-scheme skin (rose).
+	active = { id: 'rose', colorScheme: 'light', tokens: {
+		'--dsw-alias-bg-base': '#fdfbf8',
+		'--dsw-alias-bg-layer-2': 'rgba(255, 253, 253, 0.85)'
+	} };
+	for (const fn of [...handlers]) fn(snapshot());
+	await sleep(500);
+	const s1 = publishes;
+	await sleep(2000);
+	const s2 = publishes;
+
+	assert.equal(s2, s1, `wallpaper re-shade settles: no publishes in the +500ms..+2500ms window (got ${s1} then ${s2})`);
+	assert.ok(s2 - base < 10, `a single skin switch publishes a bounded number of times (base ${base}, settled ${s2})`);
+	const entry = published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(entry.light, 'rgba(255, 253, 253, 0.6)', 'the settled layer-2 keeps the rose hue in the light entry at the stored alpha');
+	assert.equal(entry.dark, 'rgba(21, 21, 23, 0.6)', 'the inactive dark entry of the settled layer-2 falls back to the scheme base');
+});
+
+test('adjudication R3: unmount cancels the in-flight deferred popup re-resolve (no publishes after dispose)', async () => {
+	// Kill-mutation E7 deletes the two clearTimeout lines in the syncSkin
+	// cleanup effect: the pending deferred pass then fires AFTER teardown and
+	// publishes into a dead fiber.
+	const handlers = [];
+	let publishes = 0;
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#0b0b0e', '--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)' } }, themes: [], revision: 1 }; },
+		overrideTokens() { publishes += 1; return () => {}; }
+	};
+	const h = buildSandbox(); // no wallpaper seeds: the deferred popup timer is armed
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	const ctx = { ...baseCtx, theme };
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') handlers.push(fn); return () => {}; };
+	e.apply(ctx);
+	await sleep(40); // boot settles (non-emitting host: no re-arm loops)
+	const before = publishes;
+
+	// Trigger the host-side skin switch, arming the deferred timer; then unmount
+	// SYNCHRONOUSLY, before the timer gets a chance to run.
+	for (const fn of [...handlers]) fn(theme.getTheme());
+	for (const d of h.disposers || []) d();
+	await sleep(100);
+	assert.equal(publishes - before, 0,
+		'unmount cancels the in-flight deferred popup re-resolve: zero publishes after dispose');
+});
+
+test('adjudication R4: the layer-2 override keeps the scheme base for the INACTIVE scheme (light entry of a dark skin)', async () => {
+	// Kill-mutation E4 removes the colorScheme gate in fillFor: the skin's dark
+	// hue then leaks into the light entry too, and a light-scheme host would
+	// paint dialogs with a dark translucent fill. Pristine: the inactive scheme
+	// entry must come from BUILTIN_BASE (white), never from the skin.
+	const overrides = new Map();
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#0b0b0e', '--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)' } }, themes: [], revision: 1 }; },
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox();
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	e.apply({ ...baseCtx, theme });
+	await sleep(20); // let the boot-deferred overlay pass publish
+	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.6)', 'the ACTIVE (dark) scheme keeps the skin\'s own layer-2 hue at the slider alpha');
+	assert.equal(entry.light, 'rgba(255, 255, 255, 0.6)', 'the INACTIVE (light) scheme entry is painted from the scheme base (white), not the skin\'s dark hue');
+});
+
+test('adjudication R5: missing slider key falls back to the 0.94 default in the layer-2 override (literal pin)', async () => {
+	// The suite's existing seed path asserts DERIVED forms (round(stored*100)%
+	// plus notEqual '94%'), which stayed green under a 0.94 -> 0.2 swap of
+	// DEFAULT_MODAL_OPACITY. This literal pin is the formal gate.
+	const overrides = new Map();
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#0b0b0e', '--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)' } }, themes: [], revision: 1 }; },
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox(); // no modal-opacity key stored: the JS fallback applies
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	e.apply({ ...baseCtx, theme });
+	await sleep(20);
+	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.94)', 'an existing user without a stored slider gets the 0.94 fallback baked into layer-2');
+});
+
+test('adjudication R6: fresh install bakes the factory modal seed (literal 0.6) into storage and the boot overlay', async () => {
+	// The factory seed drives the FIRST-LAUNCH dialog fill. Both the
+	// localStorage literal and the boot overlay alpha must carry the shipped
+	// 0.6 (a "0.6" -> "0.3" swap stayed green on the whole suite before this).
+	const overrides = new Map();
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: { '--dsw-alias-bg-base': '#0b0b0e', '--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)' } }, themes: [], revision: 1 }; },
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox();
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied'); // true first launch
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	e.apply({ ...baseCtx, theme });
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.6', 'factory modal opacity seed is written on first launch (literal pin)');
+	await sleep(20); // let the deferred overlay pass publish
+	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
+	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.6)', 'the boot overlay carries the factory-seeded alpha, not the 0.94 fallback');
 });
 
 /**
