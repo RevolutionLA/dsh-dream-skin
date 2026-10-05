@@ -4510,7 +4510,176 @@ test('R13 follow-up (found on the live machine): apply with an empty URL box cha
 	assert.deepEqual(after, { kind: 'url', url: null, follows: '1' }, 'nothing-to-apply click left kind, url and follows-skin exactly as they were');
 });
 
+test('dockkit right panel: the docked surfaces follow the sidebar slider and a fullscreen panel is opaque', () => {
+	// Reported with dsh-better-sidebar installed: (1) 侧边栏透明度 no longer reached
+	// the right panel, which stayed see-through at every value; (2) entering the
+	// panel's fullscreen mode showed the conversation THROUGH it. Root cause: the
+	// host paints the docked tab host and the empty host with `--dsw-alias-bg-base`
+	// (the canvas wash) instead of `--dsw-specific-sidebar-fill`, and the canvas
+	// wash is translucent, so a fullscreen panel became a window onto the chat.
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
 
+	// Read a rule back through a selector that identifies it, and keep the WHOLE
+	// rule: a guard that starts matching AT `[data-dockkit-host=dock]` can never see
+	// a prefix added in front of it, so it proves nothing about a wash gate.
+	const ruleBy = (token) => {
+		const m = css.match(new RegExp('([^{}]*' + token + '[^{}]*)\\{([^}]*)\\}'));
+		if (!m) return null;
+		const selectorList = m[1].split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+		return {
+			selectorList,
+			selectors: selectorList.split(',').map((s) => s.trim()).filter((s) => s.length > 0),
+			body: m[2]
+		};
+	};
 
+	const dock = ruleBy('\\[data-dockkit-host=dock\\]\\s*>\\s*section');
+	assert.ok(dock, 'both dockkit surfaces (the docked tab host and the empty host) are targeted');
+	assert.equal(dock.selectors.length, 2, 'the docked surfaces are one rule with two branches');
+	const stamps = [];
+	for (const sel of dock.selectors) {
+		assert.ok(sel.startsWith('[data-sidebar-right-panel] '),
+			`every docked surface is scoped to the right panel, not to every dockkit host: ${sel}`);
+		const stamp = sel.match(/\[data-dockkit-(host=dock|empty)\]/);
+		assert.ok(stamp, `and it carries a dockkit host stamp: ${sel}`);
+		stamps.push(stamp[1]);
+	}
+	assert.deepEqual(stamps.sort(), ['empty', 'host=dock'],
+		'both surfaces are covered: the docked tab host and the empty host');
+	assert.ok(/background-color:\s*var\(--dsw-specific-sidebar-fill\)\s*!important/.test(dock.body),
+		'the right panel paints the SIDEBAR fill, so its slider reaches it like the left column');
+	// Reverse guard over the captured selector list, prefix included. The panel is a
+	// sidebar surface whether or not a wash is on screen: the reporter's "stays
+	// see-through at every value" read is exactly the wallpaper-less one.
+	assert.ok(!/data-dsh-dream-skin-wash/.test(dock.selectorList), 'the docked-panel rule is not gated on the wallpaper');
 
+	// Both dockkit surfaces behind a fullscreen panel are listed in one selector
+	// list, so the gate is asserted per branch: dropping it from a single branch
+	// is a real regression even though the other branch still carries it.
+	const full = ruleBy('\\[data-sidebar-right-panel=fullscreen\\]');
+	assert.ok(full, 'the fullscreen right panel is targeted');
+	assert.ok(full.selectors.length >= 2, 'both dockkit surfaces of a fullscreen panel are covered');
+	for (const sel of full.selectors) {
+		assert.ok(sel.startsWith('html[data-dsh-dream-skin-wash]'),
+			`every fullscreen surface is gated on a live wash, so a stock profile keeps the host look: ${sel}`);
+	}
+	assert.ok(/background-color:\s*var\(--dsh-dream-skin-composer-base,\s*var\(--dsw-alias-bg-layer-1\)\)\s*!important/.test(full.body),
+		"the fullscreen panel paints the skin's OPAQUE base colour (no conversation showing through)");
+});
 
+test('dockkit right panel: a guide capsule hover tints its fill instead of erasing it', () => {
+	// Same round, third symptom: hovering 【新建终端】 lit it up while 【文件】 went
+	// see-through. ui-sidebar-right's guide entry is `background: var(--dsw-alias-bg-layer-1)`
+	// and its :hover REPLACES that fill with the translucent
+	// `--dsw-alias-interactive-bg-hover`, so over a wallpaper the capsule lost its
+	// fill; the terminal capsule beside it OVERLAYS the same tint on its own fill.
+	// One token, two behaviours — keep the fill and layer the tint, like the
+	// terminal one does.
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
+
+	const m = css.match(/([^{}]*\[data-sidebar-right-guide-entry\][^{}]*)\{([^}]*)\}/);
+	assert.ok(m, "the right-sidebar guide capsule hover is targeted through the host's own stamp");
+	const selectorList = m[1].split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+	const body = m[2];
+
+	// The terminal capsule carries the same stamp while already overlaying the tint
+	// through a ghost button, so a rule that matches it stacks a second layer.
+	assert.ok(/\[data-sidebar-right-guide-entry\]:not\(\[data-sidebar-right-guide-entry=terminal\]\):hover/.test(selectorList),
+		'the hover rule excludes the capsule kind that overlays its own tint');
+	assert.ok(!/\[data-sidebar-right-guide-entry\]:hover/.test(selectorList),
+		'no branch matches the terminal capsule (a bare stamp + :hover would)');
+	assert.ok(/background-color:\s*var\(--dsw-alias-bg-layer-1\)\s*!important/.test(body),
+		'the capsule keeps its own opaque fill while hovered');
+	assert.ok(/background-image:\s*linear-gradient\(var\(--dsw-alias-interactive-bg-hover\),\s*var\(--dsw-alias-interactive-bg-hover\)\)\s*!important/.test(body),
+		'the host hover tint is layered ON TOP instead of replacing the fill');
+	// Reverse guard: the erasing form is the bug — it must not come back.
+	assert.ok(!/background(-color)?:\s*var\(--dsw-alias-interactive-bg-hover\)/.test(body),
+		'the hover no longer replaces the fill with the translucent tint');
+});
+
+test('dockkit right panel: the fullscreen gate rides the wash marker lifecycle', () => {
+	// The opaque fullscreen rule only fires while the wash marker is published, and a
+	// sandbox stubs the sheet's own `querySelector` to null, so the marker on the root
+	// element is the only readable signal for that gate (test-admission gate 1: at
+	// least two time points).
+	const created = [];
+	const attrs = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty() {} },
+			setAttribute: (name, value) => { attrs.set(name, value); },
+			removeAttribute: (name) => { attrs.delete(name); }
+		},
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({
+		document: doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+			'dsh-dream-skin:wallpaper-opacity': '0.5',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		}
+	});
+	const active = {
+		id: 'midnight',
+		colorScheme: 'dark',
+		tokens: { '--dsw-alias-bg-base': '#101014', '--dsw-specific-sidebar-fill': '#0d0d12' }
+	};
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active, themes: [active], revision: 1 }; },
+		overrideTokens() { return () => {}; }
+	};
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply({ ...makeApplyContext(h, { captureActions: true }), theme }), 'apply');
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+
+	// The attribute the rule names must be the one the plugin publishes, so the gate
+	// cannot go stale behind a renamed marker.
+	const gate = sheet.textContent.match(/html\[([a-z-]+)\]\s*\[data-sidebar-right-panel=fullscreen\]/);
+	assert.ok(gate, 'the fullscreen rule is gated on a root attribute');
+	assert.equal(attrs.get(gate[1]), '1', `the gate attribute (${gate[1]}) is published while the wash is live`);
+
+	// Time point 2 — clearing the wallpaper retracts the marker, so the opaque rule
+	// stops applying instead of sticking on a wallpaper-less profile.
+	h.actionBags['dream-skin-wallpaper'].clearWallpaper();
+	assert.equal(attrs.has(gate[1]), false, 'and it is retracted with the wash layer');
+});
