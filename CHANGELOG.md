@@ -2,6 +2,39 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.6.0] - 2026-10-06
+
+> 外部 PR 收口版（PR #65，@Waser750）：右侧栏（dockkit 面板）三处与左侧不一致——侧边栏透明度滑杆管不到右栏、右栏全屏时对话从面板背后透出、鼠标划过「文件」胶囊会失去底色而旁边的「新建终端」不会。本版把这三处对齐，全部挂在宿主自己发布的**稳定 data 属性**上，不碰构建哈希类名。本版的评审走的是 PR 复核轮（四条阻塞 + 合并前维护方独立变异抽查），**没有另起三方对抗评审**：改动面是 38 行 CSS + 3 条用例、且每条都有能翻红的门，按本仓验证预算口径处理（如实写明依据，不冒充更高强度）。
+
+### 修复
+- **右侧栏与左侧栏同 token、同滑杆**（PR #65 规则①）：宿主把 docked 面板与空面板画在 `--dsw-alias-bg-base`（会被壁纸洗成半透明的画布色）上，「侧边栏透明度」滑杆对它完全没有通路——不管拉多少都透。现在两条 dockkit 面改由 `--dsw-specific-sidebar-fill` 上色（与左栏、标题条同一枚 token、同一个滑杆），并**限定在 `[data-sidebar-right-panel]` 祖先之内**：dockkit 是宿主共享组件（`data-dockkit-host` 取 `float|dock` 并带列索引），第二列 dock 或将来居中列的 dock 不该继承一个从未为它测过的侧栏底色。
+- **右栏全屏时不再透出对话**（PR #65 规则②）：全屏面板盖住主列，而画布水洗是半透明的，于是"全屏"读成了"透过面板看聊天"。水洗在时该面改取皮肤的**不透明基色** `--dsh-dream-skin-composer-base`（回退 `--dsw-alias-bg-layer-1`）。取舍如实写进规则上方注释：全屏态的不透明是硬性质，侧边栏滑杆在全屏面板内因此不再可达——这是"完全遮住对话"这一读法的必然结果，要给 alpha 设下限属另一次改动。
+- **引导胶囊 hover 不再失去底色**（PR #65 规则③）：`dsh-client-ui-sidebar-right` 的 `:hover` 是**替换**底色（换成半透明 hover tint），隔壁终端胶囊却是**叠加**（在自己的 ghost button 之上再叠一层）——同一枚 token 两种行为，于是"文件"一划过去就变透明。现在保留底色、把 tint 叠上去（与终端胶囊一致），并用 `:not([data-sidebar-right-guide-entry=terminal])` **排除终端胶囊**：它本来就已经自己叠色，再上一层等于双重半透明。真机命中面实测：`files` / `dsh-context` 两枚被覆盖，`terminal` 被排除。
+- **回归门补齐**：新增 3 条用例（docked 面 + 右栏作用域 + "不得被水洗门挂上"的反向断言、胶囊 hover 与"抹掉底色"旧写法不得回归、水洗标记生命周期）。其中那条**恒真守卫**是评审抓出来的原病灶：早先的断言从 `[data-dockkit-host=dock]` 起匹配，永远看不见前面的选择器，于是对"规则①被加上水洗门"完全无感；现在按**整条规则**断言（选择器列表含前缀 + 声明体，逐行剥注释）。
+
+### 测试
+- `npm test` **172 项全绿**（10.5.1 为 169 项，本版 +3 全部来自 PR #65）；`node --check lib/index.js lib/client.js` 与 `npm run typecheck`（tsc 5.6.3）同门通过。
+- **合并前维护方自跑 5 处变异，逐条要求翻在指定断言原文上**（隔离副本、退出钩子还原、事后 md5 与改前一致）：X1 拆掉终端胶囊排除 → 翻红 `the hover rule excludes the capsule kind that overlays its own tint`；X2 拆掉规则①右栏作用域 → 翻红 `every docked surface is scoped to the right panel`；X3 把水洗门塞进规则①选择器（正是恒真守卫原病灶的反例形式）→ 翻红 `the docked-panel rule is not gated on the wallpaper`；X4 全屏两分支之一丢水洗门 → 翻红 `every fullscreen surface is gated on a live wash`；X5 拆掉水洗标记撤回 → 翻红 `and it is retracted with the wash layer`。贡献者侧另有 6 处反向验证（PR #65 正文）。
+- **一条归因精度说明**：X3 若改用"前缀形式"（把水洗门加在整条选择器最前面），会先被作用域断言抓红而不是被反向断言抓红——两种形式都能翻红，但为了钉住"反向守卫本身可失败"，抽查用的是中缀形式。
+- 四条阻塞（终端胶囊误涂 / 作用域缺失 / 恒真守卫 / 缺生命周期用例）与整改过程留在 PR #65 的公开评审记录里；重演到 10.5.1（`aecaa58`）之上 rebase 干净，合入提交 `75e42b3`，main 全矩阵 CI（Node 18/20/22/24）绿。
+
+### 文档
+- `docs/desktop-support.md`：锚点依赖清单新增「右侧栏 dockkit 面」一行（宿主稳定 data 属性；漂移探针**不覆盖**这些属性——探针只采哈希类名，属性改名同样静默，按 PR 正文记为已知盲区）；用例数 169→172 并记入本版 5 处变异与实机复核。
+
+### 实机复核（本机 dsh `0.2.0-rc.1`，link 安装即工作树；2026-10-06，内置浏览器 `evaluate_script` 机读，**非像素目视**）
+- 状态 `ready`、`lastError: null`；本插件只发那一条**预期**的漂移警告（含 10.5.0 加的"覆盖边界"那句）。页面其余报错逐条归属其它插件：`plugins.bundle.config` 卡片注册被拒（dsh-web）、`sidebar.footer.action` / `shell.overlay` 槽崩溃（非本插件注册的槽）、`/smooth-stream/settings.read` 405（dsh-smooth-stream 自己的端点）。
+- 三条新规则都在注入表内，且**真命中活元素**：`[data-sidebar-right-panel] [data-dockkit-host=dock] > section` 命中 1；水洗 + 全屏规则命中 1；`:not(terminal)` hover 命中 2（`files` / `dsh-context`），`terminal` 被正确排除。
+- **右栏此刻就是 `fullscreen` 且水洗在**：dock 面板计算底色 = `rgb(18, 16, 26)`（完全不透明；令牌链上该面继承到的 `--dsh-dream-skin-composer-base` 为 `#12101a`，即"规则生效"与"令牌可用"同步——两者由 `shadeTokens2` 同处发布，不存在拿不到基色的窗口期）。这就是"全屏透出对话"在真机被修掉。
+- 10.5.1 的通路同时可见：`--dsw-alias-bg-layer-2 = rgba(30, 27, 44, 0.5)`（nebula 自身色相 + 滑杆 alpha 0.5）、overlay/menu `rgba(18, 16, 26, 0.5)`、composer fillVar `40%`、`::before` `color(srgb … / 0.4)`。样式注入幂等：material ×1、nav-icon ×1。
+- **本轮没有写操作**：全部为只读探测，用户既有设置（皮肤 nebula / 材质 frosted / 弹窗 0.5 / composer 0.4 / 壁纸 0.4 / 侧栏联动开 0.14 / 填充 cover）逐项读回核对后保持原样。
+
+### 未验证 / 有意推迟（本轮如实记录）
+- **非全屏（`push`）态下规则①随侧栏滑杆变化**未真机切换验证——切换会改用户当前的面板布局；已验的是选择器真命中、`--dsw-specific-sidebar-fill` 可达、以及 X2/X3 变异能翻红。
+- **真 hover 行为态**未触发（`:hover` 无法从页面 JS 强制），命中面与排除面已实测。
+- **`dsh-better-sidebar` 未装本机**：该插件语境下的观感结论仍以贡献者真机证据为准；机制、选择器命中与令牌链由我们独立复现。
+- 官方桌面壳（`0.2.0-rc.2`）运行期挂载仍未验；像素目视仍未做（内置浏览器 `visibilityState=hidden`，截图不可用）。
+- 全屏不透明的硬性质是否要改成"带下限的 alpha 以保留滑杆通路"，属产品取舍，本版按贡献者与评审的"完全遮住对话"读法执行，改动另议。
+
 ## [10.5.1] - 2026-10-06
 
 > 滑杆兑现轮（issue #67 + PR #68，@ltmroberthk915 报告并提案）：弹窗透明度滑杆此前只驱动窄卡片规则、对设置对话框等由 `--dsw-alias-bg-layer-2` 绘制的面无效；liquid 材质的输入框把滑杆拉到最实端仍透出内容。本版把滑杆接到第三枚 token，并把 composer 填充权重按材质重映射。本版经过蓝军→第三方→中立裁定三轮对抗评审——**同一模型分角色，非独立第三方**（三个角色本轮均由子代理分别担任，无 10.5.0 轮那类"裁定与整改同人"的降级；如实标注，全链不使用"独立复核 / 独立裁定"措辞）。评审记录为内部攻防材料，**不随仓库发布**（`docs/review/` 已 gitignore，且无任何公开文档链接指向它）。
