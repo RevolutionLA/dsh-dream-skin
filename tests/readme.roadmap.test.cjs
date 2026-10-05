@@ -13,8 +13,8 @@
  *      count identical between zh and each translation;
  *   4. every open item in every language opens with an S/M/L size marker;
  *   5. `| PR-welcome` markers match zh;
- *   6. each translated README stays pure CRLF (a bare LF here is a script-patch artifact
- *      that has already happened once).
+ *   6. each translated README keeps a single consistent line-ending style (CRLF on the
+ *      Windows maintenance box, LF on the Linux CI checkout — mixing them is the defect).
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
@@ -98,13 +98,19 @@ for (const locale of LOCALES) {
 		assert.deepEqual(unsized, [], `${rel} has ${unsized.length} open item(s) without an **S**/**M**/**L** size marker: ${JSON.stringify(unsized)}`);
 	});
 
-	test(`roadmap(${locale}): file stays pure CRLF`, () => {
+	test(`roadmap(${locale}): line endings stay one consistent style`, () => {
 		const raw = fs.readFileSync(path.join(ROOT, rel), 'utf8');
 		const crlf = (raw.match(/\r\n/g) || []).length;
 		const lf = (raw.match(/\n/g) || []).length;
 		const cr = (raw.match(/\r/g) || []).length;
-		assert.equal(lf - crlf, 0, `${rel} has ${lf - crlf} bare LF line ending(s) — a patch script leaked them; Git/Editor on this repo expect CRLF`);
-		assert.equal(cr - crlf, 0, `${rel} has ${cr - crlf} lone CR character(s)`);
-		assert.ok(raw.endsWith('\r\n'), `${rel} must end with a final CRLF newline`);
+		const bareLF = lf - crlf;
+		const loneCR = cr - crlf;
+		// CI checks this repo out on Linux, where the blobs are pure LF; the maintenance machine
+		// works in CRLF. Demanding CRLF specifically was wrong (it reddened CI on 2026-09-29).
+		// What actually breaks files is a *mixed* document — a patch script leaking bare LF into
+		// a CRLF file, which has happened here. One style only, either way.
+		assert.ok(crlf === 0 || bareLF === 0, `${rel} mixes line endings: ${bareLF} bare LF next to ${crlf} CRLF — a patch script leaked them`);
+		assert.equal(loneCR, 0, `${rel} has ${loneCR} lone CR character(s)`);
+		assert.ok(/(\r\n|\n)$/.test(raw), `${rel} must end with a final newline`);
 	});
 }
