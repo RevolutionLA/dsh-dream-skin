@@ -1890,6 +1890,130 @@ test('issue #55: the sidebar transparency slider is wired end to end', () => {
 		'no wash → the stored link is left alone (no preference change without a visible effect)');
 });
 
+test('sidebar fill leak: the Windows title-bar frame stops painting the chat area with the sidebar token', () => {
+	// Reported: dragging 侧边栏透明度 moved the CHAT area's wallpaper, and at 0%
+	// (sidebar alpha 1) the chat area went flat black. Root cause: in the Electron
+	// shell's Windows layout the host paints the WHOLE AppFrame with
+	// `--dsw-specific-sidebar-fill` and cuts the content column out of it, so the
+	// SIDEBAR colour is a second translucent layer UNDER the chat area — the one
+	// colour the sidebar slider owns. The frame is reached through the shell's own
+	// stable stamp (`[data-shell-overlay]` is a direct child of it), never through
+	// a build hash, and the drop is gated on the live wash so a wallpaper-less
+	// profile keeps the stock frame fill.
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply');
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
+
+	// Structural gate over the WHOLE sheet, not a slice of it: a stray `},` after a
+	// rule makes the parser swallow the NEXT block while every substring assertion
+	// below still passes (a local round of this fix shipped exactly such a dead
+	// rule, and the sliced fixture it was checked against cut the stray comma out).
+	assert.equal((css.match(/\{/g) || []).length, (css.match(/\}/g) || []).length, 'injected sheet braces balance');
+	assert.ok(!/\},/.test(css), 'no `}` is directly followed by `,` (that eats the next rule)');
+
+	const rule = css.match(/html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{]*div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*\}/);
+	assert.ok(rule, "the Windows AppFrame is targeted through the shell's own [data-shell-overlay] stamp");
+	assert.ok(/background-color:\s*transparent\s*!important/.test(rule[0]),
+		'the frame fill is dropped while a wash is live (one translucent layer per surface)');
+	// Reverse guard: an UNGATED drop erases the frame fill on every skin, wallpaper
+	// or not — the marker is the whole reason the stock look survives.
+	const ungated = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*transparent/);
+	assert.equal(ungated, null, 'the frame rule only ever fires while the wash marker is present');
+});
+
+test('sidebar fill leak: the wash marker and its opaque backdrop follow the wallpaper lifecycle', () => {
+	// Behavioural half of the same fix (test-admission gate 1: at least two time
+	// points). The rule above only holds if `data-dsh-dream-skin-wash` is published
+	// exactly while the wash is on screen, and dropping the frame fill is only safe
+	// while something OPAQUE sits under the translucent surfaces.
+	const created = [];
+	const attrs = new Map();
+	const vars = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty: (name, value) => { vars.set(name, value); } },
+			setAttribute: (name, value) => { attrs.set(name, value); },
+			removeAttribute: (name) => { attrs.delete(name); }
+		},
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({
+		document: doc,
+		seed: {
+			// A raster source on purpose: the fill mode is a raster-only concern
+			// (issue #61 — a gradient has no aspect ratio, so it is always `cover`).
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+			'dsh-dream-skin:wallpaper-opacity': '0.5',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		}
+	});
+	const active = {
+		id: 'midnight',
+		colorScheme: 'dark',
+		tokens: { '--dsw-alias-bg-base': '#101014', '--dsw-specific-sidebar-fill': '#0d0d12' }
+	};
+	const published = [];
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() { return { preference: 'midnight', active, themes: [active], revision: 1 }; },
+		overrideTokens(source, tokens) {
+			if (source === 'dsh-dream-skin:appearance' && tokens['--dsh-dream-skin-composer-base']) {
+				published.push(tokens['--dsh-dream-skin-composer-base']);
+			}
+			return () => {};
+		}
+	};
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply({ ...makeApplyContext(h, { captureActions: true }), theme }), 'apply');
+
+	// Time point 1 — the wash is live at boot.
+	assert.equal(attrs.get('data-dsh-dream-skin-wash'), '1', 'the root marker is published with the wash layer');
+	assert.ok(published.length > 0, 'the skin published its appearance override layer');
+	const base = published[published.length - 1].dark;
+	assert.equal(base, '#101014', 'the wash carries the skin\'s OPAQUE base colour');
+	const backdrop = created.filter((el) => el.style.backgroundColor);
+	assert.equal(backdrop.length, 1, 'exactly one opaque backdrop is parked under the wallpaper');
+	assert.equal(backdrop[0].style.backgroundColor, base, 'the backdrop carries that opaque base colour (no alpha)');
+
+	// The backdrop must ride the BOTTOM layer: in blur-fill mode that layer is the
+	// heavily blurred bleed, and filling the visible image instead would hard-edge
+	// the very bands that mode exists to hide.
+	h.actionBags['dream-skin-wallpaper-advanced'].setFit('blur');
+	const isBleed = (el) => String(el.style.cssText).includes('transform:scale(1.2)');
+	const live = (el) => doc.body.children.includes(el);
+	const bleed = created.filter((el) => isBleed(el) && live(el) && el.style.backgroundImage);
+	assert.equal(bleed.length, 1, 'blur mode still creates its bleed layer');
+	assert.equal(bleed[0].style.backgroundColor, base, 'the opaque backdrop rides the bleed layer, not the image');
+	const image = created.filter((el) => !isBleed(el) && live(el) && el.style.backgroundImage);
+	assert.equal(image.length, 1, 'exactly one visible wallpaper layer');
+	assert.equal(image[0].style.backgroundColor, '', 'the visible image layer keeps no fallback fill');
+
+	// Time point 2 — clearing the wallpaper retracts the marker with the layer.
+	h.actionBags['dream-skin-wallpaper'].clearWallpaper();
+	assert.equal(attrs.has('data-dsh-dream-skin-wash'), false, 'clearing the wallpaper retracts the root marker');
+});
+
+
 test('glass row: material presets, composer opacity and popup opacity persist and sync', () => {
 	// Blue-team B4/B5/B9 follow-up: the glass-effect row's actions must persist
 	// every value they promise, keep the preset chip in step with the sliders
