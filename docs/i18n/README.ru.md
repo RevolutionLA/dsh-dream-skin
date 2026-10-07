@@ -59,20 +59,20 @@
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Deep Blue<br/><sub>спокойный глубокий индиго, сдержанный и тихий</sub></td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Aurora Green<br/><sub>чёткий полупрозрачный холодный бирюзовый, естественный холодный тон</sub></td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Nebula Purple<br/><sub>глубокий рассеянный сине-фиолетовый, туманный и загадочный</sub></td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ember Amber<br/><sub>тёплый сдержанный янтарно-оранжевый</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ Deep Blue<br/><sub>спокойный глубокий индиго, сдержанный и тихий</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 Aurora Green<br/><sub>чёткий полупрозрачный холодный бирюзовый, естественный холодный тон</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 Nebula Purple<br/><sub>глубокий рассеянный сине-фиолетовый, туманный и загадочный</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 Ember Amber<br/><sub>тёплый сдержанный янтарно-оранжевый</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Midnight OLED<br/><sub>минималистичный чистый чёрный, погружающий OLED</sub></td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>минималистичный плоский белый, системный серый iOS + сдержанный синий</sub></td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Чистая яркость<br/><sub>ясный светлый стеклянный вид, полупрозрачность + размытие</sub></td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>яркий насыщенный розовый, плоские цвета Google Material</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 Midnight OLED<br/><sub>минималистичный чистый чёрный, погружающий OLED</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS Flat<br/><sub>минималистичный плоский белый, системный серый iOS + сдержанный синий</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 Чистая яркость<br/><sub>ясный светлый стеклянный вид, полупрозрачность + размытие</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>яркий насыщенный розовый, плоские цвета Google Material</sub></td>
   </tr>
 </table>
 
-> Светлые и тёмные в равновесии: `mist`, `ivory`, `rose` — светлые тона, остальные — тёмные. Не нравится пресет? Смотрите **Способ №2** ниже.
+> Светлые и тёмные в равновесии: `mist`, `ivory`, `rose` — светлые тона, остальные — тёмные. Не нравится пресет? Смотрите **Способ №2** ниже. Каждый пресет также несёт собственные настроенные значения по умолчанию (непрозрачность/размытие свечения, прозрачность боковой панели и поля ввода, непрозрачность диалогов, стеклянный материал): при смене темы перенастраиваются только значения, которые вы не меняли сами, и все 8 пресетов проходят 226 измеримые проверки качества (217 палитра + 9 исполнение) (лестница высот OKLCH, контраст WCAG 2.1 + APCA, разделение сигнальных оттенков, различимость пресетов).
 
 ---
 
@@ -277,7 +277,7 @@ dsh web   # восстанавливает официальный вид
 | DeepSeek Harness (`dsh`) | **Одна сборка для двух поколений хоста**: стабильная `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies привязаны к `^0.1.0-rc.6`) и DSH master (таблица модулей после разделения) |
 | Node.js | `>=18` |
 | Браузер | современный Chromium / WebKit (нативные CSS-переменные и `matchMedia`) |
-| Десктоп | сторонняя оболочка DSH Desktop поддерживается (issues #50/#51/#55); **официальное превью DSH Desktop должно быть совместимо** (Electron, тот же фронтенд, наследует механизм плагинов). Полный список якорей / границы безопасности / матрица проверено-не проверено: **[docs/desktop-support.md](../desktop-support.md)** |
+| Десктоп | **Сторонняя оболочка DSH Desktop:** адаптирована и проверена на реальном железе (issues #50/#51/#55). **Официальный DSH Desktop:** доказательства поддерживают «**ожидается загрузка**», а не «поддерживается» — они опираются на два статических факта (тот же фронтенд Electron; наш `dsh.client.platform = "web"` совпадает со всеми 21 клиентскими пакетами, которые поставляет хост). Его каталог профиля и команда установки на этой машине **никогда** не проверялись, поэтому документ **не даёт** копируемой команды установки для десктопа. <!-- desktop-claim: load-expected-unverified -->При добавлении значение `--profile` должно быть именем шаблона, который поставляет **сам хост**; профиля, которому учат некоторые сторонние документы, там нет — скопировав его, вы поставите плагин в пустой профиль оболочки (после перезапуска вы ничего не увидите). Доказательства в **[docs/desktop-support.md](../desktop-support.md)** → «официальный десктоп: пункты к проверке». Полный список якорей / границы безопасности / матрица проверено-не проверено — в том же документе |
 
 > При обновлении DSH поднимите peerDependencies в `package.json` соответствующим образом.
 
@@ -315,8 +315,11 @@ dsh web   # восстанавливает официальный вид
   5. регистрирует выделенный раздел **Настройки → Тема / Оформление** (`settings.section`) и монтирует пять
      строк возможностей в слот `settings.dreamSkin.item`.
 
-Каждый скин несёт свой `colorScheme` (`light`/`dark`), управляющий `body[data-ds-dark-theme]`; переопределения
-токенов-алиасов применяются как инлайн-кастомные свойства на `<body>` через ThemePresenter из ui-layout.
+Каждый скин несёт свой `colorScheme` (`light`/`dark`); этот плагин ставит его на свой корневой элемент
+`<html>` (как `data-dsh-dream-skin-scheme`) и **не** опирается на `body[data-ds-dark-theme]` хоста — этот атрибут
+принадлежит ThemePresenter из ui-layout, чей `dispose()` его стирает, и в этом окне отсутствия тёмный скин
+подхватывал светлые константы. Переопределения токенов-алиасов применяются как инлайн-кастомные свойства на
+`<body>` через ThemePresenter из ui-layout.
 
 ## 💼 Заметки о сохранении
 
@@ -344,7 +347,7 @@ dsh web   # восстанавливает официальный вид
   у вас есть права), затем импортируйте их через строку «Обои» в DSH.
 - **Перегенерировать превью**: превью генерируются скриптом `scripts/generate-skin-mockups.cjs` (реальные токены +
   рассеянное свечение) в HTML-макеты, затем захватываются как `docs/previews/*.png` с помощью headless Chrome —
-  перезапустите его после изменения токенов скина, чтобы превью соответствовало реальному скину.
+  перезапустите его после изменения токенов скина, чтобы превью соответствовало реальному скину. `docs/previews/manifest.json` привязывает каждое изображение к трём отпечаткам — поставляемые токены, разметка карточки, байты и размер PNG в пикселях — и `npm run previews --check` (браузер не нужен) становится красным, если палитра изменилась, а снимки не пересняли, называя скин; `npm run previews` завершается с ненулевым кодом, если headless-браузер не найден, вместо того чтобы считать пустой результат успехом. Эти PNG **не поставляются в пакете**: 2,26 МБ украшения README не должен скачивать каждый пользователь, `npm pack` уменьшается с 2,5 МБ до 263 кБ, а README загружает изображения с GitHub.
 - **Проверка**: `npm test` (дымовые тесты в VM, покрывающие factory eval, `apply()` и импорт/сохранение пакетов).
 - **Перекраска**: используйте токены `--dsw-alias-*` (полный контракт в [`docs/themes-spec.md`](../../docs/themes-spec.md)).
 

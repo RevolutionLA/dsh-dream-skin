@@ -34,3 +34,6 @@ research/
 
 # Local image-generation scratch sources (not distributed)
 vibe_images/
+
+# generated skin-preview HTML (pngs are committed under docs/previews)
+/tmp-skin-mockups/

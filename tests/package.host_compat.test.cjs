@@ -62,27 +62,87 @@ function bump(target, op) {
 	return { n: next, pre: [0] };
 }
 
+/**
+ * Materialise a range into OR-sets of `{op, target}` comparators, the way
+ * node-semver's `parseRange` does (`^4.0.1` → `>=4.0.1 <5.0.0-0`, `5` →
+ * `>=5.0.0 <6.0.0-0`). The materialised form is what the SECOND ruler below
+ * needs: the default-semantics prerelease rule is defined on the comparator
+ * list ("a prerelease may only satisfy a set if some comparator with the same
+ * major.minor.patch ALSO carries a prerelease tag"), so it cannot be evaluated
+ * comparator-by-comparator.
+ *
+ * The `includePrerelease` flag changes the desugaring itself, not just the
+ * predicate: node-semver writes `-0` into the bounds it invents only when the
+ * flag is on (`pr = options.includePrerelease ? '-0' : ''`), while the upper
+ * bound of an expanded x-range carries `-0` either way. Getting that backwards
+ * is exactly how `>=5` would start claiming `5.0.0-alpha.1`.
+ */
+function comparatorSets(range, includePrerelease = true) {
+	const lower0 = () => ({ n: [0, 0, 0], pre: includePrerelease ? [0] : null });
+	const pre = includePrerelease ? [0] : null;
+	return range.split('||').map((set) =>
+		set
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean)
+			.flatMap((c) => {
+				if (c === '*' || c === 'x' || c === 'latest') return [{ op: '>=', t: lower0() }];
+				const m = /^(>=|<=|>|<|=)?\s*(.+)$/.exec(c);
+				assert.ok(m, `unsupported comparator in a peer range: ${JSON.stringify(c)}`);
+				const op = m[1] || '=';
+				const target = m[2];
+				if (target.startsWith('^') || target.startsWith('~')) {
+					const lower = parse(target.slice(1));
+					return [{ op: '>=', t: lower }, { op: '<', t: bump(lower, target[0]) }];
+				}
+				assert.ok(op !== '^' && op !== '~', `unsupported comparator in a peer range: ${JSON.stringify(c)}`);
+				if (/^[0-9x*]+(\.[0-9x*]+){0,2}$/.test(target)) {
+					const bits = target.split('.');
+					const num = (i, fb) => (/^[0-9]+$/.test(bits[i] || '') ? Number(bits[i]) : fb);
+					const isx = (i) => bits[i] === undefined || bits[i] === 'x' || bits[i] === '*' || bits[i] === 'X';
+					if (isx(0)) return [{ op: '>=', t: lower0() }];
+					const lower = { n: [num(0, 0), num(1, 0), num(2, 0)], pre };
+					if (op !== '=') return [{ op, t: lower }];
+					if (isx(1)) return [{ op: '>=', t: lower }, { op: '<', t: { n: [lower.n[0] + 1, 0, 0], pre: [0] } }];
+					if (isx(2)) return [{ op: '>=', t: lower }, { op: '<', t: { n: [lower.n[0], lower.n[1] + 1, 0], pre: [0] } }];
+				}
+				return [{ op, t: parse(target) }];
+			})
+	);
+}
+
+/**
+ * `includePrerelease: true` — what the host's compatibility gate passes. Every
+ * prerelease exclusion rule is off, so this reduces to plain ordering.
+ */
 function satisfies(version, range) {
 	const v = parse(version);
-	// includePrerelease:true (what the host passes) disables the prerelease
-	// exclusion rule, so `*` and bare comparators reduce to plain ordering.
-	return range.split('||').some((set) => {
-		const parts = set.trim().split(/\s+/).filter(Boolean);
-		return parts.every((c) => {
-			if (c === '*' || c === 'x' || c === 'latest') return true;
-			const m = /^(>=|<=|>|<|=)?\s*(.+)$/.exec(c);
-			assert.ok(m, `unsupported comparator in a peer range: ${JSON.stringify(c)}`);
-			const op = m[1] || '=';
-			const target = m[2];
-			if (target.startsWith('^') || target.startsWith('~')) {
-				const lower = parse(target.slice(1));
-				return cmp(v, lower) >= 0 && cmp(v, bump(lower, target[0])) < 0;
-			}
-			assert.ok(op !== '^' && op !== '~', `unsupported comparator in a peer range: ${JSON.stringify(c)}`);
-			const t = parse(target);
+	return comparatorSets(range, true).some((set) =>
+		set.every(({ op, t }) => {
+			const r = cmp(v, t);
+			return op === '>=' ? r >= 0 : op === '<=' ? r <= 0 : op === '>' ? r > 0 : op === '<' ? r < 0 : r === 0;
+		})
+	);
+}
+
+/**
+ * Default semver semantics — what npm/pnpm peer resolution uses. This is the
+ * OTHER ruler (issue #91), and it is stricter in exactly one place: a version
+ * carrying a prerelease tag may only satisfy a set if some comparator with the
+ * same major.minor.patch also carries one. That single rule is why
+ * `>=4.0.1` does NOT cover `4.0.5-alpha.1` — a distinction the review that
+ * raised #91 got wrong in its own suggestion, so it is pinned here.
+ */
+function satisfiesDefault(version, range) {
+	const v = parse(version);
+	return comparatorSets(range, false).some((set) => {
+		const inRange = set.every(({ op, t }) => {
 			const r = cmp(v, t);
 			return op === '>=' ? r >= 0 : op === '<=' ? r <= 0 : op === '>' ? r > 0 : op === '<' ? r < 0 : r === 0;
 		});
+		if (!inRange) return false;
+		if (!v.pre) return true;
+		return set.some(({ t }) => t.pre && t.n[0] === v.n[0] && t.n[1] === v.n[1] && t.n[2] === v.n[2]);
 	});
 }
 
@@ -126,7 +186,93 @@ test('host gate: every host-checked peer stays optional (a required peer would b
 	}
 });
 
+// ── the OTHER ruler (issue #91) ────────────────────────────────────────────
+//
+// Two rulers read `peerDependencies`, and they do not read the same names:
+//
+//   * the HOST gate (`evaluatePluginCompatibility`) skips everything that is
+//     not `@deepseek-ai/dsh` or `@deepseek-ai/dsh-*` — so it never looks at
+//     `@deepseek-ai/cordis` or `react`;
+//   * npm/pnpm peer resolution reads ALL of them, with DEFAULT semver
+//     semantics, where a prerelease may only satisfy a set that carries a
+//     prerelease on the same major.minor.patch.
+//
+// #91 caught the consequence: the host moved its own cordis to
+// `~4.0.5-alpha.1` in 0.2.1-alpha.1 while our peer stayed `^4.0.1`, so the
+// declaration said "I do not support this" about a version nobody installs but
+// our manifest. The review's own suggested fix (`">=4.0.1"`) does NOT cover
+// `4.0.5-alpha.1` under default semantics — that is pinned below, because a
+// reviewer's suggestion is a hypothesis until it is measured.
+
+const PEER_FIXTURE = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'peer_range_verdicts.json'), 'utf8'));
+
+test('#91: our dependency-free evaluator reproduces the real semver, including the prerelease rule', () => {
+	assert.ok(PEER_FIXTURE.table.length >= 100, 'the range fixture must cover a real spread of versions');
+	for (const row of PEER_FIXTURE.table) {
+		assert.equal(
+			satisfies(row.version, row.range),
+			row.includePrerelease,
+			`includePrerelease verdict mismatch for ${row.version} in ${row.range}`
+		);
+		assert.equal(
+			satisfiesDefault(row.version, row.range),
+			row._default,
+			`default-semantics verdict mismatch for ${row.version} in ${row.range}`
+		);
+	}
+	// The two rulers really do disagree — otherwise the check above would only
+	// be comparing one implementation with itself.
+	assert.ok(
+		PEER_FIXTURE.table.some((r) => r.includePrerelease !== r._default),
+		'the fixture must contain at least one version the two semantics disagree about'
+	);
+});
+
+test('#91: the cordis peer covers the host alpha channel, and stays bounded', () => {
+	const range = pkg.peerDependencies['@deepseek-ai/cordis'];
+	assert.ok(range, '@deepseek-ai/cordis must stay declared');
+	// The three host cordis demands we know about: rc.1/rc.2 ask for ~4.0.4,
+	// 0.2.1-alpha.1 asks for ~4.0.5-alpha.1.
+	for (const version of ['4.0.4', '4.0.5', '4.0.5-alpha.1']) {
+		assert.ok(satisfiesDefault(version, range), `cordis ${version} must satisfy ${range} — this is the whole point of #91`);
+	}
+	assert.ok(!satisfiesDefault('4.0.0', range), 'the range must still be a bounded claim about cordis 4.0.x, not a superset of everything');
+	assert.ok(!satisfiesDefault('5.0.0', range), 'cordis 5 is untested and must be refused rather than silently claimed');
+	// The ROW that matters: a plain `>=` does not do this job. If someone
+	// "simplifies" the range to `>=4.0.1`, this is the assertion that stops it.
+	assert.ok(!satisfiesDefault('4.0.5-alpha.1', '>=4.0.1'), 'default semver excludes the prerelease — this is why the range is what it is');
+	assert.ok(satisfiesDefault('4.0.5-alpha.1', '^4.0.1 || >=4.0.5-0 <5'), 'the union is what covers both the release line and the alpha line');
+	// react is the other peer the host gate ignores; it must stay a real claim.
+	assert.ok(satisfiesDefault('18.2.0', pkg.peerDependencies.react), 'react 18.2.0 must be declared as supported');
+	assert.ok(!satisfiesDefault('19.0.0', pkg.peerDependencies.react), 'react 19 is untested and must be refused');
+});
+
+test('#91: a reverted cordis range reddens this check (the check really reads cordis)', () => {
+	// Mutation: the pre-fix range. The HOST gate is blind to it, which is
+	// exactly why this file has a second ruler.
+	assert.equal(satisfiesDefault('4.0.5-alpha.1', '^4.0.1'), false, 'the pre-fix range must FAIL under default semantics');
+	// …and the host gate must still be blind to it, or the two tests are the
+	// same test wearing two names.
+	assert.deepEqual(failingPeers({ '@deepseek-ai/cordis': '^4.0.1' }, '0.2.1-alpha.1'), [], 'the host gate must ignore cordis entirely');
+	assert.deepEqual(failingPeers({ '@deepseek-ai/dsh-client-ui-theme': '^0.1.0-rc.6' }, '0.2.1-alpha.1'), ['@deepseek-ai/dsh-client-ui-theme'], 'control: the host gate does read dsh* peers');
+});
+
+test('#91: both documents say which peers the host gate does NOT judge', () => {
+	// The reading this guards against is documented in #91: README explains
+	// that "the peer range is no longer decoration" (correct, for dsh*), and a
+	// reader then assumes cordis and react are part of that judgement. They
+	// are not — the host loop `continue`s on anything without the dsh prefix.
+	const SENTENCE = '@deepseek-ai/dsh';
+	const sites = ['README.md', 'docs/desktop-support.md'];
+	for (const rel of sites) {
+		const text = fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+		const line = text.split('\n').find((l) => l.includes('不参与') && l.includes(SENTENCE));
+		assert.ok(line, `${rel} must state plainly which peers the host gate does not judge (issue #91)`);
+		assert.ok(line.includes('cordis') && line.includes('react'), `${rel}: the sentence must name cordis and react, got: ${line && line.slice(0, 120)}`);
+	}
+});
+
 // Exported so the evaluator can be cross-checked against the host's own
-// node-semver in a one-off (docs/publishing-to-npm.md); the fixture above is
-// what keeps that cross-check honest across releases.
-module.exports = { satisfies, failingPeers };
+// node-semver in a one-off (docs/publishing-to-npm.md); the fixtures above are
+// what keep that cross-check honest across releases.
+module.exports = { satisfies, satisfiesDefault, failingPeers, comparatorSets };

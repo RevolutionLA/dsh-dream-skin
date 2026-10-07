@@ -1,0 +1,46 @@
+# Line endings — declared once, so "the file changed" means the CONTENT changed.
+#
+# Why this file exists (issue #82):
+#
+#   The repo was developed on Windows with `core.autocrlf=true`. The index and
+#   CI store LF, but that machine's working tree holds CRLF, so any gate that
+#   compares raw bytes reports drift forever. `npm run skin:check` compares the
+#   shipped `SKINS` block against a fresh build of the design system — a real
+#   gate (it is the only thing watching byte/format hygiene, the value drift is
+#   watched by `tests/skin.quality.test.cjs`), and it was red for reasons that
+#   had nothing to do with the design system. A gate that is red for
+#   content-free reasons is a gate people learn to ignore.
+#
+#   Declaring `eol=lf` here makes every checkout — Windows, macOS, Linux, CI —
+#   produce the same bytes, so `npm run skin:check` and the preview fingerprint
+#   gate (#83) can compare without a tolerance.
+#
+# Do not remove the catch-all: a new text extension added without a rule here
+# is exactly how the CRLF working tree creeps back in. `text=auto` still lets
+# git detect and skip real binaries.
+* text=auto eol=lf
+
+*.js     text eol=lf
+*.cjs    text eol=lf
+*.mjs    text eol=lf
+*.json   text eol=lf
+*.ts     text eol=lf
+*.md     text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.css    text eol=lf
+*.html   text eol=lf
+*.svg    text eol=lf
+*.patch  text eol=lf
+*.txt    text eol=lf
+
+# Assets: never "converted", never diffed. A line-ending pass that rewrites a
+# PNG is data loss, not hygiene.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.woff   binary
+*.woff2  binary

@@ -1,0 +1,76 @@
+{
+ "__comment": "Captured from the real npm tarballs of @deepseek-ai/dsh-client-ui-theme (0.2.0-rc.1 / 0.2.0-rc.2 / 0.2.1-alpha.1) on 2026-10-06. Regenerate with: npm pack @deepseek-ai/dsh-client-ui-theme@<v>, unpack package/README.md, then re-read the three sentences below. tests/desktop.fontscale.test.cjs requires docs/desktop-support.md to state the SAME range/default and the SAME \"small text and code keep fixed sizes\" carve-out, so a host-side widening, a stale 12-17 claim, or a doc that quietly stops admitting the extremes are unsampled all go red.",
+ "generated_from": "@deepseek-ai/dsh-client-ui-theme README.md (npm pack)",
+ "capturedAt": "2026-10-06",
+ "versions": {
+  "0.2.0-rc.1": {
+   "range": [
+    12,
+    17
+   ],
+   "stepperRange": [
+    12,
+    17
+   ],
+   "default": 14,
+   "rangeSentence": "`dsh-client-ui-theme` lets Web GUI users choose `light`, `dark`, or `system` and set conversation content text from 12 to 17 px in Settings. A loopback client stores both values in the `ui-theme` settings namespace, which the local provider persists in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package also ships the `--dsw-*` token stylesheets and injects a synchronous bootstrap so the selected palette and font size apply before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.",
+   "stepperSentence": "The plugin registers Appearance preference cubes and a font-size stepper in the General section. The stepper accepts integer values from 12 through 17 px and defaults to 14 px. It changes conversation headings and base text by the same increment, including the user bubble and composer draft; flow-row titles, summaries, and tables follow one step under the body size, while small text and code keep fixed sizes. Each accepted change writes through the Host settings API. Rapid changes serialize in gesture order with namespace revisions, and a rejected latest write reloads the durable values. Non-loopback pages keep both choices process-local.",
+   "sheetSentence": "`gradient-shadow-text.css` derives `--dsh-content-font-delta` from `--dsh-content-font-size` and shifts the Markdown heading and base-text ladder by that increment. It also derives the secondary tier `--dsh-content-font-size-secondary` (setting −1 at ≤14, setting −2 above; 13px at the default) with its own `--dsh-content-font-delta-secondary` for the table variants and the flow rows one step under the body. Dense small and code variants stay fixed. Outside the ladder, the user bubble and composer draft read the body pair directly, and flow-row titles and summaries read the secondary pair. The sheet also owns the shadow scale (`--dsw-shadow-lv*`), the translucent-menu `--dsw-menu-backdrop-filter`, and the elevation tokens: `--dsw-elevation-stroke` draws a 0.5px hairline through the rebindable `--dsw-elevation-stroke-color`, and `--dsw-elevation-panel`/`--dsw-elevation-prominent`/`--dsw-elevation-soft` (the composer's larger-blur, lower-alpha tier) layer two faint soft shadows over that stroke, so elevated surfaces set `border: 0` and carry no layout-consuming outline; the derived tokens are re-declared per element so a surface's stroke-color rebind takes effect. An elevated surface that paints `--dsw-specific-menu` also applies `backdrop-filter: var(--dsw-menu-backdrop-filter)` ([decision](../../../.agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.md)). Dark menus use a 45%-opaque gray fill and the `border-l3` stroke; light menus retain their `border-l1` stroke."
+  },
+  "0.2.0-rc.2": {
+   "range": [
+    10,
+    22
+   ],
+   "stepperRange": [
+    10,
+    22
+   ],
+   "default": 14,
+   "rangeSentence": "`dsh-client-ui-theme` lets Web GUI users choose `light`, `dark`, or `system` and set conversation content text from 10 to 22 px in Settings. A loopback client stores both values in the `ui-theme` settings namespace, which the local provider persists in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package also ships the `--dsw-*` token stylesheets and injects a synchronous bootstrap so the selected palette and font size apply before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.",
+   "stepperSentence": "The plugin registers Appearance preference cubes and a font-size stepper in the General section. The stepper accepts integer values from 10 to 22 px and defaults to 14 px. It changes conversation headings and base text by the same increment, including the user bubble and composer draft; flow-row titles, summaries, and tables follow one step under the body size, while small text and code keep fixed sizes. Each accepted change writes through the Host settings API. Rapid changes serialize in gesture order with namespace revisions, and a rejected latest write reloads the durable values. Non-loopback pages keep both choices process-local.",
+   "sheetSentence": "`gradient-shadow-text.css` derives `--dsh-content-font-delta` from `--dsh-content-font-size` and shifts the Markdown heading and base-text ladder by that increment. It also derives the secondary tier `--dsh-content-font-size-secondary` (setting −1 at ≤14, setting −2 above; 13px at the default) with its own `--dsh-content-font-delta-secondary` for the table variants and the flow rows one step under the body. Dense small and code variants stay fixed. Outside the ladder, the user bubble and composer draft read the body pair directly, and flow-row titles and summaries read the secondary pair. The sheet also owns the shadow scale (`--dsw-shadow-lv*`), the translucent-menu `--dsw-menu-backdrop-filter`, and the elevation tokens: `--dsw-elevation-stroke` draws a 0.5px hairline through the rebindable `--dsw-elevation-stroke-color`, and `--dsw-elevation-panel`/`--dsw-elevation-prominent`/`--dsw-elevation-soft` (the composer's larger-blur, lower-alpha tier) layer two faint soft shadows over that stroke, so elevated surfaces set `border: 0` and carry no layout-consuming outline; the derived tokens are re-declared per element so a surface's stroke-color rebind takes effect. An elevated surface that paints `--dsw-specific-menu` also applies `backdrop-filter: var(--dsw-menu-backdrop-filter)` ([decision](../../../.agents/notes/implemented/feature/2026-09-17-compact-translucent-menu-surfaces.md)). Dark menus use a 45%-opaque gray fill and the `border-l3` stroke; light menus retain their `border-l1` stroke."
+  },
+  "0.2.1-alpha.1": {
+   "range": [
+    10,
+    22
+   ],
+   "stepperRange": [
+    10,
+    22
+   ],
+   "default": 14,
+   "rangeSentence": "`dsh-client-ui-theme` lets Web GUI users choose `light`, `dark`, or `system` and set conversation content text from 10 to 22 px in Settings. A loopback client stores both values in the `ui-theme` settings namespace, which the local provider persists in `$DSH_HOME/cordis.patch.yml` by default. The plugin resolves `system` through `prefers-color-scheme` and publishes immutable `ThemeSnapshot`s; ui-layout applies each snapshot to the document. The package also ships the `--dsw-*` token stylesheets and injects a synchronous bootstrap so the selected palette and font size apply before the shell loads. Third-party themes can register alias-token overrides through `ctx.theme`.",
+   "stepperSentence": "The plugin registers Appearance preference cubes and a font-size stepper in the General section. The stepper accepts integer values from 10 to 22 px and defaults to 14 px. It changes conversation headings and base text by the same increment, including the user bubble and composer draft; flow-row titles, summaries, and tables follow one step under the body size, while small text and code keep fixed sizes. Each accepted change writes through the Host settings API. Rapid changes serialize in gesture order with namespace revisions, and a rejected latest write reloads the durable values. Non-loopback pages keep both choices process-local.",
+   "sheetSentence": "`gradient-shadow-text.css` derives `--dsh-content-font-delta` from `--dsh-content-font-size` and shifts the Markdown heading and base-text ladder by that increment. It also derives the secondary tier `--dsh-content-font-size-secondary` (setting −1 at ≤14, setting −2 above; 13px at the default) with its own `--dsh-content-font-delta-secondary` for the table variants and the flow rows one step under the body. Dense small and code variants stay fixed. Outside the ladder, the user bubble and composer draft read the body pair directly, and flow-row titles and summaries read the secondary pair. The sheet also owns the shadow scale (`--dsw-shadow-lv*`), the translucent-menu `--dsw-menu-backdrop-filter`, and the elevation tokens: `--dsw-elevation-stroke` draws a 0.5px hairline through the rebindable `--dsw-elevation-stroke-color`, and `--dsw-elevation-panel`/`--dsw-elevation-prominent`/`--dsw-elevation-soft` (the composer's larger-blur, lower-alpha tier) layer two faint soft shadows over that stroke, so elevated surfaces set `border: 0` and carry no layout-consuming outline; the derived tokens are re-declared per element so a surface's stroke-color rebind takes effect. An elevated surface that paints `--dsw-specific-menu` also applies `backdrop-filter: var(--dsw-menu-backdrop-filter)` ([styling reference](../../../docs/web-styling.md#component-rules)). Dark menus use a 45%-opaque gray fill and the `border-l3` stroke; light menus retain their `border-l1` stroke."
+  }
+ },
+ "hostContract": {
+  "followsSetting": "It changes conversation headings and base text by the same increment, including the user bubble and composer draft",
+  "oneStepUnder": "flow-row titles, summaries, and tables follow one step under the body size",
+  "fixed": "small text and code keep fixed sizes",
+  "fixedSheet": "Dense small and code variants stay fixed.",
+  "secondaryRule": "setting -1 at <=14, setting -2 above",
+  "deltaVar": "--dsh-content-font-delta",
+  "fromVar": "--dsh-content-font-size",
+  "secondaryVar": "--dsh-content-font-size-secondary",
+  "verifiedAgainst": "0.2.0-rc.2",
+  "sentences": {
+   "followsSetting": "It changes conversation headings and base text by the same increment, including the user bubble and composer draft;",
+   "fixed": "while small text and code keep fixed sizes.",
+   "secondaryRule": "(setting −1 at ≤14, setting −2 above; 13px at the default)"
+  }
+ },
+ "derived": {
+  "note": "Computed from the host README rule, not sampled from a live page.",
+  "secondaryAt": {
+   "10": 9,
+   "12": 11,
+   "14": 13,
+   "17": 15,
+   "22": 20
+  },
+  "noSizeLookup": "The host README documents the ladder in px, not a ratio, so the extremes are the stepper bounds themselves."
+ }
+}

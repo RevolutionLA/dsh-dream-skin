@@ -21,6 +21,15 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      # The shipped `SKINS` block is GENERATED from scripts/skin-system.cjs and
+      # `lib/client.js` is the only artifact users load. This step compares the
+      # two BYTEWISE (line endings normalised, see .gitattributes / issue #82),
+      # so it catches a hand-edit that changes formatting — the value drift is
+      # caught by `npm test` below. The two gates are complementary on purpose:
+      # run this one first so a formatting-only diff reports as formatting, not
+      # as a mysterious token mismatch.
+      - name: Design system vs bundle byte check (formatting only)
+        run: npm run skin:check
       # No dependencies to install — the client bundle is hand-written and the
       # smoke tests run in a plain Node VM. Just run them.
       - name: Run tests

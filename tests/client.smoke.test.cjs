@@ -47,6 +47,55 @@ const CODE = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'ut
 // means nothing is in flight to cancel, which is how the round-4 T-1 leak stayed
 // invisible to 92 green cases. Teardown/cancellation tests slow the ladder
 // instead (see `drift probe (T-1)`).
+// --- shipped skin catalog (read out of the bundle, never restated) ---------
+// Assertions about a skin's palette must read it from lib/client.js. A literal
+// `#f7f0f3` copied into a test is a SECOND source of truth: it pins the design
+// and then keeps passing long after the design has moved — which is exactly
+// what happened when the presets were rebuilt from the design system (five
+// cases went red on palette literals that had silently frozen months earlier).
+const SHIPPED_SKINS = (() => {
+	const marker = '		const SKINS = [';
+	const start = CODE.indexOf(marker);
+	if (start < 0) throw new Error('SKINS block not found in lib/client.js');
+	const open = start + marker.length - 1;
+	let depth = 0;
+	let i = open;
+	let inStr = null;
+	while (i < CODE.length) {
+		const ch = CODE[i];
+		if (inStr) {
+			if (ch === '\\') i += 2;
+			else if (ch === inStr) inStr = null;
+			i += 1;
+			continue;
+		}
+		if (ch === '"' || ch === "'" || ch === '`') { inStr = ch; i += 1; continue; }
+		if (ch === '[') depth += 1;
+		else if (ch === ']') { depth -= 1; if (depth === 0) break; }
+		i += 1;
+	}
+	// eslint-disable-next-line no-new-func
+	return new Function('return ' + CODE.slice(open, i + 1))();
+})();
+const skinById = (id) => SHIPPED_SKINS.find((s) => s.id === id);
+
+/** "rgba(35, 36, 37, 0.5)" from a skin token + an alpha — no palette literals. */
+const rgbTriple = (css) => {
+	const v = String(css).trim();
+	if (v.startsWith('#')) {
+		const h = v.slice(1);
+		return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+	}
+	const m = /rgba?\(([^)]+)\)/i.exec(v);
+	assert.ok(m, 'token is a parseable color: ' + v);
+	const parts = m[1].split(',').map((x) => parseInt(x.trim(), 10));
+	return [parts[0], parts[1], parts[2]];
+};
+const rgbaOf = (css, alpha) => {
+	const [r, g, b] = rgbTriple(css);
+	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
 if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -1482,6 +1531,54 @@ test('setSkin auto-attaches the skin diffused-glow gradient when no user wallpap
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'user image wallpaper kept');
 });
 
+test('a skin switch carries its authored numbers (and never the users own)', () => {
+	// Each preset ships its own wash / glass / dialog numbers. Switching skins
+	// must retune them — but ONLY the ones the user has not made their own.
+	// That asymmetry is the whole feature: "I never touched the slider" gets
+	// the authored look, "I set this to 0.6" keeps 0.6 forever.
+	const h = buildSandbox();
+	const rt = makeRuntime();
+	const e = h.factory(makeRequire(rt.RT));
+	let pref = 'system';
+	const theme = {
+		register() { return () => {}; },
+		setTheme(id) { pref = id; },
+		getTheme() { return { preference: pref, active: { id: pref, colorScheme: 'dark', tokens: {} }, themes: [], revision: 1 }; },
+		overrideTokens() { return () => {}; }
+	};
+	const baseCtx = makeApplyContext(h, { captureActions: true });
+	assert.doesNotThrow(() => e.apply({ ...baseCtx, theme }));
+	const skinBags = h.actionBags['dream-skin'];
+
+	// (a) untouched keys follow the skin.
+	skinBags.setSkin('mist');
+	const mist = skinById('mist').defaults;
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), String(mist.wallpaperOpacity), 'mist wash applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'), String(mist.wallpaperBlur), 'mist blur applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), String(mist.composerOpacity), 'mist composer applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), String(mist.modalOpacity), 'mist dialog applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), mist.material, 'mist material applied');
+
+	skinBags.setSkin('midnight');
+	const midnight = skinById('midnight').defaults;
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), String(midnight.wallpaperOpacity), 'the wash follows the skin, not a global average');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), String(midnight.composerOpacity), 'composer follows the skin');
+	assert.notEqual(String(mist.wallpaperOpacity), String(midnight.wallpaperOpacity), 'the two skins really do differ');
+
+	// (b) a value the user set is theirs. Write it through the real slider so
+	// it is recorded as user-owned, then switch skins twice.
+	const glassBags = h.actionBags['dream-skin-glass'];
+	assert.ok(glassBags && typeof glassBags.setOpacity === 'function', 'glass slider captured');
+	glassBags.setOpacity(60);
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.6', 'user value stored');
+	skinBags.setSkin('mist');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.6', 'a user-owned wash is NOT retuned by a skin switch');
+	skinBags.setSkin('abyss');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.6', '…and survives another switch');
+	// While the untouched dialog opacity still follows.
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), String(skinById('abyss').defaults.modalOpacity), 'untouched keys keep following');
+});
+
 test('setSkin swaps the built-in diffused-glow background when switching skins', () => {
 	// Regression: switching from one skin to another must swap the wallpaper to
 	// the NEW skin's gradient when the current one is the (built-in) skin glow —
@@ -1505,13 +1602,16 @@ test('setSkin swaps the built-in diffused-glow background when switching skins',
 	// Pick mist → its gradient attaches and is marked as following the skin.
 	skinBags.setSkin('mist');
 	const mistGrad = h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient');
-	assert.ok(mistGrad && mistGrad.indexOf('159, 190, 245') !== -1, 'mist diffused-glow attached');
+	// Compare against the skin's OWN glow field: the literal RGB triple used to
+	// live here, so the case kept passing after the background was redesigned.
+	assert.equal(mistGrad, skinById('mist').glow, 'mist diffused-glow attached');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-follows-skin'), '1', 'mist background marked as following');
 
 	// Switch to nebula → background must swap to nebula's gradient.
 	skinBags.setSkin('nebula');
 	const g2 = h.localStorage.getItem('dsh-dream-skin:wallpaper-gradient');
-	assert.ok(g2 && g2.indexOf('139, 124, 246') !== -1, 'nebula purple glow applied (swapped from mist)');
+	assert.equal(g2, skinById('nebula').glow, 'nebula glow applied (swapped from mist)');
+	assert.notEqual(g2, mistGrad, 'the two skins ship different backgrounds');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-follows-skin'), '1', 'still following after switch');
 });
 
@@ -1526,7 +1626,15 @@ test('issue #29: wallpaper wash uses the target skin tokens, not BUILTIN_BASE fa
 			'dsh-dream-skin:wallpaper-kind': 'gradient',
 			'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #222 0%, #444 100%)',
 			'dsh-dream-skin:wallpaper-opacity': '0.8',
-			'dsh-dream-skin:wallpaper-follows-skin': '0'
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			// Authored per-skin numbers (incl. auto-dim) now ride along on a skin
+			// switch; pin them here so this case keeps isolating the wash COLOUR.
+			'dsh-dream-skin:wallpaper-autodim': '0',
+			'dsh-dream-skin:modal-opacity': '0.94',
+			'dsh-dream-skin:composer-opacity': '0.85',
+			'dsh-dream-skin:sidebar-opacity': '0.28',
+			'dsh-dream-skin:material-preset': 'frosted',
+			'dsh-dream-skin:wallpaper-blur': '0'
 		}
 	});
 	const e = h.factory(makeRequire(makeRuntime().RT));
@@ -1577,7 +1685,17 @@ test('issue #29: skin-following gradient shades from raw theme tokens, not its o
 	// Real ThemeRuntime folds override layers into snapshot.active. A wallpaper
 	// wash must resolve the registered raw theme from snapshot.themes; otherwise
 	// its previous white/default wash feeds back into the next skin selection.
-	const h = buildSandbox();
+	const h = buildSandbox({ seed: {
+		// Same reason as the case above: pin the authored numbers so the case
+		// measures the wash colour, not the new per-skin defaults.
+		'dsh-dream-skin:wallpaper-opacity': '0.8',
+		'dsh-dream-skin:wallpaper-autodim': '0',
+		'dsh-dream-skin:modal-opacity': '0.94',
+		'dsh-dream-skin:composer-opacity': '0.85',
+		'dsh-dream-skin:sidebar-opacity': '0.28',
+		'dsh-dream-skin:material-preset': 'frosted',
+		'dsh-dream-skin:wallpaper-blur': '0'
+	} });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	let themes = [
 		{ id: 'light', colorScheme: 'light', tokens: { '--dsw-alias-bg-base': '#fff', '--dsw-specific-sidebar-fill': '#fff' } },
@@ -1629,13 +1747,16 @@ test('issue #29: skin-following gradient shades from raw theme tokens, not its o
 	// First selection from the default light theme must already use rose, not white.
 	skinBags.setSkin('rose');
 	let wash = overrides.get('dsh-dream-skin:appearance').tokens;
-	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
+	const roseWash = rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.8);
+	assert.equal(wash['--dsw-alias-bg-base'].light, roseWash,
+		'first selection already washes with ROSE, not the built-in white');
 
 	// The round-trip must not feed either prior wash back into the final rose wash.
 	skinBags.setSkin('midnight');
 	skinBags.setSkin('rose');
 	wash = overrides.get('dsh-dream-skin:appearance').tokens;
-	assert.match(wash['--dsw-alias-bg-base'].light, /rgba\(247,\s*240,\s*243,\s*0\.8\)/);
+	assert.equal(wash['--dsw-alias-bg-base'].light, roseWash,
+		'round-trip does not feed a prior wash back into the final rose wash');
 });
 
 test('production facade keeps wallpaper, popup opacity, and accent visible together across a skin round-trip', async () => {
@@ -1646,6 +1767,7 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 		'dsh-dream-skin:wallpaper-opacity': '0.8',
 		'dsh-dream-skin:wallpaper-follows-skin': '0',
 		'dsh-dream-skin:modal-opacity': '0.5',
+		'dsh-dream-skin:wallpaper-autodim': '0',
 		'dsh-dream-skin:accent': '#123456'
 	} });
 	const e = h.factory(makeRequire(makeRuntime().RT));
@@ -1740,7 +1862,8 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// it only discriminates on the MID-SWITCH skin, whose palette differs from
 	// both the boot bake and the final selection. Without the re-resolve the
 	// dialogs would keep rose through the midnight leg of the round-trip.
-	assert.match(theme.getTheme().active.tokens['--dsw-alias-bg-layer-2'], /rgba\(22,\s*22,\s*28,\s*0\.5\)/,
+	const midnightLayer2 = rgbaOf(skinById('midnight').tokens['--dsw-alias-bg-layer-2'], 0.5);
+	assert.equal(theme.getTheme().active.tokens['--dsw-alias-bg-layer-2'], midnightLayer2,
 		'the deferred wallpaper re-shade re-resolves layer-2 for the mid-switch skin (midnight)');
 	// Adjudication 10.5.1 P1 (R4-style): pin BOTH scheme entries of the
 	// mid-switch override. The inactive (light) scheme must be painted from the
@@ -1749,31 +1872,32 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	const midLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
 	assert.equal(midLayer.light, 'rgba(255, 255, 255, 0.5)',
 		'the light entry of the mid-switch layer-2 is the scheme base (white), not the dark skin hue');
-	assert.equal(midLayer.dark, 'rgba(22, 22, 28, 0.5)',
+	assert.equal(midLayer.dark, midnightLayer2,
 		'the dark entry of the mid-switch layer-2 keeps midnight\'s own hue at the seeded alpha');
 	skin.setSkin('rose');
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	const tokens = theme.getTheme().active.tokens;
-	assert.match(tokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
+	assert.equal(tokens['--dsw-alias-bg-base'], rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.8),
 		'rose wallpaper wash survives the round-trip');
-	assert.match(tokens['--dsw-specific-menu'], /rgba\(247,\s*240,\s*243,\s*0\.5\)/,
+	assert.equal(tokens['--dsw-specific-menu'], rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.5),
 		'popup opacity remains active after the wallpaper re-shade');
 	assert.equal(tokens['--dsw-alias-brand-primary'], '#123456',
 		'custom accent remains active after the wallpaper re-shade');
 	// End state settles back to the seeded skin's own layer-2 hue (issue #67).
-	assert.match(tokens['--dsw-alias-bg-layer-2'], /rgba\(255,\s*253,\s*253,\s*0\.5\)/,
+	const roseLayer2 = rgbaOf(skinById('rose').tokens['--dsw-alias-bg-layer-2'], 0.5);
+	assert.equal(tokens['--dsw-alias-bg-layer-2'], roseLayer2,
 		'the deferred wallpaper re-shade re-resolves layer-2 to the settled rose hue');
 	// Adjudication 10.5.1 P1: the settled (rose, light-scheme) override keeps
 	// rose's own hue in the light entry; the inactive dark entry falls back to
 	// the scheme base (21, 21, 23).
 	const roseLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
-	assert.equal(roseLayer.light, 'rgba(255, 253, 253, 0.5)',
+	assert.equal(roseLayer.light, roseLayer2,
 		'the settled rose layer-2 keeps rose\'s own (light) hue in the light entry');
 	assert.equal(roseLayer.dark, 'rgba(21, 21, 23, 0.5)',
 		'the inactive dark entry of the settled rose layer-2 falls back to the scheme base');
 	assert.equal(activeLayerRemovals, 0,
 		'same-source replacement never publishes an intermediate unshaded theme');
-	assert.match(presentedTokens['--dsw-alias-bg-base'], /rgba\(247,\s*240,\s*243,\s*0\.8\)/,
+	assert.equal(presentedTokens['--dsw-alias-bg-base'], rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.8),
 		'the presenter ends on the deferred rose wash instead of the outer stale snapshot');
 });
 
@@ -2201,6 +2325,65 @@ test('10.5.0: the material sheet is adopted by document id — a re-evaluated bu
 	assert.equal(created.filter((el) => el.id === MAT).length, 1,
 		'createElement was called for the sheet exactly once across both mounts');
 	assert.ok(sheetsOf(MAT)[0].textContent.length > 1000, 'the adopted sheet stays fully texted (adoption is not a no-op)');
+});
+
+test('#80: the glass scheme attribute is stamped at mount and follows the active skin', () => {
+	// The material sheet carries TWO sets of liquid-glass constants (a dark set on
+	// bare `html`, a light set on `html[data-dsh-dream-skin-scheme="light"]`). The
+	// attribute used to be the host's `body[data-ds-dark-theme]` — which the host's
+	// own theme presenter ERASES on dispose(), so every theme-layer remount reopened
+	// a window in which a dark skin was served the paper rim (and the comment on top
+	// claimed the opposite). It is now ours, stamped by the plugin.
+	const attrs = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty() {} },
+			setAttribute: (k, v) => attrs.set(k, v),
+			removeAttribute: (k) => attrs.delete(k)
+		},
+		createElement: () => makeEl(),
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc, seed: { 'dsh-dream-skin:skin': 'ivory' } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const themeHandlers = [];
+	const THEMES = [
+		{ id: 'ivory', colorScheme: 'light', tokens: {} },
+		{ id: 'midnight', colorScheme: 'dark', tokens: {} }
+	];
+	let pref = 'ivory';
+	const ctx = makeApplyContext(h, { captureActions: true });
+	ctx.theme.getTheme = () => ({
+		preference: pref,
+		active: { id: pref, colorScheme: pref === 'ivory' ? 'light' : 'dark', tokens: {} },
+		themes: THEMES,
+		revision: 1
+	});
+	ctx.on = (ev, fn) => { if (ev === 'theme/change') themeHandlers.push(fn); return () => {}; };
+
+	assert.doesNotThrow(() => e.apply(ctx));
+	// Sample 1 — the light skin restored at boot. `light` is the OVERRIDE, so this
+	// half is the one that would silently never apply if the attribute were missing.
+	assert.equal(attrs.get('data-dsh-dream-skin-scheme'), 'light',
+		'a light skin publishes the light glass set at mount');
+
+	// Sample 2 — switch to a dark skin and fire the real theme/change path. The
+	// attribute must move in the SAME event, not on the deferred wallpaper re-shade.
+	const skin = h.actionBags && h.actionBags['dream-skin'];
+	assert.equal(typeof skin?.setSkin, 'function', 'the skin row exposes setSkin');
+	skin.setSkin('midnight');
+	pref = 'midnight';
+	for (const fn of themeHandlers) {
+		fn({ preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {} }, themes: THEMES, revision: 2 });
+	}
+	assert.equal(attrs.get('data-dsh-dream-skin-scheme'), 'dark',
+		'the attribute follows the skin, so the paper rim cannot outlive it');
+	// And it is stamped on <html>, the element the sheet selects on.
+	assert.ok(attrs.has('data-dsh-dream-skin-scheme'));
 });
 
 test('10.5.0: the settings-nav icon hook is idempotent and self-reports through the status snapshot', async () => {
@@ -3268,9 +3451,14 @@ test('round-6: first launch applies factory defaults (shipped look)', async () =
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'factory wallpaper kind applied');
 	assert.ok((h.localStorage.getItem('dsh-dream-skin:wallpaper') || '').startsWith('data:image/svg+xml;base64,'), 'bundled vector glow applied');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-url'), 'https://uapis.cn/api/v1/image/bing-daily', 'bing-daily default URL visible');
-	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), '0.19', 'factory wallpaper opacity applied');
-	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), '0.4', 'factory composer opacity applied');
-	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.6', 'factory modal opacity applied (adjudication R6 pin)');
+	// The shipped numbers come from the factory SKIN's own `defaults` block, not
+	// from a second copy in the seed table (they used to disagree: 0.19 seeded
+	// vs 0.26 authored for exactly the same skin).
+	const NEBULA = skinById('nebula').defaults;
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-opacity'), String(NEBULA.wallpaperOpacity), 'factory wallpaper opacity applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-blur'), String(NEBULA.wallpaperBlur), 'factory wallpaper blur applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:composer-opacity'), String(NEBULA.composerOpacity), 'factory composer opacity applied');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), String(NEBULA.modalOpacity), 'factory modal opacity applied (adjudication R6 pin)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:material-preset'), 'frosted', 'factory material applied (frosted IS the shipped look, blue-team B5)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-refresh'), '{"on":0,"hours":24}', 'factory refresh schedule OFF (blue-team B7: third-party polling is opt-in)');
 	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper-fit'), 'cover', 'factory fill mode is part of the shipped look record');
@@ -3765,10 +3953,19 @@ test('adjudication R5: missing slider key falls back to the 0.94 default in the 
 	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.94)', 'an existing user without a stored slider gets the 0.94 fallback baked into layer-2');
 });
 
-test('adjudication R6: fresh install bakes the factory modal seed (literal 0.6) into storage and the boot overlay', async () => {
+test('adjudication R6: fresh install bakes the factory modal seed (literal 0.92) into storage and the boot overlay', async () => {
 	// The factory seed drives the FIRST-LAUNCH dialog fill. Both the
-	// localStorage literal and the boot overlay alpha must carry the shipped
-	// 0.6 (a "0.6" -> "0.3" swap stayed green on the whole suite before this).
+	// localStorage value and the boot overlay alpha must carry the shipped
+	// number, and that number is written out HERE as a literal.
+	//
+	// It used to be read back out of `skinById('nebula')` — the very object
+	// under test — which made the pin blind by construction: change the design
+	// system's number and the assertion follows it silently (adjudication T2b,
+	// issue #71). 10.5.1 ruled for 0.6; 10.6.1 deliberately moved to 0.92 so a
+	// dialog actually occludes the conversation behind it, and that change is
+	// declared in CHANGELOG under "行为变更". The counterpart literal lives in
+	// tests/skin.quality.test.cjs; the two must be edited together.
+	const FACTORY_MODAL = '0.92';
 	const overrides = new Map();
 	const theme = {
 		register() { return () => {}; },
@@ -3781,10 +3978,10 @@ test('adjudication R6: fresh install bakes the factory modal seed (literal 0.6) 
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	e.apply({ ...baseCtx, theme });
-	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.6', 'factory modal opacity seed is written on first launch (literal pin)');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:modal-opacity'), FACTORY_MODAL, 'factory modal opacity seed is written on first launch (literal pin)');
 	await sleep(20); // let the deferred overlay pass publish
 	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
-	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.6)', 'the boot overlay carries the factory-seeded alpha, not the 0.94 fallback');
+	assert.equal(entry.dark, 'rgba(22, 22, 28, ' + FACTORY_MODAL + ')', 'the boot overlay carries the factory-seeded alpha, not the 0.94 fallback');
 });
 
 /**
@@ -5113,4 +5310,420 @@ test('dockkit right panel: the fullscreen gate rides the wash marker lifecycle',
 	// stops applying instead of sticking on a wallpaper-less profile.
 	h.actionBags['dream-skin-wallpaper'].clearWallpaper();
 	assert.equal(attrs.has(gate[1]), false, 'and it is retracted with the wash layer');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #84 — write-volume accounting for a skin switch
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Three numbers for the same quantity were quoted in review and none of them
+// agreed: "3 publishes / 111 token writes", "publish 2 → 3", "5 → 19". They are
+// not contradictory. They are three DIFFERENT counters, and nobody had declared
+// which one they were reading — so declare them, count each separately, and put
+// a budget on each:
+//
+//   publish      how many times the plugin asks the host for a token layer
+//                (`theme.overrideTokens`). NOT the number of tokens in a layer.
+//   setProperty  how many CSS custom properties it writes on documentElement.
+//                NOT how many tokens the design system defines.
+//   setItem      how many localStorage writes. `skin`, the seven authored
+//                defaults and the provenance snapshot are separate keys and
+//                separate writes; nothing here is derived.
+//
+// Measured 2026-10-06, one switch (the `dream-skin` row → midnight), from the
+// setSkin call to the end of the SYNCHRONOUS work:
+//
+//              publish   setProperty   setItem
+//   after fix    2          6           13
+//   before fix   2          6           17–19  ← saveFactorySnapshot() serialises
+//                                               the whole provenance map, and ran
+//                                               once per seeded key: one storage
+//                                               key rewritten seven times
+//
+// The publish count ALSO differs between a synchronous sample and a settled one
+// (2 vs 3 — a wallpaper re-shade lands on a timer). That is why two honest
+// measurements of "publishes" can disagree: they sampled different windows.
+// This gate pins the synchronous window (deterministic, no timers) and then
+// separately requires the settled window to STOP moving — an unguarded
+// overrideTokens() emitting theme/change caused a real-machine loop once
+// (CHANGELOG [0.2.1]), and a budget that samples once cannot see it.
+//
+// Budgets are tight enough to redden on the amplification above (17–19 > 15)
+// and loose enough to survive one more authored default (13 = 7 authored keys +
+// skin id + 5 wallpaper/one-off keys, one write each).
+//
+// The two mutations at the end of this block re-measure that table rather than
+// asserting it: un-batching the retune — either by dropping the deferral inside
+// saveFactorySnapshot(), or by dropping the scope that makes the deferral mean
+// something — puts the switch back at exactly {publish 2, setProperty 6,
+// setItem 19, worst key 7}. The review's "5 → 19" is that number.
+const WRITE_BUDGET = {
+	// Synchronous window.
+	sync: { publish: 4, setProperty: 8, setItem: 15, maxKeyWrites: 2 },
+	// …plus everything the switch schedules (the wallpaper re-shade, the deferred
+	// host-probe wallpaper seed). Measured: 3 publishes, 6 setProperty, 13
+	// (existing user) / 17 (first launch) storage writes. This is a runaway
+	// detector, not the amplification detector — the sync budget is that.
+	settled: { publish: 5, setProperty: 8, setItem: 22 }
+};
+
+/** A sandbox that counts the three declared quantities, and nothing else. */
+function makeWriteBudgetHarness({ factoryApplied = true, seed = {}, code } = {}) {
+	const counts = { publish: 0, publishSlots: 0, setProperty: 0, setItem: 0, removeItem: 0 };
+	const keysWritten = new Map();
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: {
+			style: { setProperty() { counts.setProperty += 1; } },
+			setAttribute() {}, removeAttribute() {}
+		},
+		createElement: () => makeEl(),
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const store = new Map(Object.entries(seed).map(([k, v]) => [k, String(v)]));
+	if (factoryApplied) store.set('dsh-dream-skin:factory-applied', '1');
+	const localStorage = {
+		getItem: (k) => (store.has(k) ? store.get(k) : null),
+		setItem(k, v) {
+			counts.setItem += 1;
+			keysWritten.set(k, (keysWritten.get(k) || 0) + 1);
+			store.set(k, String(v));
+		},
+		removeItem(k) { counts.removeItem += 1; store.delete(k); }
+	};
+	const h = buildSandbox({ document: doc, localStorage, code });
+	const theme = {
+		register() { return () => {}; },
+		setTheme() {},
+		getTheme() {
+			return { preference: 'dark', active: { id: 'dark', colorScheme: 'dark', tokens: {} }, themes: [], revision: 1 };
+		},
+		overrideTokens(_source, tokens) {
+			counts.publish += 1;
+			counts.publishSlots += Object.keys(tokens || {}).length;
+			return () => {};
+		}
+	};
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply({ ...makeApplyContext(h, { captureActions: true }), theme });
+	// Read the store the plugin actually writes. NOT `h.localStorage`:
+	// buildSandbox returns its own internal store, and this harness injects a
+	// DIFFERENT localStorage through the overrides spread, so the plugin writes
+	// here while `h.localStorage` stays empty. Reading the wrong object made
+	// every "the value survived" assertion see `null` and look like a regression
+	// in the bundle. Two stores, one of them a decoy — read this one.
+	const read = (k) => (store.has(k) ? store.get(k) : null);
+	return { h, counts, keysWritten, store, read };
+}
+
+const budgetDelta = (before, after) => ({
+	publish: after.publish - before.publish,
+	publishSlots: after.publishSlots - before.publishSlots,
+	setProperty: after.setProperty - before.setProperty,
+	setItem: after.setItem - before.setItem
+});
+
+/** Drive one skin switch and sample the three counters twice. */
+async function measureSkinSwitch({ factoryApplied, seed, code } = {}) {
+	const p = makeWriteBudgetHarness({ factoryApplied, seed, code });
+	const before = { ...p.counts };
+	p.h.actionBags['dream-skin'].setSkin('midnight');
+	const sync = budgetDelta(before, p.counts);
+	await new Promise((r) => setTimeout(r, 500));
+	const at500 = { ...p.counts };
+	await new Promise((r) => setTimeout(r, 2000));
+	const at2500 = { ...p.counts };
+	const worstKey = Math.max(0, ...p.keysWritten.values());
+	return { p, sync, at500, at2500, settled: budgetDelta(before, at2500), worstKey };
+}
+
+test('#84: the budget harness observes a plugin that is actually running', () => {
+	// A harness that counted nothing would make every budget below pass. These
+	// are floors, not magic numbers: `apply()` on a first launch seeds the
+	// shipped defaults, which IS storage traffic.
+	const p = makeWriteBudgetHarness({ factoryApplied: false });
+	assert.ok(p.counts.setItem >= 10, `the counter sees boot writes, saw ${p.counts.setItem}`);
+	assert.ok(p.counts.setProperty >= 4, `the counter sees root property writes, saw ${p.counts.setProperty}`);
+	assert.ok(p.counts.publish >= 1, `the counter sees token publications, saw ${p.counts.publish}`);
+});
+
+test('#84: a skin switch stays inside the declared write budget (existing user)', async () => {
+	const r = await measureSkinSwitch({ factoryApplied: true });
+	assert.ok(r.sync.publish <= WRITE_BUDGET.sync.publish,
+		`one switch published ${r.sync.publish} token layer(s), budget ${WRITE_BUDGET.sync.publish}`);
+	assert.ok(r.sync.setProperty <= WRITE_BUDGET.sync.setProperty,
+		`one switch wrote ${r.sync.setProperty} root property(s), budget ${WRITE_BUDGET.sync.setProperty}`);
+	assert.ok(r.sync.setItem <= WRITE_BUDGET.sync.setItem,
+		`one switch made ${r.sync.setItem} storage writes, budget ${WRITE_BUDGET.sync.setItem}.\n` +
+		'The pre-#84 value was 17-19: saveFactorySnapshot() serialises the WHOLE provenance\n' +
+		'map, so calling it once per seeded key rewrote one storage key seven times. Batch it.');
+	assert.ok(r.worstKey <= WRITE_BUDGET.sync.maxKeyWrites,
+		`one storage key was written ${r.worstKey} times in a single switch, budget ${WRITE_BUDGET.sync.maxKeyWrites}`);
+});
+
+test('#84: a first-launch switch stays inside the same budget', async () => {
+	// The fresh-install path seeds more (the boot probe is still settling), so it
+	// gets its own measurement rather than being assumed equal to the above.
+	const r = await measureSkinSwitch({ factoryApplied: false });
+	assert.ok(r.sync.setItem <= WRITE_BUDGET.sync.setItem,
+		`a first-launch switch made ${r.sync.setItem} sync storage writes, budget ${WRITE_BUDGET.sync.setItem}`);
+	assert.ok(r.sync.publish <= WRITE_BUDGET.sync.publish, `a first-launch switch published ${r.sync.publish} layer(s)`);
+	assert.ok(r.sync.setProperty <= WRITE_BUDGET.sync.setProperty, `a first-launch switch wrote ${r.sync.setProperty} root properties`);
+});
+
+test('#84: the settled window stops moving, and stays under its own budget', async () => {
+	// Double sample (+500ms / +2500ms), per the repo test-admission rules: an
+	// intermediate snapshot AND a final one, equal. A single sample cannot tell
+	// "settled" from "still climbing", and a climbing counter is exactly what an
+	// unguarded overrideTokens() emit produced on a real machine.
+	for (const factoryApplied of [true, false]) {
+		const r = await measureSkinSwitch({ factoryApplied });
+		const tag = factoryApplied ? 'existing user' : 'first launch';
+		assert.deepEqual(
+			{ publish: r.at500.publish, setProperty: r.at500.setProperty, setItem: r.at500.setItem },
+			{ publish: r.at2500.publish, setProperty: r.at2500.setProperty, setItem: r.at2500.setItem },
+			`${tag}: the counters kept moving between +500ms and +2500ms — something is writing on a loop`
+		);
+		assert.ok(r.settled.publish <= WRITE_BUDGET.settled.publish, `${tag}: ${r.settled.publish} publishes > ${WRITE_BUDGET.settled.publish}`);
+		assert.ok(r.settled.setProperty <= WRITE_BUDGET.settled.setProperty, `${tag}: ${r.settled.setProperty} root writes > ${WRITE_BUDGET.settled.setProperty}`);
+		assert.ok(r.settled.setItem <= WRITE_BUDGET.settled.setItem, `${tag}: ${r.settled.setItem} storage writes > ${WRITE_BUDGET.settled.setItem}`);
+	}
+});
+
+test('#84: a published token layer is never partial — slots scale with publishes', async () => {
+	// `publish` counts LAYERS, not tokens (see the header). A layer that silently
+	// lost slots would leave the surface half-themed while the layer count stayed
+	// put, so the two numbers are checked together.
+	//
+	// This is an INVARIANT check, not a magnitude one. The harness's stub host
+	// theme exposes no tokens of its own, so the layer this bundle publishes is
+	// 7 slots wide here and 37 on a real DSH host — the "111 = 37 × 3" in
+	// docs/desktop-support.md is that real width. Pinning 7 would pin the stub;
+	// pinning the RATIO pins the plugin.
+	for (const factoryApplied of [true, false]) {
+		const r = await measureSkinSwitch({ factoryApplied });
+		const tag = factoryApplied ? 'existing user' : 'first launch';
+		assert.ok(r.sync.publish > 0 && r.sync.publishSlots > 0, `${tag}: the harness saw no publish at all`);
+		assert.equal(r.sync.publishSlots % r.sync.publish, 0,
+			`${tag}: ${r.sync.publishSlots} slot writes across ${r.sync.publish} publishes — a partial layer`);
+		const width = r.sync.publishSlots / r.sync.publish;
+		assert.equal(r.settled.publishSlots, r.settled.publish * width,
+			`${tag}: the deferred pass published a layer of a different width (${r.settled.publishSlots} slots over ` +
+			`${r.settled.publish} publishes, vs ${width}/layer synchronously) — a partial layer themes half a surface`);
+	}
+});
+
+test('mutation: persisting the provenance map per seeded key reddens the write budget', async () => {
+	// Both halves of the fix, each broken in isolation: the deferral and the
+	// batch scope are useless without the other, so a case that removed only one
+	// of them would not prove the pair.
+	const noDefer = CODE.replace(
+		'\t\t\tif (snapshotBatchDepth > 0) {\n\t\t\t\tsnapshotBatchDirty = true;\n\t\t\t\treturn;\n\t\t\t}\n',
+		''
+	);
+	// Call the callback, just without a batch around it. NOT `(() => {` — that
+	// pairs with the trailing `});` as a parenthesised function EXPRESSION that
+	// is never invoked, so it deletes the retune instead of un-batching it and
+	// the write count DROPS. The `>= control` guard below exists because that
+	// mistake was made once here and read as "the gate still passes".
+	const noBatch = CODE.replace('\t\t\twithFactorySnapshotBatch(() => {\n', '\t\t\t((fn) => fn())(() => {\n');
+	assert.notEqual(noDefer, CODE, 'mutation A must actually change the bundle');
+	assert.notEqual(noBatch, CODE, 'mutation B must actually change the bundle');
+
+	const control = await measureSkinSwitch({ factoryApplied: true });
+	for (const [name, code] of [['no deferral', noDefer], ['no batch scope', noBatch]]) {
+		const r = await measureSkinSwitch({ factoryApplied: true, code });
+		// The mutation must break the BATCHING, not the retune. A mutated bundle
+		// that writes fewer keys than the fixed one simply stopped doing the
+		// work, and its budget number is meaningless either way.
+		assert.ok(
+			r.sync.setItem >= control.sync.setItem,
+			`${name}: the mutated bundle must still PERFORM the retune — it made ${r.sync.setItem} storage ` +
+			`writes against ${control.sync.setItem} on the unmutated bundle. A mutation that never runs the ` +
+			'code under test is not a mutation, it is a deletion.'
+		);
+		assert.ok(
+			r.worstKey > WRITE_BUDGET.sync.maxKeyWrites || r.sync.setItem > WRITE_BUDGET.sync.setItem,
+			`${name}: the budget must redden again — got ${r.sync.setItem} writes, worst key ${r.worstKey}`
+		);
+	}
+});
+
+test('#84: a skin switch never releases the sidebar link; a slider drag does', () => {
+	// `applySkinDefaults()` writes SIDEBAR_OPACITY_KEY through plain writeStorage,
+	// NOT through writeSidebarOpacityForSlider(). Deliberate: the slider path
+	// releases the "follow the wallpaper" link because a DRAG is the user asking
+	// for separate control (issue #55). A skin switch is not the user asking, so
+	// flipping their checkbox as a side effect of picking a colour would change a
+	// visible setting for no visible reason. This is the measured answer to the
+	// review's question, not a reading of the code.
+	const seed = {
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #222 0%, #444 100%)',
+		'dsh-dream-skin:wallpaper-follows-skin': '0',
+		'dsh-dream-skin:sidebar-link': '1',
+		'dsh-dream-skin:sidebar-opacity': '0.5' // the user's own number
+	};
+	const h = makeWriteBudgetHarness({ factoryApplied: true, seed });
+	h.h.actionBags['dream-skin'].setSkin('midnight');
+	assert.equal(h.read('dsh-dream-skin:sidebar-link'), '1', 'a skin switch leaves the link alone');
+	assert.equal(h.read('dsh-dream-skin:sidebar-opacity'), '0.5', 'and never retunes a value the user owns');
+
+	// Time point 2: the slider, on the same profile, DOES release it.
+	const bag = h.h.actionBags['dream-skin-wallpaper'];
+	assert.ok(bag && typeof bag.setSidebarOpacity === 'function', 'the wallpaper row exposes setSidebarOpacity');
+	bag.setSidebarOpacity(40);
+	assert.equal(h.read('dsh-dream-skin:sidebar-link'), '0', 'a drag releases the link (issue #55 semantics intact)');
+	assert.equal(h.read('dsh-dream-skin:sidebar-opacity'), '0.4', 'and persists the dragged value');
+});
+
+test('#84: "never touched a slider" and "reset it to the shipped number" are one state', () => {
+	// The review asked whether the two states can still be told apart. Answer:
+	// measured, they cannot — and nothing observable is lost. Provenance is
+	// VALUE-based (a persistent snapshot of the seeded values), so a profile
+	// sitting exactly on the shipped number is indistinguishable from one whose
+	// row was never opened. They get the same answer either way, because the
+	// number is identical by definition. What survives is the part that matters:
+	// a user whose slider differs from the shipped number is never retuned.
+	const SHIPPED = '0.28'; // SIDEBAR_DEFAULTS.opacity
+	assert.match(CODE, /const SIDEBAR_DEFAULTS = \{ opacity: 0\.28, link: false \}/,
+		'the shipped sidebar default this case reasons about must still be 0.28 in the bundle');
+	const target = String(skinById('midnight').defaults.sidebarOpacity);
+	assert.notEqual(target, SHIPPED, 'the switch target must actually differ from the shipped number, or this proves nothing');
+
+	const run = (seed) => {
+		const h = makeWriteBudgetHarness({ factoryApplied: true, seed });
+		h.h.actionBags['dream-skin'].setSkin('midnight');
+		return h.read('dsh-dream-skin:sidebar-opacity');
+	};
+	const never = run({});
+	const reset = run({ 'dsh-dream-skin:sidebar-opacity': SHIPPED });
+	const owned = run({ 'dsh-dream-skin:sidebar-opacity': '0.42' });
+
+	assert.equal(never, target, 'a profile that never touched the slider follows the skin');
+	assert.equal(reset, target, 'a profile sitting exactly on the shipped number follows the skin too — the same state');
+	assert.equal(never, reset, 'the two are indistinguishable from the outside, which is the honest answer');
+	assert.equal(owned, '0.42', 'a profile whose slider differs keeps its number — this is the promise that is kept');
+	assert.notEqual(owned, target, 'and the switch really did have something to retune, so the case is not vacuous');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #79 — the pre-redesign built-in glows have to be repaired exactly once
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The 10.6.1 redesign re-rolled every `SKINS[].glow` (old strings 230–320
+// characters, new ones 399–409). `followsSkin()`'s pre-0.4.0 branch infers "this
+// background is ours, follow the skin" from the stored string being EXACTLY a
+// built-in gradient, so after the re-roll it matched nothing: an affected user's
+// background stopped following the skin, silently, and the only cure was to
+// re-pick the wallpaper by hand. Measured before the migration: 0 of 8 old
+// strings matchable.
+//
+// The eight old strings live in tests/fixtures/legacy_skin_glows_10_6_0.json
+// (extracted from tag v10.6.0), so these cases drive REAL bytes against
+// UNPATCHED source — and tests/client.persistence.test.cjs recomputes the
+// shipped constants from that same fixture. That pairing is the fix for the
+// "self-consistent probe" trap this repo already fell into once: when every case
+// rewrites the fingerprint to fit its own payload, a hand-copied constant ships
+// silently dead and no test can tell.
+const LEGACY_GLOWS = JSON.parse(
+	fs.readFileSync(path.join(__dirname, 'fixtures', 'legacy_skin_glows_10_6_0.json'), 'utf8')
+).skins;
+const GLOW_KEY = 'dsh-dream-skin:wallpaper-gradient';
+const GLOW_KIND_KEY = 'dsh-dream-skin:wallpaper-kind';
+const GLOW_FOLLOWS_KEY = 'dsh-dream-skin:wallpaper-follows-skin';
+
+/** Boot once with a seeded profile and hand back the sandbox. */
+function bootWith(seed, code) {
+	const h = buildSandbox({ ...(code ? { code } : {}), seed });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	return h;
+}
+
+test('#79: every pre-redesign built-in glow becomes the current glow and is marked as following', () => {
+	const ids = Object.keys(LEGACY_GLOWS);
+	assert.equal(ids.length, 8, `the fixture must carry all eight legacy glows, found ${ids.length}`);
+
+	for (const id of ids) {
+		const legacy = LEGACY_GLOWS[id];
+		const current = skinById(id).glow;
+		assert.notEqual(legacy, current,
+			`${id}: the legacy and current glows must differ, or this case proves nothing`);
+
+		// No saved-skin key: the stored legacy string is the only clue, so the
+		// repair must land on the skin that wrote it.
+		const h = bootWith({ [GLOW_KIND_KEY]: 'gradient', [GLOW_KEY]: legacy });
+		assert.equal(h.localStorage.getItem(GLOW_KEY), current,
+			`${id}: a legacy built-in glow must be swapped for the current one — that stored string is what tells followsSkin() the background is ours`);
+		assert.equal(h.localStorage.getItem(GLOW_FOLLOWS_KEY), '1',
+			`${id}: the follows marker must be recorded, or the next redesign repeats this whole silent breakage`);
+		assert.ok(String(h.localStorage.getItem(GLOW_KEY)).startsWith('radial-gradient('),
+			`${id}: the repair must write a gradient — the legacy factory photo stays unreachable from this path`);
+		assert.equal(h.localStorage.getItem(GLOW_KIND_KEY), 'gradient', `${id}: the kind must not be rewritten`);
+	}
+});
+
+test('#79: the repaired background follows the SAVED skin, not the string it replaced', () => {
+	const h = bootWith({
+		'dsh-dream-skin:skin': 'mist',
+		[GLOW_KIND_KEY]: 'gradient',
+		[GLOW_KEY]: LEGACY_GLOWS.abyss
+	});
+	assert.equal(h.localStorage.getItem(GLOW_KEY), skinById('mist').glow,
+		'what "follow the skin" means now is the saved skin — restoring the abyss glow under a mist selection would be a different, wrong background');
+	assert.equal(h.localStorage.getItem(GLOW_FOLLOWS_KEY), '1');
+});
+
+test('#79: a gradient the user chose is never touched', () => {
+	const userGradient = 'linear-gradient(135deg, #101010 0%, #303030 100%)';
+	const cases = {
+		'a gradient matching nothing we ship': { [GLOW_KIND_KEY]: 'gradient', [GLOW_KEY]: userGradient },
+		'a legacy glow the user picked EXPLICITLY (follows=0)': {
+			[GLOW_KIND_KEY]: 'gradient',
+			[GLOW_KEY]: LEGACY_GLOWS.rose,
+			[GLOW_FOLLOWS_KEY]: '0'
+		},
+		'a legacy glow under a non-gradient kind (dormant, not on screen)': {
+			[GLOW_KIND_KEY]: 'image',
+			[GLOW_KEY]: LEGACY_GLOWS.ivory
+		}
+	};
+	for (const [name, seed] of Object.entries(cases)) {
+		const h = bootWith(seed);
+		assert.equal(h.localStorage.getItem(GLOW_KEY), seed[GLOW_KEY],
+			`${name}: the stored gradient must survive untouched — a user wallpaper is never ours to move`);
+		if (seed[GLOW_FOLLOWS_KEY] === '0') {
+			assert.equal(h.localStorage.getItem(GLOW_FOLLOWS_KEY), '0',
+				`${name}: an explicit "not following" is a user decision and must stay`);
+		}
+	}
+});
+
+test('#79: the glow repair is idempotent across boots', () => {
+	const first = bootWith({ [GLOW_KIND_KEY]: 'gradient', [GLOW_KEY]: LEGACY_GLOWS.nebula });
+	const once = first.localStorage.getItem(GLOW_KEY);
+	assert.equal(once, skinById('nebula').glow, 'control: the first boot repaired it');
+
+	const second = bootWith({ [GLOW_KIND_KEY]: 'gradient', [GLOW_KEY]: once, [GLOW_FOLLOWS_KEY]: '1' });
+	assert.equal(second.localStorage.getItem(GLOW_KEY), once,
+		'a second boot must not move the value again — the replacement is a current glow, which is not in the legacy table');
+	assert.equal(second.localStorage.getItem(GLOW_FOLLOWS_KEY), '1', 'and the marker stays put');
+});
+
+test('#79: the legacy-glow constants are load-bearing (a wrong prefix disables the repair)', () => {
+	const legacy = LEGACY_GLOWS.mist;
+	const patched = CODE.replace(
+		'prefix: "radial-gradient(1000px 560px at 84% -6%, rgba(159, 190, 245, 0.3"',
+		'prefix: "radial-gradient(1000px 560px at 84% -6%, rgba(000, 000, 000, 0.0"'
+	);
+	assert.notEqual(patched, CODE, 'the mist prefix literal must still exist for this mutation to mean anything');
+
+	const h = bootWith({ [GLOW_KIND_KEY]: 'gradient', [GLOW_KEY]: legacy }, patched);
+	assert.equal(h.localStorage.getItem(GLOW_KEY), legacy,
+		'with a broken fingerprint the repair must NOT fire — that is what the constants are for, and a green run here would mean the case passes for some other reason');
+	assert.notEqual(h.localStorage.getItem(GLOW_FOLLOWS_KEY), '1', 'and it must not claim the background follows the skin');
 });

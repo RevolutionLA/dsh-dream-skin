@@ -59,20 +59,20 @@
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 차분한 블루<br/><sub>차분하고 깊은 인디고, 절제되고 조용한</sub></td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 오로라 틸<br/><sub>선명하고 반투명한 쿨 틸, 자연스러운 차가운 톤</sub></td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 성운 퍼플<br/><sub>깊고 은은한 바이올렛-블루, 아련하고 신비로운</sub></td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 잉버 앰버<br/><sub>따뜻하고 절제된 앰버 오렌지</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 차분한 블루<br/><sub>차분하고 깊은 인디고, 절제되고 조용한</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 오로라 틸<br/><sub>선명하고 반투명한 쿨 틸, 자연스러운 차가운 톤</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 성운 퍼플<br/><sub>깊고 은은한 바이올렛-블루, 아련하고 신비로운</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 잉버 앰버<br/><sub>따뜻하고 절제된 앰버 오렌지</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 미드나잇 블랙<br/><sub>미니멀한 순수 블랙, 몰입감 있는 OLED</sub></td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 플랫<br/><sub>미니멀한 플랫 화이트, iOS 시스템 그레이 + 절제된 블루</sub></td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 클리어 브라이트<br/><sub>맑고 밝은 유리 질감, 반투명 + 블러</sub></td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>밝고 선명한 핑크, Google Material 플랫 컬러</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 미드나잇 블랙<br/><sub>미니멀한 순수 블랙, 몰입감 있는 OLED</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 플랫<br/><sub>미니멀한 플랫 화이트, iOS 시스템 그레이 + 절제된 블루</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 클리어 브라이트<br/><sub>맑고 밝은 유리 질감, 반투명 + 블러</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material Pink<br/><sub>밝고 선명한 핑크, Google Material 플랫 컬러</sub></td>
   </tr>
 </table>
 
-> 라이트 / 다크 모두 커버: `mist`, `ivory`, `rose`는 라이트 계열, 나머지는 다크 계열입니다. preset이 마음에 들지 않나요? 아래 **방법 #2**를 보세요.
+> 라이트 / 다크 모두 커버: `mist`, `ivory`, `rose`는 라이트 계열, 나머지는 다크 계열입니다. preset이 마음에 들지 않나요? 아래 **방법 #2**를 보세요. 각 프리셋은 자체 튜닝된 기본값(글로우 불투명도/블러, 사이드바·입력창 투명도, 다이얼로그 불투명도, 유리 소재)을 함께 제공합니다. 스킨을 전환하면 직접 설정하지 않은 값만 재조정되며, 8개 프리셋 모두 226개의 측정 가능한 품질 게이트(팔레트 217 + 크래프트 9)(OKLCH 명도 사다리, WCAG 2.1 + APCA 텍스트 대비, 신호 색상 분리, 프리셋 간 식별성)를 통과합니다.
 
 ---
 
@@ -276,7 +276,7 @@ dsh web   # restores the official appearance
 | DeepSeek Harness (`dsh`) | **하나의 빌드로 두 세대의 호스트 모두 지원**: 안정版 `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) 및 DSH master (분할 후 모듈 테이블) |
 | Node.js | `>=18` |
 | 브라우저 | 최신 Chromium / WebKit (네이티브 CSS variables & `matchMedia`) |
-| 데스크톱 | 서드파티 DSH Desktop 셸 지원 완료 (issue #50/#51/#55); **공식 DSH Desktop 미리보기 버전도 호환 예상** (Electron 동일 프런트엔드 + 플러그인 메커니즘 상속). 전체 앵커 의존 목록 / 보안 경계 / 검증-미검증 목록: **[docs/desktop-support.md](../desktop-support.md)** |
+| 데스크톱 | **서드파티 DSH Desktop 셸:** 적용 완료, 실기 검증(issue #50/#51/#55). **공식 DSH Desktop:** 근거가 뒷받침하는 것은 "**로드될 것으로 예상**"이지 "지원"이 아닙니다 — 근거는 정적 사실 두 가지뿐입니다(동일 Electron 프런트엔드, 당사가 선언한 `dsh.client.platform = "web"`이 호스트가 함께 배포하는 21개 클라이언트 패키지와 일치). 그 프로필 디렉터리와 설치 명령은 **이 장비에서 한 번도 검증되지 않았으므로**, 이 문서는 **복사해서 쓸 수 있는 데스크톱 설치 명령을 제공하지 않습니다**. <!-- desktop-claim: load-expected-unverified -->추가할 때 `--profile` 값은 호스트가 **직접 제공하는** 템플릿 이름이어야 합니다. 일부 서드파티 문서가 알려주는 프로필 이름은 이 호스트에 없으며, 그대로 복사하면 빈 셸 프로필에 설치되어 다시 시작한 뒤 아무것도 보이지 않습니다. 근거는 **[docs/desktop-support.md](../desktop-support.md)** 의 "공식 데스크톱: 미검증 항목"을 참조하세요. 전체 앵커 의존 목록 / 보안 경계 / 검증-미검증 목록도 같은 문서 |
 
 > DSH를 업그레이드할 때 `package.json`의 peerDependencies도 그에 맞게 올려주세요.
 
@@ -315,8 +315,11 @@ DSH의 테마 시스템은 token 기반입니다: web shell이 `--dsw-*` 디자�
   5. 전용 **Settings → Theme / Appearance** 섹션(`settings.section`)을 등록하고 다섯 가지 기능 행을
      `settings.dreamSkin.item` 슬롯 아래에 마운트합니다.
 
-각 skin은 `colorScheme` (`light`/`dark`)을 지니고 `body[data-ds-dark-theme]`를 구동합니다; alias-token 오버라이드는
-ui-layout의 ThemePresenter가 `<body>`에 인라인 커스텀 프로퍼티로 적용합니다.
+각 skin은 `colorScheme` (`light`/`dark`)을 지니고, 이 플러그인이 그것을 자신의 루트 요소 `<html>`에
+(`data-dsh-dream-skin-scheme`로) 찍습니다. 호스트의 `body[data-ds-dark-theme]`에 **의존하지 않습니다** — 그
+속성은 ui-layout의 ThemePresenter 소유이고 그 `dispose()`가 지워버리기 때문에, 속성이 없는 창에서는 어두운
+skin이 밝은 쪽 상수를 집어 갔습니다. alias-token 오버라이드는 ui-layout의 ThemePresenter가 `<body>`에 인라인
+커스텀 프로퍼티로 적용합니다.
 
 ## 💼 저장(persistence) 참고 사항
 
@@ -345,7 +348,7 @@ ui-layout의 ThemePresenter가 `<body>`에 인라인 커스텀 프로퍼티로 �
   "Wallpaper" 행에서 가져오세요.
 - **미리보기 재생성**: 미리보기는 `scripts/generate-skin-mockups.cjs`가 (실제 tokens + diffused glow) HTML 목업으로
   생성한 뒤, headless Chrome으로 `docs/previews/*.png`로 캡처합니다 — skin의 tokens를 변경한 뒤 다시 실행해
-  미리보기를 실제 skin과 동기화하세요.
+  미리보기를 실제 skin과 동기화하세요. `docs/previews/manifest.json`이 각 이미지를 세 가지 지문(출시 tokens·카드 마크업·PNG 바이트와 픽셀 크기)에 고정하고, 팔레트만 바꾸고 다시 촬영하지 않으면 `npm run previews --check`(브라우저 불필요)가 빨간불이 되며 어느 skin인지 알려줍니다. 헤드리스 브라우저를 찾지 못하면 `npm run previews`는 비영(非零)으로 종료하며, 0 산출을 성공으로 보지 않습니다. 이 PNG들은 **패키지에 포함되지 않습니다**: 2.26 MB의 README 장식을 모든 사용자가 내려받게 할 수는 없기 때문이며, `npm pack`은 2.5 MB에서 263 kB로 줄고 README는 GitHub에서 이미지를 불러옵니다.
 - **검증**: `npm test` (factory eval, `apply()`, pack import/저장을 포함한 VM smoke 테스트).
 - **리페인트**: `--dsw-alias-*` tokens를 참조하세요 (전체 계약은 [`docs/themes-spec.md`](../../docs/themes-spec.md)에).
 

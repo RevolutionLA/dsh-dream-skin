@@ -14,13 +14,20 @@
 3. 确认 `files` 里带上了这些文件（当前已配置：主 README + `docs/i18n/` 多语言 README + 兼容矩阵）：
    ```json
    "files": ["lib/index.js", "lib/client.js", "lib/types", "cordis.patch.yml",
-             "README.md", "docs/i18n", "docs/previews", "docs/examples",
+             "README.md", "docs/i18n", "docs/examples",
              "docs/themes-spec.md", "docs/design-philosophy.md", "docs/desktop-support.md"]
    ```
    这样 npm 只会上传这些，不会带源码里不需要的东西。多语言 README（en/ja/ko/es/fr/de/ru）放在
    `docs/i18n/` 下（根目录只保留中文 `README.md`），同样会随包发布。
-   注意：`docs/screenshots/` **刻意不在白名单**（v9.26.1 起，真机重截前不随包分发）——
-   README 里的截图与成长图已改指 GitHub 绝对 URL，npm 页面仍可显示；`package-lock.json` 的版本
+   注意：`docs/screenshots/` 与 `docs/previews/` **刻意不在白名单**（前者 v9.26.1 起、后者 10.6.1 起）——
+   这两组图是 README 装饰，却要每个 `pnpm add` 的人下载：8 张 `docs/previews/*.png`（720×460@2x）合计 2.26 MB，
+   把 tarball 从 930.6 kB 顶到 2.5 MB，而插件本体只有 ~350 kB（issue #83）。README 里的截图、成长图与
+   预览色卡全部改指 GitHub 绝对 URL（`raw.githubusercontent.com/.../main/docs/...`），GitHub 与 npm 页面
+   都仍可显示。移出白名单后实测：`package size` 2.5 MB → **263.4 kB**，`unpacked` 3.1 MB → **754.2 kB**。
+   取舍：图片随 `main` 分支走而非随版本冻结（截图早已如此），代价是 npm 页面的图永远是最新一版的样子；
+   反过来把 2.26 MB 塞进每个用户的安装里，是拿所有人的带宽换 npm 页面的离线可用性。`tests/previews.test.cjs`
+   把这条策略钉死：`files` 里再出现 `docs/previews` 即红。
+   另：预览图内容由 `docs/previews/manifest.json` 指纹守护（见第五节）；`package-lock.json` 的版本
    须与 `package.json`/`PLUGIN_BUILD` 同步（三方评审 T-07）。发布前跑 `npm pack --dry-run`
    核对产物清单。
 
@@ -77,10 +84,15 @@ dsh plugin --profile web add dsh-dream-skin
 - **发布顺序**：先打 tag 并在 GitHub 建 Release（Release notes 引用 CHANGELOG 条目与 npm 链接），再执行 `npm publish`；三处（tag / Release / npm）版本号必须一致。
 - **LICENSE / README**：npm 页会展示仓库提交的内容，建议发布前同步。
 - **files 白名单**：以 `package.json` 的 `files` 字段为准；除代码与多语言 README 外含
-  `docs/previews`、`docs/examples`、`docs/themes-spec.md`、`docs/desktop-support.md`，保证 npm 包页的
-  预览色卡 / 示例 / 兼容矩阵链接不 404。`docs/screenshots/` **刻意排除**（v9.26.1 起，真机重截前
-  不随包分发），根 README 的截图与成长图已改用 GitHub 绝对 URL 渲染。每次发布前 `npm pack --dry-run`
-  核对产物清单。
+  `docs/examples`、`docs/themes-spec.md`、`docs/desktop-support.md`，保证 npm 包页的示例 / 兼容矩阵链接
+  不 404。`docs/screenshots/` 与 `docs/previews/` **刻意排除**（前者 v9.26.1 起、后者 10.6.1 起，真机/无头
+  重截图不随包分发），根 README 的截图、成长图与预览色卡已全部改用 GitHub 绝对 URL 渲染。每次发布前
+  `npm pack --dry-run` 核对产物清单。
+- **预览图指纹**：`docs/previews/manifest.json` 由 `npm run previews` 生成，逐皮肤记录「发货 token 哈希 +
+  卡片版式哈希 + PNG 字节哈希/尺寸」。`npm run previews --check` 只读校验（不需要浏览器），`npm test`
+  会跑它。改了设计系统颜色却不重照 ⇒ 红，并在报错里点名是哪套皮肤；这一层以前完全无人看守
+  （issue #83：实测重掷调色板后 PNG 逐字节不变）。无头浏览器缺失时 `npm run previews` **非零退出**，
+  不再把「0 产出」当成功。
 
 ## 六、让社区发现你（.dsh-plugin topic / awesome / dsh-market）
 

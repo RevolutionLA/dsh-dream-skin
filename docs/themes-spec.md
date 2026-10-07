@@ -33,6 +33,12 @@
 
 参考真实样例：[`docs/examples/sample-theme-pack.json`](./examples/sample-theme-pack.json)。
 
+## 载荷边界：主题包**不含** `glow` 与 `defaults`
+
+本插件的皮肤是**三件套**——`tokens`（40 枚语义 token）+ `glow`（该皮肤自己的弥散光渐变）+ `defaults`（该皮肤调好的滑杆与材质数值）。但**主题包不是这个三件套的载体**：导出、分享链接与导入走的都是同一份白名单，`manifest` 只回放 `id` / `name` / `nameZh` / `author` / `version` / `description` / `colorScheme` / `accent` / `tokens`（实现见 `lib/client.js` 之 `exportPackAsFile()`）。
+
+后果，明说，别让读者自己发现：别人拿到你导出的包，**会得到你的配色，但不会得到你的弥散光背景，也不会得到那一套滑杆数值**——应用该包后，壁纸与各透明度仍沿用本地状态。这是 **schema v1 的既定边界，不是缺陷**；把 `glow` / `defaults` 纳入载荷属 **schema v2 议题**（它要同时解决校验规则、向后兼容与「包与内置皮肤同权」三件事，任一未定都会让老包变成半可用状态）。需要完整三件套的场合，请直接用内置皮肤：8 套预设都带 `glow` 与 `defaults`。
+
 ## 导入 / 应用 / 分享
 
 - **导入**：在 **设置 → 外观（Theme）→ 主题包** 点「导入主题包…」选择 `.dsh-theme.json` 文件；会校验结构，成功后
@@ -64,6 +70,21 @@
 | 代码 | `--dsw-alias-markdown-code-block`、`--dsw-alias-markdown-inline-code`、`--dsw-alias-markdown-tag` |
 | 滚动条 | `--dsw-alias-scrollbar-bg-l1`、`--dsw-alias-scrollbar-hover-l1` |
 | 侧栏 | `--dsw-specific-sidebar-fill`、`--dsw-specific-sidebar-nav-item-active` |
+
+## 宿主自己派生的 token：皮肤**无需**干预（判据 + 清单）
+
+宿主每代都会新增平台 token。新增一个不等于缺一个——**判据是宿主那条声明本身**：
+
+- 宿主写的是 `var(--dsw-…)`，且指向的 token 已经在我们发货的 40 枚里 → 宿主自己把**我们的值**搬进它的面，皮肤**不必**也不该再加规则（加了只是复述，还会在宿主改派生关系时变成固定值）。
+- 宿主写的是**颜色字面量**（`#…`、`rgb()`…）→ 这是一个真缺口，必须进 `scripts/data/host-gap-dispositions.cjs` 并给出处置，否则 `npm run host:census` 的 `gap` 段会把它报出来、`tests/host.gap.test.cjs` 会因为「没有处置」翻红。
+
+判据是机读的，所以清单不靠记忆维护；下面两条是 0.2.0-rc.2 新增三个 token 的实测归类（issue #89），写在这里是为了**阻止下一轮把它们当缺口「补」一遍**：
+
+| 宿主新增 token | 宿主声明 | 归类 |
+|----|----|----|
+| `--dsw-alias-turn-trigger-bg` | `var(--dsw-alias-markdown-code-block)`（浅）/ `var(--dsw-alias-interactive-bg-hover)`（深） | **派生，勿动**——两个基底座均已发货 |
+| `--dsw-alias-turn-trigger-bg-hover` | `var(--dsw-alias-interactive-bg-hover)`（浅）/ `var(--dsw-alias-interactive-bg-active)`（深） | **派生，勿动**——同上 |
+| `--dsw-alias-menu-group-header-fill` | `#f8f9faf0`（浅）/ `#303136f0`（深） | **是缺口**——字面中性灰，吸顶那一刻不跟皮肤走；本插件按皮肤色相自产一枚 94% 不透明值（alpha 量与宿主一致，这是「遮住滚动内容」的功能要求，不要改薄） |
 
 ## 颜色校验
 

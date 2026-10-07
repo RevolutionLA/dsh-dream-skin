@@ -57,20 +57,25 @@
 
 <table>
   <tr>
-    <td align="center"><a href="docs/previews/abyss.png"><img src="docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 沉静蓝<br/><sub>冷静深沉的靛蓝，克制不喧哗</sub></td>
-    <td align="center"><a href="docs/previews/aurora.png"><img src="docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 极光青<br/><sub>清冽通透的冷青，自然冷调</sub></td>
-    <td align="center"><a href="docs/previews/nebula.png"><img src="docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星云紫<br/><sub>深邃漫射的紫青，朦胧神秘</sub></td>
-    <td align="center"><a href="docs/previews/ember.png"><img src="docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余烬橙<br/><sub>温暖克制的琥珀橙</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 沉静蓝<br/><sub>深海蓝黑底，唯一一束靛蓝高光；弥散光取深水反弹</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 极光青<br/><sub>冷青主调，强调色转出成功绿带，信号色永不撞车</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星云紫<br/><sub>星云尘埃紫，弹层与气泡同源渐变，朦胧而有序</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余烬橙<br/><sub>唯一暖色暗皮肤：焦琥珀 + 深可可底，暖而不脏</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="docs/previews/midnight.png"><img src="docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 午夜黑<br/><sub>极简纯黑，OLED 沉浸</sub></td>
-    <td align="center"><a href="docs/previews/ivory.png"><img src="docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 扁平<br/><sub>极简平白，iOS 系统灰 + 克制的蓝</sub></td>
-    <td align="center"><a href="docs/previews/mist.png"><img src="docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 干净明亮<br/><sub>清透明亮的玻璃质感，半透明 + 模糊</sub></td>
-    <td align="center"><a href="docs/previews/rose.png"><img src="docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material 粉<br/><sub>明快彩粉，谷歌 Material 扁平彩色</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 午夜黑<br/><sub>刻意消色差的 OLED 纯黑，最克制的沉浸</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 扁平<br/><sub>暖纸感画布 + iOS 蓝，白阶梯精排不刺眼</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 干净明亮<br/><sub>唯一真半透明液态玻璃：六层 alpha 表面，模糊 8px</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material 粉<br/><sub>玫瑰纸感 + 品牌洋红，红色信号仍归红色</sub></td>
   </tr>
 </table>
 
-> 浅色 / 深色兼顾：`mist`、`ivory`、`rose` 为浅色系，其余为深色系。不喜欢预设？往下看**玩法二**。
+> 浅色 / 深色兼顾：`mist`、`ivory`、`rose` 为浅色系，其余为深色系。
+>
+> **每套皮肤自带专属默认参数**（弥散光浓度 / 模糊 / 侧栏与输入框透明度 / 弹窗透明度 / 玻璃材质）——
+> 切到哪套，哪套就是它的最佳状态；你自己调过的参数不会被覆盖。8 套皮肤全部通过 226 项可测质量门（217 项调色门 + 9 项工艺门）
+> （OKLCH 感知明度阶梯、三级文字对比度 WCAG 2.1 + APCA 双达标、信号色相分离、跨皮肤可区分度）。
+> 不喜欢预设？往下看**玩法二**。
 
 ---
 
@@ -283,13 +288,19 @@ dsh web   # 重启后恢复官方外观
 | DeepSeek Harness (`dsh`) | **同一构建兼容三代宿主**：`0.1.0-rc.6` ~ `0.1.x`（稳定版）与 `0.2.0-rc.1` / `0.2.x`（issue #62：0.2.0-rc.1 起宿主按 peer 范围**整包跳过**不兼容插件，故 peer 已放宽为 `>=0.1.0-rc.6 <0.3.0-0`）。运行时能力探测继续兜底 seed 换代（见下），不依赖 `engines.dsh` |
 | Node.js | `>=18` |
 | 浏览器 | 现代 Chromium / WebKit（依赖原生 CSS 变量与 `matchMedia`） |
-| 桌面端 | 第三方 DSH Desktop 壳已适配（issue #50/#51/#55）；**官方 DSH Desktop 预览版预期兼容**（Electron 同源前端 + 继承插件机制）。完整锚点依赖清单 / 安全边界 / 已验证清单见 **[docs/desktop-support.md](./docs/desktop-support.md)** |
+| 桌面端 | **第三方 DSH Desktop 壳**：已适配并实机复核（issue #50/#51/#55）。**官方 DSH Desktop**：证据只支持"**预期可加载**"，不支持"已支持"——依据是两条静态事实（Electron 同源前端；我们声明的 `dsh.client.platform = "web"` 与宿主自带的 21 个客户端包逐一致），而它的 profile 目录与安装命令**本机从未验证**，因此本文档**不给**可复制的桌面安装命令。<!-- desktop-claim: load-expected-unverified -->插件管理器里 `--profile` 的取值必须用宿主**自带**的模板名；某些第三方文档教的写法在本机宿主上不存在，照抄会装进一个空壳 profile（重启后什么都看不到），证据与判断依据见 **[docs/desktop-support.md](./docs/desktop-support.md)** 的「官方桌面版待验条目」。完整锚点依赖清单 / 安全边界 / 已验证-未验证清单同见该文档 |
 
 > **兼容机制（v9.10.0 起）**：客户端 bundle 把**全部平台 seed** 放在受控 `try` 内按候选顺序探测——`react` / `react/jsx-runtime`，以及设置 store 的 master 名 `@deepseek-ai/dsh-client-store` → 稳定版名 `@deepseek-ai/dsh-client-runtime/client`。判定依据是「require 成功返回」，**不匹配宿主内部错误文案**。若某天宿主全部 seed 换代，插件会**降级为不注册任何 UI 的哑模块**并打一条 `console.warn`，而不会抛错——因此**不会**再出现 issue #43 那种整个 DSH Web 全屏 `Failed to load plugins`（宿主对 loader-entry 工厂不做隔离，一个工厂抛错即可拖垮整个 shell）。
 >
 > **关于 `engines.dsh`**：曾尝试声明 `engines.dsh` 作为生态兼容信号，但因 semver 只在与自身 `major.minor.patch` 三元组相同的轨道上放行预发布版本，单一范围无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`，会把本项目明确支持的版本判为「不兼容」，反而广播错误信号；而宿主目前也不读取该字段。故**不声明**，以上述运行时探测为准。
 >
-> 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布。**自 `0.2.0-rc.1` 起 peer 范围不再是装饰**：宿主在 boot 阶段用 `semver.satisfies(运行时版本, peer 范围, { includePrerelease: true })` 逐个校验 `@deepseek-ai/dsh*` peer，任一不满足即**整包跳过**（不注入路由、不启宿主接口，只在日志里留一行），所以 peer 范围现在就是本插件对外声明的兼容窗口，`package.json` 与 `package-lock.json` 由回归门强制保持一致。
+> 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布。**自 `0.2.0-rc.1` 起 peer 范围不再是装饰**：宿主在 boot 阶段用 `semver.satisfies(运行时版本, peer 范围, { includePrerelease: true })` 逐个校验 `@deepseek-ai/dsh*` peer，任一不满足即**整包跳过**（不注入路由、不启宿主接口，只在日志里留一行），所以 peer 范围现在就是本插件对外声明的兼容窗口，`package.json` 与 `package-lock.json` 由回归门强制保持一致。**但这条闸门只认名字带 `@deepseek-ai/dsh` 前缀的 peer**：`@deepseek-ai/cordis` 与 `react` 两条**不参与**宿主兼容判定（`evaluatePluginCompatibility()` 对非 `dsh*` 名字直接 `continue`）——它们由包管理器的 peer 解析单独把关，是**另一把尺**（默认 semver 语义，预发布版本只在同 `major.minor.patch` 轨道上放行）。两把尺的判据与实测对照表在 `tests/package.host_compat.test.cjs`。
+
+**版本 10.6.1（2026-10-06）**：Mirage 皮肤系统重设计轮 + **评审整改收口**（同版内的两件事：先是 8 套预设从手调 hex 迁到 OKLCH 设计系统解算生成，随后按发布前评审的 15 条 issue #70–#84 逐条整改）。皮肤由每套四个设计意图生成、每个 token 可证明；**每套预设自带一份调好的默认参数**（弥散光浓度/模糊、侧栏与输入框透明度、弹窗透明度、玻璃材质），换肤会重调你**没亲手改过**的那些值，你调过的一律不动。
+
+**这一轮真正修掉的三个"看得见的"问题**：① 新装的弹窗透明度种子从 `0.6` 改成 `0.92`（**行为变更，显式声明**）——`0.6` 的对话框会让身后的会话读穿，这正是 issue #67 的观感来源；动过该滑杆的老用户完全不受影响。② 液态玻璃的描边/掠光此前是写死的白色，只为一个亮暗档作过者：白描边压在浅色画布上对比度约 1.03:1（等于消失），现在亮暗两档各有一套、并挂在本插件**自己的** scheme 属性上（此前押宿主 `body[data-ds-dark-theme]`，宿主 dispose 会擦掉它）。③ 随包分发的预览 PNG 已移出 npm 包：tarball **2.5 MB → 263.4 kB**（图片改由 GitHub raw 提供，代价是它跟 `main` 而非冻结版本，已写明）。
+
+回归门 **346/346**（10.6.0 为 172 项；10.6.1 发版时为 302，本轮 rc.2 / alpha.1 整改追加 **+44**：四个新门文件 38 项——`host.slots` 9、`hashes` 11、`desktop.claims` 6、`desktop.fontscale` 12，另扩充两个既有文件 +6 项——`package.host_compat` 4→8、`skin.quality` 40→42；10.6.1 那批九个门文件 111 项——skin.quality 40、craft.quality 19、docs.numbers 9、color.science 9、previews 9、repo.hygiene 5、generator.safety 3、compat.window.docs 5、host.gap 12——与其余 19 项既有文件整改用例仍在其中；该数字由 `tests/docs.numbers.test.cjs` 现场加载整套件数出并核对文档，不是手抄）；质量审计 **226/226**（217 调色 + 9 工艺，同一份门现场计算并核对 10 份文档，改错一个数字就翻红）。**归零的写入放大**：`saveFactorySnapshot()` 原先序列化整张 provenance 表却按被播种的键各调一次，一次换肤把同一个存储键重写 7 次——现在批内合并，`localStorage.setItem` **19 → 13**、单键重写 **7 → 1**，并有双采样写入预算门（任一处放大即红）。评审给的「3 publish / 111 笔」「publish 2→3」「5→19」不是矛盾，是**三个不同计数器**，现已逐个声明、分别计量、各有上限。**未验证**：本版之后未再上真机复测写入计数（真机口径仍是 10.5.1 那次）；预览图为生成渲染而非真机截图；主题包**不含**皮肤自带的弥散光与调好的滑杆值（载荷是白名单式的 40 枚 token，属 schema v2 议题，已在 `docs/themes-spec.md` 声明）。完整诚实清单见 **[docs/desktop-support.md](./docs/desktop-support.md)**。
 
 **版本 10.6.0（2026-10-06）**：右侧栏对齐轮（外部 PR #65，@Waser750 报告并提案；本版评审走 PR 复核轮——四条阻塞 + 合并前维护方独立跑 5 处变异抽查，**未另起三方对抗评审**，依据如实写明）。
 
@@ -396,8 +407,10 @@ DSH 的主题系统是 token 化的：web 外壳内置 `--dsw-*` 设计令牌，
   5. 注册独立的 **设置 → 外观 / Theme** 分节（`settings.section`），5 个功能行挂在
      `settings.dreamSkin.item` 插槽下。
 
-每套皮肤携带自己的 `colorScheme`（`light`/`dark`），驱动 `body[data-ds-dark-theme]`；别名 token 覆盖作为
-`<body>` 内联自定义属性由 ui-layout 的 ThemePresenter 应用。
+每套皮肤携带自己的 `colorScheme`（`light`/`dark`）；本插件把它打在自己的根元素 `<html>` 上
+（`data-dsh-dream-skin-scheme`），**不**押宿主的 `body[data-ds-dark-theme]`——那个属性归 ui-layout 的
+ThemePresenter 所有，宿主 `dispose()` 会把它擦掉，于是"属性缺席"的窗口里暗色皮肤会拿到亮档常量。
+别名 token 覆盖作为 `<body>` 内联自定义属性由 ui-layout 的 ThemePresenter 应用。
 
 ## 💼 持久化说明
 
@@ -426,7 +439,7 @@ bundle（`@deepseek-ai/dsh-client-runtime/client`、…）。
 - **放你自己的壁纸**：把图片丢进 [`wallpapers/`](./wallpapers/)（注意只在你有权限的前提下分发），再在
   DSH 的「背景图片」里导入即可。
 - **更新预览图**：预览由 `scripts/generate-skin-mockups.cjs`（真实 token + 弥散光）生成 HTML mockup，
-  用无头 Chrome 截图即得 `docs/previews/*.png`，改皮肤 token 后重跑即可保持预览与真实 skin 同步。
+  用无头 Chrome 截图即得 `docs/previews/*.png`，改皮肤 token 后重跑即可保持预览与真实 skin 同步。`docs/previews/manifest.json` 把每张图钉在三重指纹上（发货 token、卡片版式、图片字节与像素尺寸），`npm run previews --check`（不需要浏览器）在「只改配色、没重照图」时翻红并点名是哪套皮肤；找不到无头浏览器时 `npm run previews` 非零退出，不再把 0 产出当成功。这些 PNG **不随包发布**：2.26 MB 的 README 装饰不该由每个使用者下载，`npm pack` 从 2.5 MB 降到 263 kB，README 里的预览图改指 GitHub 绝对地址。
 - **跑校验**：`npm test`（VM 冒烟测试，覆盖 factory 求值、`apply` 挂载、主题包导入/持久化）。
 - **换配色**：参考 `--dsw-alias-*` 令牌（完整契约见 [`docs/themes-spec.md`](./docs/themes-spec.md)）。
 

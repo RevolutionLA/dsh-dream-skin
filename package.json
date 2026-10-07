@@ -1,6 +1,6 @@
 {
 	"name": "dsh-dream-skin",
-	"version": "10.6.0",
+	"version": "10.6.1",
 	"description": "DeepSeek Harness 换肤插件（Dream Skin for DSH）：8 套 iOS / Linear 式清透冷调的高质感主题 + 弥散光壁纸 + 每皮肤智能背景 + 强调色 + 主题包分享，把换肤做成材质与配色克制的高级感工艺，而非贴图。Works in native DSH Web and third-party desktop clients (DSH Desktop): 8 original premium themes, glass materials, wallpaper 2.0, per-user accent, shareable theme packs — purely native token system.",
 	"license": "MIT",
 	"type": "module",
@@ -28,7 +28,6 @@
 		"cordis.patch.yml",
 		"README.md",
 		"docs/i18n",
-		"docs/previews",
 		"docs/examples",
 		"docs/themes-spec.md",
 		"docs/design-philosophy.md",
@@ -65,6 +64,15 @@
 	},
 	"scripts": {
 		"test": "node --test tests/*.test.cjs",
+		"repo:eol": "node scripts/normalize-eol.cjs",
+		"skin:generate": "node scripts/apply-skin-system.cjs",
+		"skin:check": "node scripts/apply-skin-system.cjs --check",
+		"skin:audit": "node scripts/skin-audit.cjs",
+		"craft:audit": "node scripts/craft-audit.cjs",
+		"host:census": "node scripts/host-consumers.cjs",
+		"host:census:check": "node scripts/host-consumers.cjs --check",
+		"previews": "node scripts/generate-skin-mockups.cjs",
+		"previews:check": "node scripts/generate-skin-mockups.cjs --check",
 		"typecheck": "npx -y -p typescript@5.6.3 tsc -p tsconfig.json"
 	},
 	"dsh": {
@@ -84,7 +92,7 @@
 		}
 	},
 	"peerDependencies": {
-		"@deepseek-ai/cordis": "^4.0.1",
+		"@deepseek-ai/cordis": "^4.0.1 || >=4.0.5-0 <5",
 		"@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.6 <0.3.0-0",
 		"@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.6 <0.3.0-0",
 		"@deepseek-ai/dsh-client-store": ">=0.1.0-rc.6 <0.3.0-0",

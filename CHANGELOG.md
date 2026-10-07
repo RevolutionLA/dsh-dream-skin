@@ -2,6 +2,103 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.6.1] - 2026-10-06
+
+> **预设皮肤重设计轮（纯内部质量轮，无外部 PR）。** 8 套 Mirage 预设从「手调色值」整体迁移为**从一台 OKLCH 设计系统解算生成**（`scripts/skin-system.cjs` → `scripts/apply-skin-system.cjs` 写入 bundle），并首次引入**每皮肤专属默认参数**（弥散光浓度/模糊、侧栏与输入框透明度、弹窗透明度、玻璃材质）。改造前基线（**按当前这把尺重算**，即 27 项/皮肤 × 8 + 目录 1 = 217 调色门，加 9 工艺门 = 226 项；10.6.1 发版当时是 26 项/皮肤 = 209 + 9 = 218，更早的评审按那一版旧尺复算为 81/145，口径不同，本文件一律用当下的尺。重算方式是把 10.6.0 的 `lib/client.js` 直接喂给今天的 `scripts/skin-audit.cjs` / `scripts/craft-audit.cjs`——两个审计都是纯函数，不依赖工作树）：旧 8 套皮肤 **115/226**（调色 109/217 + 工艺 6/9；比改造前的 118/186 低，是因为尺子从 22 项/皮肤一路加到今天的 27 项，新增项里有 issue #88 那 17 枚「宿主会读、皮肤从未定义」的槽位 token——手调时代的皮肤不可能有它们。10.6.1 发版时的同一份重算是 107/218；后来加的第 27 项 `token-shape` 三套旧皮肤全过，因此分母 +8、分子也 +8），目录可区分性 FAIL（abyss/nebula/midnight 三者之间读作同一套皮肤），abyss 强调色在画布上仅 4.04:1，tertiary 文字在气泡上不达 AA。改造后：**226/226 全过**（调色 217/217 + 工艺 9/9），全套 `npm test` 172→**346 项全绿**（10.6.1 发版时为 302；本轮新增四个门文件共 38 项——`host.slots` 9、`hashes` 11、`desktop.claims` 6、`desktop.fontscale` 12，并扩充两个既有文件 +6 项——`package.host_compat` 4→8、`skin.quality` 40→42；10.6.1 那批九个门文件 111 项是 `skin.quality` 40、`craft.quality` 19、`docs.numbers` 9、`color.science` 9、`previews` 9、`repo.hygiene` 5、`generator.safety` 3、`compat.window.docs` 5、`host.gap` 12；其余 19 项是既有文件里的整改用例——`client.smoke` +15、`client.persistence` +4）。
+
+> **这份 10.6.1 覆盖两件事**：① 皮肤系统重设计（下文「变更」起）；② 该轮**发布前评审的 15 条整改**（issue #70–#84，见下文「追加轮：发布前评审整改」）。评审的整改清单与三方记录是内部攻防材料，**只留在维护者本地**（不随仓库发布，仓库里没有那个目录，此处也不给链接），且不随本版修改。
+
+### 变更
+- **配色引擎**：新增 `scripts/lib/color.cjs`（零依赖 OKLab/OKLCH、WCAG 2.1、APCA 0.1.9、alpha 合成反解）与 `scripts/skin-system.cjs`（感知明度八层阶梯、文字三级对着最差表面双尺求解、强调色在约束内最大化色度、信号色带约束旋转、半透明表面二分法落点）。皮肤由每套四个设计意图（主色相/画布明度/强调色相/反弹光色相）生成，40 token 全部可证明。
+- **每皮肤默认参数**：`SKINS` 新增 `glow`（弥散光渐变串，取代旧 `wallpapersSuggestionsFor` 里第二份会漂移的渐变表）与 `defaults`；`applySkinDefaults()` 只在值为出厂种子（factory 戳）时写入，**用户亲手调过的滑杆在换肤后不被覆盖**（有行为测试钉住）。
+- **预览管线**：`scripts/skin-data.cjs` 不再手抄调色板（旧值已过期），改为从设计系统投影；`scripts/generate-skin-mockups.cjs` 重写为「迷你 UI」实感预览（真实 token 画的侧栏/气泡/输入框/信号色标签，`--html-only` 可只出 HTML），`docs/previews/*.png` 全部重照（720×460@2x，无头 Chrome）。
+- **回归门**：新增 `tests/skin.quality.test.cjs`（bundle == 新鲜构建、全皮肤审计、目录可区分性、审计检查集钉死防静默删减、7 处变异证明可翻红、预览投影与发货 token 逐项比对）；`npm run skin:check / skin:audit / previews` 三个脚本入口。
+
+### 追加轮：工艺层审计（回答「每个模块都验证了吗」）
+- 上一版的 121 项只证明了**调色 token**。被追问后发现三层没验：**模块层**（token 合格 ≠ 每个模块取用的是合格 token）、**材质常量层**、**圆角/布局层**。新增 `scripts/craft-audit.cjs`（7 项门）+ `tests/craft.quality.test.cjs`（10 项，含 7 处变异）堵上：
+  1. `module-coverage`：14 个模块（画布/左右侧栏/输入框/玻璃填充/弹窗/卡片/描边/悬停 + 宿主绘制的气泡/tip/代码块/选择器）逐一比对「消费的是不是被审计的 token」，且每套皮肤都发货。**结果：40 个 token 里有 6 个发货了却从没被审计**（品牌淡色、抬升按钮面、状态淡色、markdown 标签、滚动条两级）——这是上一版"121 项全过"里最大的空洞，已在调色审计中补齐 3 条新门（`tints` / `elevated-button` / `scrollbars`），145/145。
+  2. `glass-scheme-aware`：抓到**真缺陷**——液态玻璃的描边/掠光/边缘是写死的 `rgba(255,255,255,…)`，只为一个 scheme 作过者。白描边压在 ivory/mist/rose 的浅画布上对比度约 1.03:1（等于消失），`mix-blend-mode: screen` 还会把整块面板洗白。已改为 4 个 CSS 变量，暗色取值逐字节不变，亮色另给一套（亮顶边 + 极淡暗底边、`normal` 混合）。
+  3. `radius-inherit` / `layout-neutral`：覆盖层必须 `border-radius: inherit`（否则在宿主圆角卡上盖出方角），且不改动宿主盒子尺寸/定位（唯一放行的是那条侧栏接缝对齐规则）。
+- 顺带修掉一个靠"拍脑袋定 alpha"的缺陷：`ivory` 的 markdown 标签在暖米色画布上被稀释到偏离品牌色相 **34.6°**，读起来是暖灰而不是品牌蓝。淡色 alpha 现在由约束**解算**（合成后色相偏差 ≤20° 的最小权重），暗皮肤反而更淡了（0.16→0.12，更克制）。
+- **亮色玻璃常量是作者的，不是解算的，且未经真机复核**：亮色 rim 0.55/0.70、edge 0.10 由本仓带过的设计先例（顶部亮 catch light + 暗底边）推得，无头 Chrome 渲染确认"看得见、不刺眼"，但真机 DSH 上叠加宿主背景的最终观感仍待下一轮实机复核——这是本版诚实清单里最靠前的一条。
+
+### 追加轮：发布前评审整改（issue #70–#84，15 条）
+> 评审汇总在 #69（P0 8 / P1 5 / P2 2，判 NO-GO）。本节只记「改了什么、凭什么算改了」；三方评审与裁定原文属内部攻防材料，只留在维护者本地，不随仓库发布，本版也不改动它们。
+
+**P0（8 条）**
+- **#70 生成器就地直写 `lib/client.js`**：写入中断会留下截断 bundle。`scripts/apply-skin-system.cjs` 改为**临时文件 + 原子替换**，并做写后自检（重解析 `SKINS` 块与内存值深比对，不一致不落盘）；`--check` 只报告、不改文件。
+- **#71 出厂弹窗种子 0.6 → 0.92 未作行为变更声明、R6「字面量钉」被改成派生式**：见上文「行为变更」；R6 恢复为**真字面量**，并新增「出厂皮肤的 `modalOpacity` 必须等于 R6 写下的那个字面量」的一致性门（两处只能同时改）。
+- **#72 `parseColor` 静默放行非法颜色形状、非有限值不判负**：对非法形状严格化、`NaN`/`Infinity` 一律判负、补 `alpha = 1` 边界门——此前非法 token 能 18/18 全绿并打印凭空的对比度数字。
+- **#73 `SKINS.defaults` 七键中四键无值域门**：表驱动值域门（每键给类型与区间）；`wallpaperBlur: 800`、`sidebarOpacity: 3.4`（alpha > 1）实测翻红。
+- **#74 craft-audit 两项门是源码子串匹配**：去字符串化——按**语义**断言（比较两套玻璃常量的实际取值，以及该方案要求的方向），并按 **selector 定位**（不再「选择器字面量存在即通过」；两套常量整体互换对旧门全绿）。
+- **#75 第二张注入表（nav-icon sheet）完全在工艺门之外**：工艺门覆盖全部注入表，并新增**漏表对账门**（`createElement('style')` 站点计数 vs 已解析表数，新增注入点即红）。
+- **#76 文字对比的审计面 ≠ 求解面 ≠ 宿主消费面**：审计面单源化，并把**有宿主消费者的 tinted 面**纳入约束集；三套浅色皮肤 tertiary 在 markdown 内联代码上的 3.78–4.24 已修到自订 4.5 线以上。
+- **#77 文档数字 6 处与实况不符且无任何机检**：数字逐处订正 + **机检门**（见下）；`glow` / `defaults` 不进主题包已在 `docs/themes-spec.md` 显式声明为 schema v1 边界。
+
+**P1（5 条）**
+- **#78 APCA 反极性分支误用正常极性算式**：改为 swap operands + 系数 1.13，并用 apca-w3@0.1.9 的参考向量（含反极性向量）钉住。
+- **#79 glow 整体重掷使 `followsSkin()` 的 ≤0.4.0 兼容分支变死码**：新增**一次性迁移**——8 条旧内置渐变按「长度 + 64 字符前缀 + cyrb53」识别，命中即改存**当前皮肤**的 `glow` 并补 `wallpaper-follows-skin=1`。两条红线编进守卫而非写在注释里：用户自设壁纸不动（`kind` 必须是 `gradient`、串必须逐字命中、`follows=0` 一律退出——所有 `follows=0` 的写入点都是用户动作），旧出厂照片不以任何路径回来（只写渐变）。指纹常量由 `tests/client.persistence.test.cjs` 从 `tests/fixtures/legacy_skin_glows_10_6_0.json`（v10.6.0 真实串）**反算核对**，不是手抄。落地后的**第二遍「定态」重写是必需的**：factory 预写按设计可被宿主值覆盖，而 sealed 值不进宿主推送，少了它标记永远到不了 `dream-skin.json`（有变异钉住）。
+- **#80 玻璃亮暗分套押宿主 `body[data-ds-dark-theme]`**：改挂插件**自有** scheme 属性——宿主 dispose 会擦掉该属性，且原注释里的兜底方向写反了。
+- **#81 `--dsw-alias-brand-primary-soft` 在宿主侧 0 处消费（死 token）却参与 tints 门评级**：死 token 处置 + 新增**消费者对账门**（发货的 token 必须能指出真实消费者，或按声明进入豁免清单）。
+- **#82 `npm run skin:check` 既不在 `npm test` 也不在 CI，且 `core.autocrlf` 下必先归一化**：新增 `.gitattributes`（`* text=auto eol=lf` + 各扩展名 + 资产 `binary`）、`scripts/normalize-eol.cjs`（一次性归一 + `--check`；问 git 自己哪些是文本文件，绝不静默重写孤立 CR）、`tests/repo.hygiene.test.cjs`；CI 里 `skin:check` **排在** `npm test` 之前（顺序有断言）。
+
+**P2（2 条）**
+- **#83 预览 PNG 使 npm tarball 从 930.6 kB 涨到 2.5 MB，且 PNG 内容无任何门覆盖**：`docs/previews` 移出 `package.json` 的 `files`（实测 **2.5 MB → 263.4 kB**，文件数 30 → 22），136 处文档图片引用改指 GitHub raw；新增每皮肤三指纹（tokens / card 标记 / PNG 字节 + 由 IHDR 解析出的像素尺寸）与 `--check`；脚本在无浏览器时**非零退出**并打印"拒绝报告成功"，堵掉「什么都没做却报绿」。
+- **#84 换肤写入笔数三方口径互相矛盾**：见下节。
+
+### 写入笔数口径：三个计数器，分别计量（#84）
+评审给的三个数——「3 publish / 111 笔」「publish 2 → 3」「5 → 19」——**不是矛盾，是三个不同的计数器**，此前没人声明自己读的是哪一个。本版逐个声明并各自设上限：
+
+| 计数 | 数的是什么 | 不该被读成 |
+|---|---|---|
+| `publish` | 向宿主请求 token 层的**次数** | 层里有多少 token |
+| `setProperty` | `documentElement` 上的 CSS 自定义属性写入数 | 设计系统定义了多少 token |
+| `setItem` | `localStorage.setItem` 次数（`skin`、7 个 authored 默认、provenance 快照各自独立键） | 有多少设置被改 |
+
+`publish` 还会因**采样窗口**不同而不同（同步 2、定态 3——壁纸重着色落在定时器上），这就是两次诚实测量会不一致的原因。门因此钉**同步窗口**（确定性、无定时器），再单独要求**定态窗口停止增长**（单次采样看不见爬升，而失控 `overrideTokens` emit 在真机发生过一次）。
+
+- **真缺陷**：`saveFactorySnapshot()` 序列化整张 provenance 表，却按被播种的键各调一次——一次换肤把同一个存储键重写 **7** 次。新增 `withFactorySnapshotBatch()`（`finally` 里兜底 flush，中途异常也不丢 provenance），实测 `setItem` **19 → 13**、单键重写 **7 → 1**，`publish` / `setProperty` 不变。
+- **两个反向变异各自都能翻红**（去掉 `saveFactorySnapshot()` 的批内延迟 / 去掉使延迟生效的批作用域），都把计数推回 **19 / 7**——即评审报的那个 19。变异同时带一条守卫：变异后的写次数必须 `>= control`，因为「把被测代码删掉」的变异不是变异（这条守卫是被真实踩坑换来的：把批作用域换成裸 `(() => {` 会与尾部 `});` 配成一个**从未被调用**的括号箭头函数，循环被整体删掉、写次数从 13 掉到 5，看起来像"门失效"）。
+- **侧栏联动问题用测量回答、不靠推理**：`applySkinDefaults()` 走普通 `writeStorage`，**换肤不释放** `sidebar-link`（用户拖滑杆才释放：0.5 → 0.4 且 link 1 → 0）；「从未碰过滑杆」与「调回出厂值」**故意不可区分**（provenance 按**值**记），但用户自己调过的值一定保住。
+- 现行基线已写入 `docs/desktop-support.md`，并明确作废该文件里那条旧口径（它数的是层内槽位不是层数、测在 #84 修复前的构建上、且从未数 `setItem`）。
+
+### 文档数字机检（#77）
+新增 `tests/docs.numbers.test.cjs`：**现场调用** `scripts/skin-audit.cjs` 与 `scripts/craft-audit.cjs` 算出门数，再逐份比对 README / 7 份译文 / `docs/design-philosophy.md` / 本文件里陈述门数的那些行——改错任一处即红。`npm test` 的用例总数同理由该门**现场加载**整套件数出（`node:test` 被替换为记录器，只登记不执行；源文件正则数不准，`readme.roadmap.test.cjs` 的 22 条里有 21 条是在 locale 循环里生成的）。两道守护：门的**作用域消失**（段落被删）必须报错而不是静默通过；`docs/i18n/` 新增一份译文而未登记进门的比对清单时，必须红。
+
+### 追加轮：rc.2 / alpha.1 适配（issue #85–#94）
+
+> 评审把 DSH `0.2.0-rc.2`（`latest` + `next`）与 `0.2.1-alpha.1`（`alpha`）对照本机 `0.2.0-rc.1` 逐包比对，结论是**升级不会把插件打坏**（平台 token 值零漂移、锚点零位移、主题服务 API 未变、manifest 三版本全 PASS），欠账在覆盖面 / 口径 / 已到眼前的悬崖三类，汇总为 #85。**本轮 #86–#94 全部闭环**（#85 伞状条目保持开启，等评审复核后由评审方关闭），逐条状态如下。
+
+- **#86 兼容窗口（已闭环）**。窗口上界 `0.3.0` 是刻意的（宁可拒绝，也不注入未测宿主），但此前只写了机制，没写**用户看到什么、怎么出来**。现在 `docs/desktop-support.md` 的闸门一节写明：到点不是报错而是**东西不见了**（皮肤回默认外观、设置里 `Theme / 外观` 整节消失，宿主只在日志留一行），并给出两条出路——等本插件对新宿主实测后放宽窗口（唯一被验证过的路径），或应急用 `dsh plugin allow-version dsh-dream-skin@<版本> <运行时版本>` 自行开豁免（显式标注为未验证组合、不背书）。
+  新增常驻门 `tests/compat.window.docs.test.cjs`（5 项）补上"文档区间 = manifest 区间"这条**此前完全靠手抄、无任何机检**的缺口：窗口从 `package.json` 的 `@deepseek-ai/dsh*` peer 现场读出，逐个比对登记过的**活跃**声明点（README 兼容表行、`docs/desktop-support.md` 闸门节与 0.2.x 表行），并按区域（region，不是"出现次数"）定位。三条边界编码进门里：① **活跃声明被门看着，历史记录不被改写**——`CHANGELOG.md` 与 README 的按版本记事属冻结历史，改它们等于篡改记录（有"未登记文档不得声明窗口"的守护，逐条点名）；② 六个 peer **必须共用同一个区间**（某个 peer 自带区间就是窗口悄悄变两个的起点，实测该变异翻红）；③ 六个 peer **必须都是 optional**，否则"宿主跳过我们"会变成"npm 装不上"——那是另一种、更糟的症状，不能只差一次编辑。
+  三个方向的变异实测全部翻红：改 manifest 不动文档、改文档不动 manifest、给单个 peer 单独区间。
+- **#87 桌面版兼容声称降级到证据支持的程度**。README 与 7 份译文里的官方桌面版一行此前写「预期可工作（Electron，同前端，**沿用插件机制**）」，句末那半句比字面窄得多，且没有任何测量在后面：宿主 CLI **没有 `desktop` 的 shipped profile 模板**，照某些第三方文档教的写法走，用户会落进一个空 profile、重启后什么都看不到。现在正面证据只留可检的一条——官方桌面版**不需要**新的 `dsh.client.platform` 值（`dsh-client-modules` 丢弃一切非 `"web"` 声明，而宿主自带的 21 个客户端包全部声明 `"web"`，实测于 `0.2.1-alpha.1`）；负面证据是 shipped profile 模板里没有官方桌面版的名字，`DEFAULT_PROFILE_BUNDLES` 只有 `["@deepseek-ai/dsh-base"]`（不含 `dsh-web-app`），所以**不能**教用户用某个 profile 名。措辞改成**机读戳记**：九份文档各带 `<!-- desktop-claim: load-expected-unverified -->`，只加强措辞而不改戳记即翻红。新增 `tests/desktop.claims.test.cjs`（6 项，4 处变异：删戳记 / 把 `--profile desktop` 写回任一份 README（`=` 与空格两种写法都拦）/ 改成 `desktop-claim: verified` / 删掉证据文档里的判断依据与"不需要新 platform 值"这条正面结论）。
+- **#88 正向 token 缺口（并修掉两条从未跑到被测代码的旧变异）**。此前的普查只回答**反向**问题（「我们发货的 token，宿主有人读吗」，`scripts/host-consumers.cjs`）。本轮补上**正向**问题：宿主自己在 `design_platform_css_default` 里**声明**了哪些彩色 token，我们有没有定义？两把尺必须分开用——反向数的是 `--dsw-*` 的文本提及（`0.2.0-rc.1` 上 880 处），正向只数**在宿主默认表里声明且带色值**的 42 枚：42 声明 / 36 被读 / 我们 ship 57 → 扣掉已覆盖的余 **16 条缺口**，逐条写进 `scripts/data/host-gap-dispositions.cjs`，由 `scripts/lib/host-gap.cjs` + `tests/host.gap.test.cjs`（12 项）常驻看守。**顺带查到两条旧变异其实从没跑到被测代码**：它们指向的 `--dsw-alias-border-l3` / `--dsw-alias-bg-skeleton` 是 `cover` 分类，按构造**根本不在冻结缺口里**，于是断言要么崩在 `undefined` 上、要么永远为真。已把第一条重新指向 `--dsw-alias-bg-mask-1`（一个确实被测量的 `not-skinned` 条目），第二条改成 `delete` 该条目，逼规则 2 点名孤儿。
+- **#89 `menu-group-header-fill` 收口（同批 `turn-trigger-*` 明确勿动）**。rc.2 新增三个 token，性质不同：`--dsw-alias-turn-trigger-bg` 与 `-hover` 是宿主**自己派生**的（`var(--dsw-…)` 指向我们已经发货的 token ⇒ 不干预），`--dsw-alias-menu-group-header-fill` 是**真缺口**（一颗色字面量），现在按 94% alpha 覆盖。判据与清单写进 `docs/themes-spec.md` 新增一节，机械判据是：`var(--dsw-…)` 指向已发货 token ⇒ 派生、勿动；色字面量 ⇒ 真缺口、必须处置。`scripts/skin-audit.cjs` 新增第 27 项检查 `token-shape`（R9b）——把**每一枚**发货 token 按 `/^(#[0-9a-f]{6}|rgba?\(…\))$/i` 判形态，读者清单**从 bundle 现场解析**（`POPUP_TOKENS`），不另抄一份。第一版把「`POPUP_TOKENS` 里有一枚没有皮肤发货」判成红——那等于和 #88 的 `computed` 分类自相矛盾（`--dsw-specific-menu` 由插件每次发布时自行推导，本就没有皮肤发货），已改为在 detail 里报「N shipped, M computed at runtime」。`tests/skin.quality.test.cjs` 补两处变异（空格分隔的 `--dsw-alias-menu-group-header-fill` 必须翻红，`#303136` / `rgb(48, 49, 54)` / `rgba(48, 49, 54, 0.94)` 作绿色对照；读不到的 `POPUP_TOKENS` 不得看起来像已检查的），用例数 40→42。
+- **#90 alpha.1 `data-shell-bottom` 与壁纸水洗的交互**。把 `dsh-client-ui-layout` 在 rc.1 / rc.2 / alpha.1 三版解包实测：包体 31749 / 31749 / 32075 字节，`bottomRow` 0 / 0 / 3，`data-shell-bottom` 0 / 0 / 1，行轨道在 rc.1/rc.2 是 `grid-template-rows:100%`、alpha.1 是 `minmax(0, 1fr) auto`；**冻结语料里 `shell.bottom` 的注册方 = 0**。既然无注册方时 `renderSlot` 渲染空元素、而 alpha.1 那一行 `auto` 会塌成 0 高，当前**没有可上色的面**，所以本版不写代码、只记录边界（issue #90 三选一里的第二支）。分类真源 `scripts/lib/host-slots.cjs`（`SLOT_DISPOSITIONS` = `unmounted` / `skinned` / `out-of-scope`，`since: 0.2.1-alpha.1`，锚点 `data-shell-bottom`），`scripts/host-consumers.cjs` 新增 `measureSlots()` 把结果冻进普查，`tests/host.slots.test.cjs`（9 项，5 处变异：注册方出现 / 语料不可读或监视清单为空 / 未处置或自造分类或漏锚点 / 把 `since` 倒填且无注册方 / 给一个缺席的面判 `skinned`）看守。这条判断**自带到期条件**：注册方计数一旦非 0、或 `data-shell-bottom` 出现在语料里，门就翻红逼着重做决策。`docs/desktop-support.md` 的锚点依赖表新增该行，写明 0 计数与到期条件，并在未验证清单里记下「该底栏在活页面上一次都没看过」。
+- **#91 cordis peer 覆盖不到 `4.0.5-alpha.1`，以及"哪些 peer 参与判定"文档未写**。两把尺此前被混用：宿主闸门用 `includePrerelease: true`，且只读名字带 `@deepseek-ai/dsh` 前缀的 peer；npm/pnpm 的 peer 解析用**默认**语义，预发布版本只在与比较集合**同一个 `major.minor.patch` 三元组**的轨道上才可能被放行。因此 `>=4.0.1` **覆盖不到** `4.0.5-alpha.1`——**评审在 issue 里建议的那条修法本身是错的**，只有 `>=4.0.5-0` 或并集才行。现取 `^4.0.1 || >=4.0.5-0 <5`。验证不靠自证：拿宿主**自己 ship 的 `semver 7.8.5`** 对 12 个范围 × 23 个版本跑出 **276 行**判定（`includePrerelease` 与 `_default` 两把尺各一列，落在 `tests/fixtures/peer_range_verdicts.json`），再要求一个**零依赖**的重写实现逐行同意。脱糖里最容易搞反的一点已单列：node-semver 只在开关打开时才把 `-0` 写进**它自己发明的**边界（`pr = options.includePrerelease ? '-0' : ''`），而展开的 x-range 上界两种情况下都自带 `-0`——反过来就会让 `>=5` 声称覆盖 `5.0.0-alpha.1`。`tests/package.host_compat.test.cjs` 4→8：新增「求值器复现 276 条真实判定」「cordis 区间覆盖 `4.0.5-alpha.1` 且仍有界，并**钉死** `>=4.0.1` 覆盖不到」「区间回退时翻红，而宿主闸门对 cordis 本来就是盲的」「README 与 `docs/desktop-support.md` 都写明哪两条 peer 不参与判定」。
+- **#92 注释里的失锚哈希 + 同族扫描门**。扫描我们的发货面共得 **9 个不同哈希基**，其中 **4 个在装好的宿主上 0 命中**：issue 报的 `BynINW`（只出现在注释里），外加 `bqrRRG`、`nArs4W`、`qDHVXG`——后三个是材质表与 `MATERIAL_SELECTOR_PROBES` 里的**活选择器**。这正是 10.5.0 那轮第三方评审（T2）已经要求公开声明、却一直没发布的状态，所以本轮连同这个家族一起交代。处置：注释不再教一个死哈希（改成按结构描述——`APP_FRAME_SELECTOR`，即 `div:has(> [data-shell-overlay])`，由 `html[data-windows-titlebar]` 把关），三条活着的死选择器各领一条**带日期的豁免**（`scripts/data/dead-hashes.cjs`，`kind: legacy-host-line`、`since: 0.1.0-rc.6`，每条 why 约 400 字；理由是 README 仍声明支持 `0.1.0-rc.6 ~ 0.1.x` 而本仓库没有 0.1.x 语料——**这一半是假设，不是测量**），且每条豁免都作为 finding 在门的输出里露面，不静默通过。新增 `scripts/lib/hash-literals.cjs` + `tests/hashes.test.cjs`（11 项）：正则的作用域贪婪到**最后一个下划线**（否则 `pI_x6G_frame` 会被读成基名 `pI`），"混合大小写"才是排除 `SETTINGS_NAV`（全大写）与 `host_census`（蛇形）的判据；变异覆盖「死哈希塞回**注释**里也得被抓」（证明扫描器读注释、不只是选择器）、「宿主真有的哈希保持绿、未测量的基先被报告、补测后转绿」（要的是存在性，不是禁令）、「空语料 / 空扫描必须失败」、「过期 / 无用 / 无理由 / 未知分类的豁免」。
+- **#93 会话字号 10–22 px：口径收窄 + 不假称已测**。宿主在 **`0.2.0-rc.2`（`latest`）** 把步进器区间从 `12–17 px` 放宽到 `10–22 px`（默认仍 `14 px`），**新装用户已经在新区间里**，而我们所有「可读」结论都是在 14 px 上测的。三版包内 README 原文实测还给出两条 issue 正文里没有的事实：① **这次放宽是纯边界变更，机制一字未动**——三版 `gradient-shadow-text.css` 的推导原文**逐字节相同**（唯一差异是一处 markdown 链接目标），步进器那句也只差区间数字；② 宿主自己的阶梯说明把谁算进去可以逐句引下来——用户气泡与 composer 草稿跟着走，flow-row 标题/摘要/表格低一档（宿主公式 `setting −1 at ≤14, setting −2 above` ⇒ **10 px 时次级档是 9 px**、22 px 时 20 px），而**小字与代码是固定字号**，这把暴露面砍掉一块。我们这侧实测：`lib/client.js` 里 `--dsh-content-font*` **0 次**、`fontSize:` **19 处**全部落在 `{10…14}` px 的本插件 UI 常量内、`font-size:` 声明 0 处；对比度门与 `scripts/lib/color.cjs` 的 `apcaContrast(textRgb, bgRgb)` 都**不接受字号入参**——所以极值改变的是**要求**，不是我们**测出的数**。**诚实结论：10 px / 22 px 各零次实测**（本机实装 rc.1 仍是 12–17，而为验证去升级实装属禁止操作）。口径收窄为「在宿主字号 10–22 区间内的默认值 14 px 下实测，极值未测」，写进 `docs/desktop-support.md` 的未验证清单（带日期 2026-10-06、按极值分别记）。新增 `tests/desktop.fontscale.test.cjs`（12 项，10 处变异）**只守三件事**：这段披露不被删、区间不与宿主包矛盾、我们没有偷偷去驱动宿主阶梯。**极值本身的实测仍靠人工，门不代替观测**——issue 允许的另一种写法是明确回一句"这条靠人工，无门"，我们选择做披露门、同时把那半如实标成人工。
+- **#94 语料范围口径可枚举**。此前 #88 / #89 / #90 的「零变化」结论没有声明语料边界，读者无法判断 `dsh-client-ui-sidebar-browser` 这类包在不在里面。现把语料钉死为宿主**安装目录**（287 个包 / 1035 个代码文件），把 `packagesOnDisk` / `packagesWithCode` / `packagesWithoutCode` / `packagesScanned` 冻进普查，并新增纯函数 `corpusShortfall()` 点名语料缩水时丢了什么；扩展名过滤这个盲区也如实记账（`packagesWithoutCode`，本机实测 0）。一条教训记在案：早先一次临时探针用 `path.relative(...).split(/[\\/]/)` 数出荒谬的「1035 个包」，纠正后是 **287 个包、287 个带代码、0 个盲区包**——普查其实一直在扫全量安装，但**没有任何断言看着它**，这正是 #94 要补的那一块。
+  另按 #85 的**显式作废**记录：上一轮"`--dsw-alias-bg-mask-1` 遮罩变深"结论作废（那是同版本内浅/深两套 scheme 各自的声明，版本间值变化实测为 0，错误来自逐行 diff 读含两套 scheme 的文件）；"三个新 token 与字号 10–22 归给 alpha.1"更正为**都发生在 rc.2**。
+
+### 行为变更（显式声明）
+- **新用户首启的弹窗不透明度种子：0.6 → 0.92。** 10.5.1 曾公开裁定「保留 0.94 / 0.6」，本版推翻该裁定，理由是本轮的目标是「下载即最佳观感」：`0.6` 的对话框会让身后的会话直接读穿，正是 issue #67 的观感来源。现在该种子取自**出厂皮肤 nebula 自己的 `defaults.modalOpacity`**（`FACTORY_SKIN_DEFAULTS` 派生，不再复述字面量）。影响面与边界：
+  - **仅全新安装**（无 `factory-applied` 标记且无任何已存该键）会看到 0.6 → 0.92；
+  - **动过该滑杆的老用户完全不受影响**——`applySkinDefaults()` 只写「出厂种子」或「从未存过」的键，用户自己调过的值一律不动（有行为测试钉住）；
+  - 未动过滑杆的 existing 安装仍是 0.94（JS 回退值，本版未改）；
+  - 每次换肤时，对话框不透明度会跟随该皮肤的 `defaults.modalOpacity`（8 套分别 0.90–0.96）。
+- R6 的「字面量钉」恢复为**真字面量**（此前改成从 `skinById('nebula')` 反取，等于对设计系统改数值全盲），并新增一条一致性门：出厂皮肤的 `modalOpacity` 必须等于 R6 里写下的那个字面量，两处只能同时改（issue #71）。
+
+### 文档
+- README 与 7 份 i18n README：皮肤描述按新设计改写，补「每皮肤自带默认参数 + 用户值不被覆盖 + 226 项质量门（217 调色 + 9 工艺）」说明；这组数字不再手抄——`tests/docs.numbers.test.cjs` 现场调用两个审计脚本算出门数并逐份比对 README / 7 份译文 / `design-philosophy.md` / 本文件（改错任一处即红），`npm test` 用例总数同理由该门现场加载整套件数出；`docs/design-philosophy.md` 的配色逻辑一节重写为设计系统的实际规则（阶梯、双尺文字对比、信号色带、alpha 反解、glow 归属）。
+- **收尾时改掉一处同族缺陷**：README 与 7 份 i18n README 的架构说明仍写着「皮肤 `colorScheme` 驱动 `body[data-ds-dark-theme]`」——正是 #80 要拆掉的那条链路，即「文档陈述与实况不符」，与本轮 #77 同类。8 份文档一并改写为自有根属性 `html[data-dsh-dream-skin-scheme]`，并写明宿主 `dispose()` 会擦除 `body[data-ds-dark-theme]`、该属性缺席的窗口里暗色皮肤会拿到亮档常量。`docs/review/` 是评审存档，按纪律**不改动**。
+
+### 未验证 / 边界（如实记录）
+- **真机像素复核未做**：本轮验证全部为无头 Chrome 渲染 + 数值审计 + 测试矩阵；皮肤在真实 DSH Web 上的实机观感（尤其 mist 的液态玻璃叠加宿主背景）仍待下一轮真机复核。
+- 预览图为生成渲染而非真机截图，README「实机截图」一节（`docs/screenshots/`）仍是 10.6.0 的旧界面，与本轮 token 改动的差异不影响版式，仅配色深浅不同。
+- `midnight` 画布明度 0.150 属刻意的 OLED 极暗，弱光环境外的可读性由三级文字双达标兜底，但非暗光爱好者的舒适区——保留为「极简沉浸」定位而非默认推荐。
+
 ## [10.6.0] - 2026-10-06
 
 > 外部 PR 收口版（PR #65，@Waser750）：右侧栏（dockkit 面板）三处与左侧不一致——侧边栏透明度滑杆管不到右栏、右栏全屏时对话从面板背后透出、鼠标划过「文件」胶囊会失去底色而旁边的「新建终端」不会。本版把这三处对齐，全部挂在宿主自己发布的**稳定 data 属性**上，不碰构建哈希类名。本版的评审走的是 PR 复核轮（四条阻塞 + 合并前维护方独立变异抽查），**没有另起三方对抗评审**：改动面是 38 行 CSS + 3 条用例、且每条都有能翻红的门，按本仓验证预算口径处理（如实写明依据，不冒充更高强度）。
@@ -63,7 +160,7 @@
 - 本文件与 README 版本段按裁定 T1 新增「行为变更」声明（含 layer-2 消费面与设计值对照）；`docs/desktop-support.md` 用例数 159→169 并记入本轮 15 处变异与实机复核。
 
 ### 实机复核（本机 dsh `0.2.0-rc.1`，link 安装即工作树；2026-10-06，内置浏览器 `evaluate_script` 机读，**非像素目视**）
-- **裁定 CP1（"宿主同步 emit"前提）**：以真实 UI 色块切换皮肤 nebula→aurora→nebula，每切换恰好 3 次 publish（=111 笔 `--dsw-`/`--dsh-` token 写入，37 枚/次；1 次为点击同步、2 次为守卫下的延迟重解析），+500ms / +2500ms / +7000ms / +10500ms 四采样点计数全部停在 111——无 E5/E6 类失控增长（离线隔离副本里同类变异 +2500ms 已达 200+/400+ 且继续增长）。layer-2 覆盖随皮肤重解析并三态还原：nebula `rgba(30, 27, 44, 0.5)` → aurora `rgba(22, 32, 34, 0.5)` → nebula。计数为**代理指标**（包装 `CSSStyleDeclaration.setProperty` 计 token 写入，publish 次数按 37 枚/次推断）。
+- **裁定 CP1（"宿主同步 emit"前提）**：以真实 UI 色块切换皮肤 nebula→aurora→nebula，每切换恰好 3 次 publish（=111 笔 `--dsw-`/`--dsh-` token 写入，37 枚/次；1 次为点击同步、2 次为守卫下的延迟重解析），+500ms / +2500ms / +7000ms / +10500ms 四采样点计数全部停在 111——无 E5/E6 类失控增长（离线隔离副本里同类变异 +2500ms 已达 200+/400+ 且继续增长）。layer-2 覆盖随皮肤重解析并三态还原：nebula `rgba(30, 27, 44, 0.5)` → aurora `rgba(22, 32, 34, 0.5)` → nebula。计数为**代理指标**（包装 `CSSStyleDeclaration.setProperty` 计 token 写入，publish 次数按 37 枚/次推断）。**⚠ 此口径自 [10.6.1]（#84）起废止为「现行基线」**：它数的是层内槽位而非层数、测在 #84 修复前的构建上、且从未数 `setItem`；它保留在此仅作「定态不增长」的历史证据，现行写入基线见 [10.6.1] 与 `docs/desktop-support.md`。
 - **弹窗两态**（裁定 T1）：见上「行为变更」。
 - **composer 三点**：frosted 基线（stored 0.4）fillVar 40%、厚度 10px；liquid @滑杆 60（stored 0.4 → 重映射 49%）fillVar 49%、`::before` `color(srgb … / 0.49)`；liquid @实端（stored 1）fillVar 100%、`::before` 无 alpha 分量（完全不透明）、厚度 24px；liquid @透明端（stored 0）fillVar 15%（地板）、厚度 0px；验证后恢复 frosted 40%。所有写入的 localStorage 均已还原。
 

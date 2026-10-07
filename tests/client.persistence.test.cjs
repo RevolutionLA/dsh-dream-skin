@@ -591,3 +591,141 @@ test('T-03: host adoption enforces the gradient/URL write gates (tampered state 
 	await sleep(50);
 	assert.equal(h2.getItem('dsh-dream-skin:wallpaper-gradient'), glow, 'valid gradient adopted');
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Issue #79 — the legacy-glow fingerprint and its convergence into the host file
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LEGACY_GLOW_FIXTURE = require('./fixtures/legacy_skin_glows_10_6_0.json');
+const SHIPPED_SKINS = require('../scripts/skin-audit.cjs').extractSkins(CODE);
+const glowOf = (id) => {
+	const skin = SHIPPED_SKINS.find((s) => s.id === id);
+	assert.ok(skin && typeof skin.glow === 'string', `${id} must ship a glow`);
+	return skin.glow;
+};
+
+test('#79 glow fingerprint: the eight legacy triples are recomputed from the v10.6.0 gradients, not retyped', () => {
+	const legacy = LEGACY_GLOW_FIXTURE.skins;
+	assert.equal(LEGACY_GLOW_FIXTURE._source, 'git show v10.6.0:lib/client.js', 'the fixture must declare where it came from');
+	assert.equal(Object.keys(legacy).length, 8, 'fixture drifted from the tagged release');
+
+	const triples = [...CODE.matchAll(/\{ id: "([a-z]+)", length: (\d+), prefix: ("(?:[^"\\]|\\.)*"), hash: (\d+) \}/g)]
+		.map((m) => ({ id: m[1], length: Number(m[2]), prefix: JSON.parse(m[3]), hash: Number(m[4]) }));
+	assert.equal(triples.length, 8, `exactly eight legacy-glow entries must ship, matched ${triples.length}`);
+
+	for (const t of triples) {
+		const real = legacy[t.id];
+		assert.ok(typeof real === 'string', `the fixture is missing the ${t.id} glow`);
+		assert.equal(t.length, real.length, `${t.id}: length must be the real v10.6.0 string's length`);
+		assert.equal(t.prefix, real.slice(0, t.prefix.length), `${t.id}: the prefix must be the real string's opening`);
+		assert.equal(t.hash, cyrb53(real), `${t.id}: the hash must be recomputed from the real gradient — a hand-copied constant is the failure this case exists for`);
+	}
+	assert.equal(new Set(triples.map((t) => t.prefix)).size, 8,
+		'the eight prefixes must stay distinct, or the cheap pre-filter stops filtering anything');
+	assert.equal(new Set(triples.map((t) => t.length)).size >= 5, true,
+		'the lengths must stay varied, or length alone would be doing the work');
+	// And none of them may be a current glow — the repair keys on the value not
+	// being one of ours, so a collision here would make it unfireable.
+	for (const t of triples) {
+		assert.notEqual(glowOf(t.id), legacy[t.id], `${t.id}: the current glow must differ from the legacy one, or the repair can never fire`);
+	}
+});
+
+test('#79: the repair converges into dream-skin.json when the host file still holds the dead glow', async () => {
+	// The reported shape: same origin, so localStorage AND $DSH_HOME/dream-skin.json
+	// both still hold the pre-redesign glow and no follows marker was ever written.
+	// A factory-provisional write is deliberately OVERRIDABLE by the durable host
+	// value, so the pre-settle repair is adopted straight back and the post-settle
+	// pass has to redo it as user state — otherwise the host keeps the dead string
+	// forever and the background stays broken.
+	const legacy = LEGACY_GLOW_FIXTURE.skins.nebula;
+	const state = {
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': legacy,
+		'dsh-dream-skin:skin': 'nebula',
+		'dsh-dream-skin:wallpaper-opacity': '0.42'
+	};
+	const h = buildSandbox({ hostValue: { ...state }, seed: { ...state } });
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(500);
+
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-gradient'), glowOf('nebula'),
+		'the stored gradient must end up as the current glow');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-follows-skin'), '1',
+		'and the follows marker must be recorded, so a later skin switch swaps the background again');
+	assert.ok(h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-gradient'] === glowOf('nebula')),
+		'dream-skin.json must converge too — a host file left holding the dead string re-adopts it on the next boot');
+	assert.ok(!h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-gradient'] === legacy),
+		'the legacy glow must never be pushed anywhere');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-opacity'), '0.42',
+		'and an unrelated user value in the same patch is untouched');
+});
+
+test('#79: with no gradient in the host file, the marker still reaches the host (restart must not re-seed follows=0)', async () => {
+	// The other half of the convergence. Here the durable host state has no
+	// wallpaper decision, so the provisional repair survives — but sealed factory
+	// values are never pushed, and FACTORY_DEFAULTS seeds `follows = 0`. Without
+	// re-asserting the marker as user state, a dynamic-port desktop restart would
+	// find no marker in the host file, seed 0, and the background would stop
+	// following again — the exact bug this migration exists to fix.
+	const legacy = LEGACY_GLOW_FIXTURE.skins.ivory;
+	const h = buildSandbox({
+		hostValue: { 'dsh-dream-skin:wallpaper-opacity': '0.42' },
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'gradient',
+			'dsh-dream-skin:wallpaper-gradient': legacy
+		}
+	});
+	const e = h.factory(makeRequire());
+	e.apply(makeApplyContext(h));
+	await sleep(500);
+
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-gradient'), glowOf('ivory'),
+		'the repair itself survives when nothing durable overrides it');
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-follows-skin'), '1');
+	assert.ok(h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-follows-skin'] === '1'),
+		'the marker must be pushed as USER state — a sealed factory write is filtered out of the patch entirely');
+	assert.ok(h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-gradient'] === glowOf('ivory')),
+		'and the repaired gradient rides along, so the pair is restored together on a fresh origin');
+});
+
+test('#79: mutation — disabling the post-settle half leaves the marker out of the host file', async () => {
+	// The second pass is not decoration: without it the repair survives locally
+	// but never reaches dream-skin.json, and the next dynamic-port restart
+	// re-seeds `follows = 0` from FACTORY_DEFAULTS. `false &&` is the smallest
+	// edit that removes the pass without also removing the code it guards.
+	const guard = '\t\t\t\tif (glowRepairPending && hostProbeSettled) {';
+	assert.ok(CODE.includes(guard), 'the post-settle guard must still exist for this mutation to mean anything');
+	const patched = CODE.replace(guard, '\t\t\t\tif (false && glowRepairPending && hostProbeSettled) {');
+	assert.notEqual(patched, CODE, 'the mutation must actually change the bundle');
+
+	const legacy = LEGACY_GLOW_FIXTURE.skins.ivory;
+	const scenario = (code) => ({
+		...(code ? { code } : {}),
+		hostValue: { 'dsh-dream-skin:wallpaper-opacity': '0.42' },
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'gradient',
+			'dsh-dream-skin:wallpaper-gradient': legacy
+		}
+	});
+	const boot = async (code) => {
+		const h = buildSandbox(scenario(code));
+		const e = h.factory(makeRequire());
+		e.apply(makeApplyContext(h));
+		await sleep(500);
+		return h;
+	};
+
+	// Control first: the same scenario on the shipped bundle DOES push, so the
+	// absent push below is the mutation's doing and not a broken scenario.
+	const control = await boot(null);
+	assert.ok(control.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-follows-skin'] === '1'),
+		'control: the unmutated bundle must push the marker, or this case proves nothing');
+
+	const h = await boot(patched);
+	assert.equal(h.getItem('dsh-dream-skin:wallpaper-gradient'), glowOf('ivory'),
+		'the unmutated half still repairs the stored value, so the case is about the push, not the swap');
+	assert.ok(!h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-follows-skin'] === '1'),
+		'with the second pass disabled the marker must NOT reach the host file — this is the assertion the guard exists for');
+});

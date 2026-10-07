@@ -56,20 +56,20 @@
 
 <table>
   <tr>
-    <td align="center"><a href="../../docs/previews/abyss.png"><img src="../../docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 深静ブルー<br/><sub>落ち着いた深い藍色、控えめで静か</sub></td>
-    <td align="center"><a href="../../docs/previews/aurora.png"><img src="../../docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 オーロラティール<br/><sub>澄んだ半透明のクールなティール、自然な冷色</sub></td>
-    <td align="center"><a href="../../docs/previews/nebula.png"><img src="../../docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星雲パープル<br/><sub>深く拡散した青紫、霞がかってミステリアス</sub></td>
-    <td align="center"><a href="../../docs/previews/ember.png"><img src="../../docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余炎アンバー<br/><sub>温かみのある控えめな琥珀色</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/abyss.png" width="230" alt="abyss"/></a><br/><b>abyss</b> · 🕶️ 深静ブルー<br/><sub>落ち着いた深い藍色、控えめで静か</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/aurora.png" width="230" alt="aurora"/></a><br/><b>aurora</b> · 🌌 オーロラティール<br/><sub>澄んだ半透明のクールなティール、自然な冷色</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/nebula.png" width="230" alt="nebula"/></a><br/><b>nebula</b> · 🪐 星雲パープル<br/><sub>深く拡散した青紫、霞がかってミステリアス</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余炎アンバー<br/><sub>温かみのある控えめな琥珀色</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="../../docs/previews/midnight.png"><img src="../../docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 ミッドナイトブラック<br/><sub>ミニマルな純黒、没入感のある OLED</sub></td>
-    <td align="center"><a href="../../docs/previews/ivory.png"><img src="../../docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS フラット<br/><sub>ミニマルなフラットホワイト、iOS システムグレー + 控えめなブルー</sub></td>
-    <td align="center"><a href="../../docs/previews/mist.png"><img src="../../docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 クリアブライト<br/><sub>明るくすっきりしたガラス質感、半透明 + ぼかし</sub></td>
-    <td align="center"><a href="../../docs/previews/rose.png"><img src="../../docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 マテリアルピンク<br/><sub>明るく鮮やかなピンク、Google Material のフラットカラー</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 ミッドナイトブラック<br/><sub>ミニマルな純黒、没入感のある OLED</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS フラット<br/><sub>ミニマルなフラットホワイト、iOS システムグレー + 控えめなブルー</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 クリアブライト<br/><sub>明るくすっきりしたガラス質感、半透明 + ぼかし</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 マテリアルピンク<br/><sub>明るく鮮やかなピンク、Google Material のフラットカラー</sub></td>
   </tr>
 </table>
 
-> ライト & ダーク両対応：`mist`、`ivory`、`rose` はライト系、それ以外はダーク系です。プリセットで物足りない？ この先の**方法 #2** へどうぞ。
+> ライト & ダーク両対応：`mist`、`ivory`、`rose` はライト系、それ以外はダーク系です。プリセットで物足りない？ この先の**方法 #2** へどうぞ。 各プリセットは専用の既定値（グローの不透明度・ぼかし、サイドバーと入力欄の透過度、ダイアログの不透明度、ガラス素材）を持っています。スキンを切り替えると自分で設定していない値だけが再調整され、8 プリセットすべてが 226 項目の計測可能な品質ゲート（配色 217 + 工芸 9）（OKLCH の明度ラダー、WCAG 2.1 + APCA のテキストコントラスト、シグナル色相の分離、プリセット間の識別性）に合格しています。
 
 ---
 
@@ -257,7 +257,7 @@ dsh web   # restores the official appearance
 | DeepSeek Harness（`dsh`） | **同一ビルドで両世代のホストに対応**：安定版 `0.1.0-rc.6` / `0.1.1-rc.x`（peerDependencies は `^0.1.0-rc.6` に固定）と DSH master（分割後のモジュールテーブル） |
 | Node.js | `>=18` |
 | ブラウザ | モダンな Chromium / WebKit（ネイティブ CSS 変数 & `matchMedia`） |
-| デスクトップ | サードパーティの DSH Desktop シェルに対応済み（issue #50/#51/#55）；**公式 DSH Desktop プレビュー版も互換の見込み**（Electron 同一フロントエンド + プラグイン機構を継承）。完全なアンカー依存リスト／セキュリティ境界／検証済み・未検証の一覧は **[docs/desktop-support.md](../desktop-support.md)** を参照 |
+| デスクトップ | **サードパーティの DSH Desktop シェル：** 対応済み、実機で確認（issue #50/#51/#55）。**公式 DSH Desktop：** 根拠が支えるのは「**読み込む見込み**」であり「対応済み」ではありません——根拠は静的な事実 2 つだけ（Electron 同一フロントエンド／当方が宣言する `dsh.client.platform = "web"` がホスト同梱の 21 クライアントパッケージと一致）。そのプロファイルディレクトリとインストール手順は**本機では一度も検証しておらず**、本ドキュメントは**コピーできるデスクトップ用インストールコマンドを載せません**。<!-- desktop-claim: load-expected-unverified -->導入時の `--profile` にはホスト**自身が同梱する**テンプレート名を使ってください。一部のサードパーティ文書が教えるプロファイル名は本機のホストには存在せず、そのままコピーすると空のシェルプロファイルに入り、再起動後は何も表示されません。根拠は **[docs/desktop-support.md](../desktop-support.md)** の「公式デスクトップ版：未検証項目」を参照。完全なアンカー依存リスト／セキュリティ境界／検証済み・未検証の一覧も同ドキュメント |
 
 > DSH をアップグレードするときは、`package.json` の peerDependencies もそれに合わせて更新してください。
 
@@ -291,7 +291,11 @@ DSH のテーマシステムはトークンベースです：Web シェルは `-
   4. `theme/change` をリッスンし、スキン / 配色の切り替え時に壁紙の色調を再調整；
   5. 専用の **設定 → テーマ / 外観** セクション（`settings.section`）を登録し、`settings.dreamSkin.item` スロットに 5 つの機能行をマウントします。
 
-各スキンは `colorScheme`（`light`/`dark`）を持ち、`body[data-ds-dark-theme]` を駆動します。エイリアストークンのオーバーライドは、ui-layout の ThemePresenter によって `<body>` にインラインのカスタムプロパティとして適用されます。
+各スキンは `colorScheme`（`light`/`dark`）を持ち、本プラグインがそれを自分のルート要素 `<html>` に
+（`data-dsh-dream-skin-scheme` として）打ちます。宿主の `body[data-ds-dark-theme]` には**依存しません**——
+その属性は ui-layout の ThemePresenter に属し、その `dispose()` が消してしまうため、属性が欠けている窓では
+暗色スキンが明色側の定数を拾っていました。エイリアストークンのオーバーライドは、ui-layout の ThemePresenter
+によって `<body>` にインラインのカスタムプロパティとして適用されます。
 
 ## 💼 永続化のメモ
 
@@ -308,7 +312,7 @@ DSH のテーマシステムはトークンベースです：Web シェルは `-
 - **内蔵スキンの追加**：`lib/client.js` の `SKINS` 配列にオブジェクト（`id` + `colorScheme` + `tokens`）を追加するだけで、自動的に設定に表示されます。**8 つのロケール辞書すべて**（`zh`/`en`/`ja`/`ko`/`es`/`fr`/`de`/`ru`）に `skin.<id>` キーを追加してください。
 - **テーマパックの配布（推奨）**：[`docs/examples/sample-theme-pack.json`](../../docs/examples/sample-theme-pack.json) に従ってください — `*.dsh-theme.json` 1つを設定からインポートでき、リンクで共有も可能。コード変更は不要です。
 - **独自の壁紙を追加**：[`wallpapers/`](../../wallpapers/) に画像を置いて（配布するのは権利を持つものだけにしてください）、DSH の「壁紙」行からインポートします。
-- **プレビューの再生成**：プレビューは `scripts/generate-skin-mockups.cjs`（実トークン + diffused glow）で HTML モックアップを生成し、ヘッドレス Chrome で `docs/previews/*.png` としてキャプチャします — スキンのトークンを変更したら再実行して、プレビューを実際のスキンと同期させてください。
+- **プレビューの再生成**：プレビューは `scripts/generate-skin-mockups.cjs`（実トークン + diffused glow）で HTML モックアップを生成し、ヘッドレス Chrome で `docs/previews/*.png` としてキャプチャします — スキンのトークンを変更したら再実行して、プレビューを実際のスキンと同期させてください。`docs/previews/manifest.json` は各画像を三つの指紋（出荷トークン・カードのマークアップ・PNG のバイト数と画素寸法）に固定し、配色だけ変えて撮り直していない場合は `npm run previews --check`（ブラウザ不要）が赤くなり、どのスキンかを名指しします。ヘッドレスブラウザが見つからないときは `npm run previews` が非ゼロで終了し、0 出力を成功とは見なしません。これらの PNG は**パッケージに同梱されません**：2.26 MB の README 装飾を全利用者にダウンロードさせるべきではないためで、`npm pack` は 2.5 MB から 263 kB に減り、README は GitHub から読み込みます。
 - **検証**：`npm test`（ファクトリーの評価、`apply()`、パックのインポート / 永続化をカバーする VM スモークテスト）。
 - **再ペイント**：`--dsw-alias-*` トークンを参照してください（完全な契約は [`docs/themes-spec.md`](../../docs/themes-spec.md)）。
 
