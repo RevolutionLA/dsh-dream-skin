@@ -12,7 +12,7 @@
  * CHANGELOG claimed sampling in "a real CSS engine" while the shipped tree offered no way
  * to recompute the claim.
  *
- * So this file recomputes it. The page is built from THREE sources, none of them
+ * So this file recomputes it. The HOST page is built from THREE sources, none of them
  * hand-copied:
  *   1. the plugin's own material sheet, taken out of the shipped bundle by
  *      `scripts/craft-audit.cjs` — the same reader the craft gates use;
@@ -22,6 +22,14 @@
  * wash again. All three host packages are required by name: a fixture that quietly
  * omitted the rule under test would read the same value in every state and "prove" the
  * fix with a check that cannot fail (issue #83's lesson — zero output is a failure).
+ *
+ * The DESKTOP page (issue #99) is a second, smaller fixture in the same file: the shell
+ * is a third-party plugin with no local install to read, so its two sidebar rules are a
+ * pinned SNAPSHOT (`DESKTOP_SHELL_SOURCE` names the repo, tag and lines) while the
+ * material sheet and the sidebar-token consumer declaration are still read from the
+ * bundle and the installed host. It grades the one thing a string test cannot answer:
+ * whether our wash-gated `background-color` outranks the shell's opaque `background`
+ * shorthand without eating the token path or the shell's own border.
  */
 const fs = require('fs');
 const os = require('os');
@@ -29,7 +37,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const { extractSheets } = require('./craft-audit.cjs');
-const { findChrome } = require('./generate-skin-mockups.cjs');
+const { findChrome, CHROME_CANDIDATES } = require('./generate-skin-mockups.cjs');
 
 const REPO = path.join(__dirname, '..');
 const DEFAULT_HOST_ROOT = process.env.DSH_HOST_ROOT
@@ -142,35 +150,354 @@ ${parts.chat}</style>
 }
 
 /**
- * Run the fixture through headless Chrome and return the computed readings.
+ * Which browsers to try, in order, and why the list is a list.
+ *
+ * `findChrome` (the preview gate's helper) stops at the FIRST path that exists, which is the
+ * right behaviour for generating PNGs and the wrong one for a check other people have to be
+ * able to re-run: the 10.8.1 review round could not run this gate at all on the very machine
+ * that ships it — every spawn came back `EBUSY`, a Windows "somebody else is holding that
+ * file/profile" error, and a computed-style gate that only runs on one laptop is a claim
+ * rather than a check.
+ *
+ * An explicit `CHROME_PATH` stays authoritative and gets NO fallback (issue #83's rule:
+ * being told which engine to use and then quietly using another one is worse than failing).
+ */
+function browserAttempts(env, candidates = CHROME_CANDIDATES) {
+	if (env && env.CHROME_PATH) {
+		const one = findChrome(env);
+		return { list: one.path ? [one.path] : [], why: one.why };
+	}
+	const list = candidates.filter((p) => {
+		try { return fs.existsSync(p); } catch { return false; }
+	});
+	return {
+		list,
+		why: list.length ? 'auto-detected'
+			: `no headless browser found; looked at ${candidates.length} known locations`
+	};
+}
+
+/** Render one page in headless Chrome and read the marker out of its <title>. */
+function runChrome(html, env) {
+	const attempts = browserAttempts(env || process.env);
+	if (!attempts.list.length) return { ran: false, why: attempts.why };
+	const failures = [];
+	for (const exe of attempts.list) {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-wash-'));
+		const file = path.join(dir, 'fixture.html');
+		// A profile of our own, inside the temp dir this call already cleans up. The default
+		// profile belongs to the browser somebody is typing into; a second instance aimed at
+		// it contends for locks, which is exactly how the EBUSY above arrived.
+		const profile = path.join(dir, 'profile');
+		try {
+			fs.mkdirSync(profile);
+			fs.writeFileSync(file, html);
+			const dom = execFileSync(exe, [
+				'--headless=new', '--disable-gpu', '--no-sandbox', '--allow-file-access-from-files',
+				'--no-first-run', '--no-default-browser-check', '--user-data-dir=' + profile,
+				'--virtual-time-budget=2000', '--dump-dom', 'file:///' + file.replace(/\\/g, '/')
+			], { encoding: 'utf8', maxBuffer: 32e6, timeout: 90000 });
+			// The page publishes into <title>; `--dump-dom` escapes the quotes, so decode
+			// before parsing. A page that produced no marker is an error, not an empty pass.
+			const raw = dom.match(/DSH_RESULTS([\s\S]*?)<\/title>/);
+			if (!raw) return { ran: true, error: `no results marker in the dumped DOM (${path.basename(exe)})`, dom: dom.slice(0, 500) };
+			const json = raw[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+			try {
+				return { ran: true, readings: JSON.parse(json), via: path.basename(exe) };
+			} catch (e) {
+				return { ran: true, error: 'readings did not parse: ' + e.message, dom: json.slice(0, 500) };
+			}
+		} catch (e) {
+			// Only a LAUNCH/EXIT failure moves on to the next candidate. A page that ran and
+			// read wrong is a fixture problem, and swapping browsers would mask it.
+			failures.push(`${path.basename(exe)}: ${e.code || e.message}`.slice(0, 160));
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	}
+	return {
+		ran: false,
+		why: `every candidate failed to launch (${failures.join(' | ')}) — tried ${attempts.list.map((p) => path.basename(p)).join(', ')}`
+	};
+}
+
+/**
+ * Run the host fixture through headless Chrome and return the computed readings.
  * @param {{parts?: object, env?: object}} opts `parts` lets a caller probe a MUTATED
  *        sheet; by default the shipped bundle and the installed host are used.
  */
 function measure(opts = {}) {
-	const chrome = findChrome(opts.env);
-	if (!chrome.path) return { ran: false, why: chrome.why };
 	const parts = opts.parts || buildFixture(opts);
-	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-wash-'));
-	const file = path.join(dir, 'fixture.html');
-	try {
-		fs.writeFileSync(file, fixtureHtml(parts));
-		const dom = execFileSync(chrome.path, [
-			'--headless=new', '--disable-gpu', '--no-sandbox', '--allow-file-access-from-files',
-			'--virtual-time-budget=2000', '--dump-dom', 'file:///' + file.replace(/\\/g, '/')
-		], { encoding: 'utf8', maxBuffer: 32e6, timeout: 90000 });
-		// The page publishes into <title>; `--dump-dom` escapes the quotes, so decode
-		// before parsing. A page that produced no marker is an error, not an empty pass.
-		const raw = dom.match(/DSH_RESULTS([\s\S]*?)<\/title>/);
-		if (!raw) return { ran: true, error: 'no results marker in the dumped DOM', dom: dom.slice(0, 500) };
-		const json = raw[1].replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
-		try {
-			return { ran: true, readings: JSON.parse(json) };
-		} catch (e) {
-			return { ran: true, error: 'readings did not parse: ' + e.message, dom: json.slice(0, 500) };
-		}
-	} finally {
-		fs.rmSync(dir, { recursive: true, force: true });
+	return runChrome(fixtureHtml(parts), opts.env);
+}
+
+/**
+ * The DSH Desktop shell's own rules, copied verbatim from the shell at tag v2.0.17:
+ * `dsh-plugin-desktop/src/client/styles.ts:13,14,22,23,24,38` in
+ * anywhere-labs/dsh-desktop — :23 the sidebar base (token + `background: transparent`),
+ * :24 the `material=off` pair (token AND `background: var(--dsw-alias-bg-layer-1)`),
+ * :22 the frame that wraps the sidebar, :38 the Windows rule that makes that aside span
+ * both grid rows (so it is also the strip under the title bar), :13/:14 `#root` sizing and
+ * the shell's own transparent body.
+ *
+ * WHY A SNAPSHOT, AND WHAT IT CANNOT CLAIM. The shell is a third-party plugin with no
+ * local install to read, so unlike every other input in this file the shell text is
+ * copied. It is pinned by tag and re-fetchable — the two sidebar lines are byte-identical
+ * at v2.0.5 / v2.0.10 / v2.0.17, which anyone can check with:
+ *
+ *   for t in v2.0.5 v2.0.10 v2.0.17; do curl -s \
+ *     "https://raw.githubusercontent.com/anywhere-labs/dsh-desktop/$t/dsh-plugin-desktop/src/client/styles.ts" \
+ *     | grep -h "dshDesktopSidebarSurface { --dsw-specific-sidebar-fill\|material=\"off\"] .dshDesktopSidebarSurface" | md5sum; done
+ *     # all three: 0cf2ba653a78ba7c9660a51782dc1131 (the lines sit at :16 and :17 there)
+ *
+ * What the snapshot CAN prove is the layer stack: whether our declaration beats theirs,
+ * whether anything opaque is left between the sidebar content and the wallpaper, and
+ * whether our win still depends on `!important`. What it can NEVER prove is that a real
+ * user in a real shell sees the wallpaper — there are no pixels in this file, and nobody
+ * has run the shell yet. If the shell renames its class the snapshot does not go red by
+ * itself; `buildDesktopFixture` therefore guards the exact declarations these checks read
+ * (any one of them missing = the fixture refuses to run), and the drift probe keeps
+ * watching `.dshDesktopSidebarSurface` on a live shell.
+ */
+const DESKTOP_SHELL_SOURCE = 'anywhere-labs/dsh-desktop v2.0.17 — dsh-plugin-desktop/src/client/styles.ts:13,14,22,23,24,38 (sidebar pair md5 0cf2ba65… at v2.0.5 / v2.0.10 / v2.0.17)';
+const DESKTOP_SHELL_CSS = `
+html, body, #root { width: 100%; height: 100%; }
+body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"]) { margin: 0; background: transparent !important; }
+.dshDesktopFrame { position: relative; display: grid; grid-template-rows: 100%; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+.dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: transparent; position: relative; grid-column: 1; grid-row: 1; min-width: 0; overflow: hidden; background: transparent; border-right: 1px solid var(--dsw-alias-border-l1); }
+body:is([data-dsh-desktop-mode="extended"], [data-dsh-desktop-mode="advanced"])[data-dsh-desktop-material="off"] .dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1); background: var(--dsw-alias-bg-layer-1); }
+.dshDesktopFrame[data-desktop-mode="advanced"][data-desktop-platform="win32"] .dshDesktopSidebarSurface { grid-row: 1 / -1; }
+`.trim();
+
+/** The state the shell runs in on Windows (environment.ts:24 admits four markers, :51-53 folds
+ *  acrylic/mica to off, and :58+:61 THROW for win32 + transparent — so `off` is not a choice). */
+const DESKTOP_SHELL_BODY_ATTRS = 'data-dsh-desktop-mode="advanced" data-dsh-desktop-material="off" data-desktop-platform="win32"';
+
+/**
+ * Read one skin's tokens out of the SHIPPED bundle, so the desktop fixture never grades
+ * colors somebody typed into a test. Review finding F14 (10.8.1) caught the first version
+ * doing exactly that: it asserted `rgba(30,27,44,0.96)`, a value this file invented, so
+ * "the shell really paints an underlay" was this file reading back its own handwriting.
+ * The real bundle disagrees per skin — `--dsw-alias-bg-layer-1` is an opaque hex for seven
+ * skins but `rgba(240, 248, 255, 0.62)` for mist — so the page runs once per skin, every
+ * reading carries the inputs it was taken against, and the checks talk about ALPHA, not
+ * about colors this file chose.
+ */
+function skinTokens(source, id) {
+	const re = new RegExp('\\{\\s*id: "' + id + '",\\s*colorScheme: "(?:dark|light)",\\s*tokens: \\{([\\s\\S]*?)\\n\\t{4}\\}', '');
+	const hit = source.match(re);
+	if (!hit) throw new Error(`skin ${JSON.stringify(id)} is not in the shipped bundle — the desktop fixture has no colors to measure`);
+	const tokens = {};
+	for (const m of hit[1].matchAll(/"([^"]+)":\s*"([^"]+)"/g)) tokens[m[1]] = m[2];
+	for (const need of ['--dsw-alias-bg-layer-1', '--dsw-alias-border-l1', '--dsw-specific-sidebar-fill']) {
+		if (!tokens[need]) throw new Error(`skin ${id} ships no ${need} in the bundle — the fixture would have to invent it`);
 	}
+	return tokens;
+}
+
+/** One skin whose layer-1 is fully opaque and one whose is not: the fix must hold for both. */
+const DESKTOP_SKINS = ['abyss', 'mist'];
+
+/**
+ * The sentinel the page writes into `--dsw-specific-sidebar-fill` to imitate a slider
+ * movement, and the value the checks compare the sweep reading against — ONE constant, so
+ * the fixture and the verdict table cannot disagree about what "the token moved" means.
+ */
+const DESKTOP_SWEEP = 'rgba(7, 7, 7, 0.25)';
+
+/**
+ * Find ONE declaration in the installed host that paints from the sidebar token, so the
+ * fixture's consumer element uses the host's own form of the read rather than a guess.
+ * @returns {string|null} the declaration, or null when no installed host reads the token
+ */
+function hostSidebarConsumer(root) {
+	const css = hostCss(root, 'dsh-client-ui-sidebar', '--dsw-specific-sidebar-fill')
+		|| hostCss(root, 'dsh-client-ui-layout', '--dsw-specific-sidebar-fill');
+	if (!css) return null;
+	const hit = css.match(/[-a-z]+:\s*var\(--dsw-specific-sidebar-fill\)/);
+	return hit ? hit[0] : null;
+}
+
+/** Assemble the desktop page. Missing inputs are errors, never a thinner fixture. */
+function buildDesktopFixture(opts = {}) {
+	const root = opts.root || DEFAULT_HOST_ROOT;
+	const source = opts.source || fs.readFileSync(path.join(REPO, 'lib', 'client.js'), 'utf8');
+	const sheets = extractSheets(source);
+	const material = sheets.find((s) => /material/.test(s.id));
+	if (!material) throw new Error('the material sheet is not in the bundle — the desktop probe has nothing to measure');
+	// Every declaration these checks read is guarded by name. Review finding F8 (10.8.1):
+	// the first guard only looked for the class and the `off` branch, so deleting the
+	// shell's token re-declaration from the copy left a fixture that still claimed to
+	// prove the issue #55 half of the story. The guard runs over the text the PAGE will
+	// actually carry (`opts.shell` exists so a test can hand it a trimmed copy and watch it
+	// refuse — a guard that only ever sees the shipped constant proves nothing about itself).
+	const shell = opts.shell === undefined ? DESKTOP_SHELL_CSS : opts.shell;
+	for (const [needle, why] of [
+		['.dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: transparent;', 'the base rule the #55 `inherit` fix has to outrank'],
+		['--dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1); background: var(--dsw-alias-bg-layer-1);', 'the material=off pair — token AND paint, which is the whole shape of issue #99'],
+		['.dshDesktopFrame { position: relative; display: grid;', 'the frame the paint-order walk passes through on the way to the wallpaper'],
+		['[data-desktop-platform="win32"] .dshDesktopSidebarSurface { grid-row: 1 / -1; }', 'the Windows fact that this aside is also the strip under the title bar']
+	]) {
+		if (!shell.includes(needle)) {
+			throw new Error(`the shell snapshot lost ${JSON.stringify(needle)} — that fixture would no longer measure ${why}`);
+		}
+	}
+	const skin = opts.skin || DESKTOP_SKINS[0];
+	const tokens = skinTokens(source, skin);
+	const consumer = opts.consumer === undefined ? hostSidebarConsumer(root) : opts.consumer;
+	if (!consumer) {
+		throw new Error(`installed host has no declaration reading --dsw-specific-sidebar-fill (looked in dsh-client-ui-sidebar / -layout under ${root}) — `
+			+ 'the fixture would lose "does the slider path still reach the sidebar", and the desktop check could no longer fail');
+	}
+	return { material: material.css, shell, consumer, skin, tokens, hostRoot: root };
+}
+
+/**
+ * The page. Two things are here that the first version lacked, both from the review:
+ * the shell's real ANCESTORS (`#root` > `.dshDesktopFrame` > aside), because a cleared
+ * aside still says nothing if an ancestor paints opaque over the wallpaper (F9); and a
+ * reference element painted from `--dsw-alias-bg-layer-1` off-screen, so "the aside now
+ * shows the skin's own layer-1" is compared against a normalized color the engine
+ * produced rather than a string this file wrote.
+ */
+function desktopFixtureHtml(parts) {
+	return '<!doctype html><html lang="en"><head><meta charset="utf-8">'
+		+ '<style id="skin-tokens">:root{'
+		+ '--dsw-alias-bg-layer-1:' + parts.tokens['--dsw-alias-bg-layer-1'] + ';'
+		+ '--dsw-alias-border-l1:' + parts.tokens['--dsw-alias-border-l1'] + ';'
+		+ '--dsw-specific-sidebar-fill:' + parts.tokens['--dsw-specific-sidebar-fill'] + ';}</style>'
+		+ '<style id="desktop-shell">' + parts.shell + '</style>'
+		+ '<style id="fixture-chrome">#layer1-ref{position:fixed;left:-9999px;top:0;width:1px;height:1px;background:var(--dsw-alias-bg-layer-1)}'
+		+ '#dsh-wash-layer{position:fixed;inset:0;z-index:-1;background:rgb(1,2,3)}</style>'
+		+ '<style id="host-sidebar">#upstream-sidebar{' + parts.consumer + ';height:120px}</style>'
+		+ '<style id="plugin-material">' + parts.material + '</style>'
+		+ '</head><body ' + DESKTOP_SHELL_BODY_ATTRS + '>'
+		+ '<div id="dsh-wash-layer"></div><i id="layer1-ref"></i>'
+		+ '<div id="root"><div class="dshDesktopFrame" data-desktop-mode="advanced" data-desktop-platform="win32">'
+		+ '<aside class="dshDesktopSidebarSurface"><div id="upstream-sidebar">sidebar</div></aside>'
+		+ '</div></div>'
+		+ '<script>' + DESKTOP_PAGE_SCRIPT
+			.split('__SKIN__').join(JSON.stringify(parts.skin))
+			.split('__SWEEP__').join(JSON.stringify(DESKTOP_SWEEP)) + '<\/script></body></html>';
+}
+
+/** What the desktop page samples. `blockers` is the answer to "is anything still in the way". */
+const DESKTOP_PAGE_SCRIPT = `
+(function () {
+  var aside = document.querySelector('.dshDesktopSidebarSurface');
+  var inner = document.getElementById('upstream-sidebar');
+  var ref = document.getElementById('layer1-ref');
+  var WASH = 'data-dsh-dream-skin-wash';
+  var out = [];
+  function alphaOf(value) {
+    if (!value || value === 'none' || value === 'transparent') return 0;
+    var m = String(value).match(/rgba?\\(([^)]+)\\)/);
+    if (!m) return /^#[0-9a-f]{6}$/i.test(String(value).trim()) ? 1 : 0;
+    var p = m[1].split(/[,\\/]/);
+    return p.length < 4 ? 1 : Number(p[3].trim());
+  }
+  // The walk starts at the SHELL surface (the aside), not at the sidebar content: the
+  // content's own alpha IS the user's slider position, which is the thing we must not
+  // count as an obstacle. Anything opaque from the aside upward is not a user choice — it
+  // is the shell, and that is exactly what issue #99 is about. Clearing the aside means
+  // nothing if an ancestor (the frame, #root, body) still paints opaque over the
+  // wallpaper, so the chain has to be walked rather than a single element sampled.
+  function blockers(el) {
+    var hits = [];
+    for (var cur = el; cur && cur.tagName !== 'HTML'; cur = cur.parentElement) {
+      if (alphaOf(getComputedStyle(cur).backgroundColor) >= 0.999) hits.push(cur.id || cur.className);
+    }
+    return hits;
+  }
+  // SLIDER SWEEP: the real slider's path (storage → shadeTokens2 → the published token) is
+  // covered by tests/client.smoke.test.cjs; what this page can prove, and nothing else in
+  // this repository can, is that the token the plugin publishes actually reaches the
+  // sidebar's PIXELS in the shell's own DOM. So the fixture writes a sentinel token the way
+  // the slider would and reads the consumer element back: if the shell's shadow
+  // ('--dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1)') were still winning, the
+  // sweep value would not appear and issue #55 would be silently back.
+  var SWEEP = __SWEEP__;
+  function sample(label) {
+    var s = getComputedStyle(aside);
+    var box = inner.getBoundingClientRect();
+    var hit = document.elementFromPoint(Math.round(box.left + box.width / 2), Math.round(box.top + 12));
+    var row = {
+      state: label,
+      skin: __SKIN__,
+      layer1Css: getComputedStyle(ref).backgroundColor,
+      surfaceBg: s.backgroundColor,
+      surfaceFill: s.getPropertyValue('--dsw-specific-sidebar-fill').trim(),
+      borderRight: s.borderRightWidth + ' ' + s.borderRightStyle,
+      sidebarBg: getComputedStyle(inner).backgroundColor,
+      blockers: blockers(aside).join('|'),
+      hit: hit ? (hit.id || hit.className) : 'none'
+    };
+    document.documentElement.style.setProperty('--dsw-specific-sidebar-fill', SWEEP);
+    row.sweepBg = getComputedStyle(inner).backgroundColor;
+    row.sweepAside = getComputedStyle(aside).backgroundColor;
+    document.documentElement.style.removeProperty('--dsw-specific-sidebar-fill');
+    out.push(row);
+  }
+  sample('plain');
+  document.documentElement.setAttribute(WASH, '');
+  sample('wash');
+  document.documentElement.removeAttribute(WASH);
+  document.documentElement.setAttribute(WASH, '');
+  document.documentElement.removeAttribute(WASH);
+  sample('washed-again');
+  document.title = 'DSH_RESULTS' + JSON.stringify(out);
+})();
+`;
+
+/** The desktop page, measured once per skin and concatenated. */
+function measureDesktop(opts = {}) {
+	if (opts.parts) return runChrome(desktopFixtureHtml(opts.parts), opts.env);
+	const readings = [];
+	for (const skin of (opts.skins || DESKTOP_SKINS)) {
+		const one = runChrome(desktopFixtureHtml(buildDesktopFixture({ ...opts, skin })), opts.env);
+		if (!one.ran || one.error) return { ...one, skin };
+		readings.push(...one.readings);
+	}
+	return { ran: true, readings };
+}
+
+/**
+ * Grade the desktop page PER SKIN. One `measureDesktop()` run produces three states for
+ * each skin in `DESKTOP_SKINS`, and a silent loss of one skin would otherwise shrink the
+ * whole verdict to "we measured whichever skins happened to survive".
+ */
+function checkDesktopReadings(readings) {
+	const bySkin = new Map();
+	for (const r of (readings || [])) {
+		if (!bySkin.has(r.skin)) bySkin.set(r.skin, []);
+		bySkin.get(r.skin).push(r);
+	}
+	const problems = [];
+	for (const skin of DESKTOP_SKINS) {
+		const group = bySkin.get(skin);
+		if (!group) {
+			problems.push(`desktop: skin ${JSON.stringify(skin)} produced no readings at all — the run measured ${bySkin.size} of ${DESKTOP_SKINS.length} skins`);
+			continue;
+		}
+		for (const p of checkReadings(group, ['desktop'])) problems.push(`desktop[${skin}] ${p}`);
+		bySkin.delete(skin);
+	}
+	for (const skin of bySkin.keys()) {
+		problems.push(`desktop: unexpected skin ${JSON.stringify(skin)} in the readings — the check table and the fixture disagree about what is measured`);
+	}
+	return problems;
+}
+/**
+ * The alpha of a computed color string. Every desktop check is written against ALPHA
+ * rather than against a color, because the bundle itself disagrees per skin — seven skins
+ * ship an opaque `--dsw-alias-bg-layer-1`, mist ships `rgba(240, 248, 255, 0.62)`.
+ */
+function cssAlpha(value) {
+	if (!value || value === 'none' || value === 'transparent') return 0;
+	const m = String(value).match(/rgba?\(([^)]+)\)/);
+	if (!m) return /^#[0-9a-f]{6}$/i.test(String(value).trim()) ? 1 : 0;
+	const parts = m[1].split(/[,/]/).map((x) => x.trim());
+	return parts.length < 4 ? 1 : Number(parts[3]);
 }
 
 /**
@@ -182,9 +509,14 @@ function measure(opts = {}) {
  * breaking. Issue #97 is the lesson: a check whose readings were never compared to
  * anything reports success forever.
  *
- * Each check carries a GROUP (`corner` = issue #96, `fade` = issue #97) so the two named
- * tests can each claim their own half without re-stating the numbers, and so
- * `tests/hashes.test.cjs`-style partitioning can prove no check is claimed by neither.
+ * Each check carries a GROUP (`corner` = issue #96, `fade` = issue #97, `desktop` =
+ * issue #99) so the named tests can each claim their own half without re-stating the
+ * numbers, and so a check cannot fall between the groups: `tests/wash.cascade.test.cjs`
+ * asserts the group list is exactly the one declared below.
+ *
+ * `groups` is REQUIRED. The two fixtures measure different pages with different field
+ * names, and a check from one page run against the other's readings would read
+ * `undefined` and report a problem that does not exist.
  *
  * Every predicate is called `ok(plain, wash, again)` — the three samples in order — so a
  * check that means to read the wash state must take the SECOND parameter. Writing
@@ -192,6 +524,21 @@ function measure(opts = {}) {
  * because the first two states differ in every real sample the mistake reports itself as
  * the opposite of the truth.
  */
+/**
+ * The alpha of a computed color string. Every desktop check is written against ALPHA
+ * rather than against a color, because the bundle itself disagrees per skin — seven skins
+ * ship an opaque `--dsw-alias-bg-layer-1`, mist ships `rgba(240, 248, 255, 0.62)`.
+ */
+function cssAlpha(value) {
+	if (!value || value === 'none' || value === 'transparent') return 0;
+	const m = String(value).match(/rgba?\(([^)]+)\)/);
+	if (!m) return /^#[0-9a-f]{6}$/i.test(String(value).trim()) ? 1 : 0;
+	const parts = m[1].split(/[,/]/).map((x) => x.trim());
+	return parts.length < 4 ? 1 : Number(parts[3]);
+}
+
+const WASH_GROUPS = ['corner', 'fade', 'desktop'];
+
 const WASH_CHECKS = [
 	{ id: 'corner-host-own', group: 'corner', msg: 'plain: the host corner must stay its own 16px', ok: (plain) => plain.corner === '16px' },
 	{ id: 'corner-flattened', group: 'corner', msg: 'wash: issue #96 wants the content corner flattened', ok: (plain, wash) => wash.corner === '0px' },
@@ -201,22 +548,46 @@ const WASH_CHECKS = [
 	{ id: 'fade-paints', group: 'fade', msg: 'plain: the host fade must really paint, else the check below is vacuous', ok: (plain) => /linear-gradient/.test(plain.fadeBg || '') },
 	{ id: 'fade-neutralised', group: 'fade', msg: 'wash: issue #97 wants the foot-fade band neutralised', ok: (plain, wash) => wash.fadeBg === 'none' },
 	{ id: 'chat-mask-present', group: 'fade', msg: 'plain: the chat scroll mask must exist in the page', ok: (plain) => /linear-gradient/.test(plain.chatMask || '') },
-	{ id: 'chat-mask-untouched', group: 'fade', msg: 'wash: the chat scroll mask is collateral damage', ok: (plain, wash) => wash.chatMask === plain.chatMask }
+	{ id: 'chat-mask-untouched', group: 'fade', msg: 'wash: the chat scroll mask is collateral damage', ok: (plain, wash) => wash.chatMask === plain.chatMask },
+	{ id: 'desktop-underlay-painted', group: 'desktop', msg: 'plain: the shell must really paint the skin’s own layer-1 over the sidebar column, or every check below is vacuous', ok: (plain) => plain.surfaceBg === plain.layer1Css && cssAlpha(plain.surfaceBg) > 0 },
+	{ id: 'desktop-underlay-blocks', group: 'desktop', msg: 'plain: that underlay has to hide more than half of what is under it — the report is about a slider with no visible effect', ok: (plain) => cssAlpha(plain.surfaceBg) > 0.5 },
+	{ id: 'desktop-underlay-cleared', group: 'desktop', msg: 'wash: issue #99 wants the shell’s own paint gone from that column', ok: (plain, wash) => wash.surfaceBg === 'rgba(0, 0, 0, 0)' },
+	{ id: 'desktop-underlay-restored', group: 'desktop', msg: 'washed-again: the shell gets its paint back when the wallpaper goes', ok: (plain, wash, again) => again.surfaceBg === plain.surfaceBg },
+	{ id: 'desktop-no-wash-no-touch', group: 'desktop', msg: 'plain: without a wash this plugin must not repaint the shell at all', ok: (plain) => cssAlpha(plain.surfaceBg) > 0 },
+	{ id: 'desktop-wash-path-clear', group: 'desktop', msg: 'wash: NO opaque shell surface may remain from the shell’s own aside up to the page background, or the slider still has nothing to reveal', ok: (plain, wash) => wash.blockers === '' && wash.hit === 'upstream-sidebar' },
+	{ id: 'desktop-chain-walk-correct', group: 'desktop', msg: 'plain: the paint-order walk must agree with the aside’s own alpha — an opaque aside has to show up as a blocker, otherwise “the chain is clear” below proves nothing', ok: (plain) => cssAlpha(plain.surfaceBg) >= 0.999 ? plain.blockers.includes('dshDesktopSidebarSurface') : cssAlpha(plain.surfaceBg) > 0.5 },
+	{ id: 'desktop-token-path-alive', group: 'desktop', msg: 'the sidebar fill must come from our inherited token (not the shell’s shadow) and must not move when the paint goes', ok: (plain, wash) => plain.surfaceFill !== '' && plain.surfaceFill !== plain.layer1Css && wash.surfaceFill === plain.surfaceFill },
+	{ id: 'desktop-token-sweeps-slider', group: 'desktop', msg: `writing a sentinel --dsw-specific-sidebar-fill must change what the sidebar element COMPUTES, with and without a wash — the reporter's complaint is "the slider moves and no pixel does", and this is that sentence in computed values (the shell's shadow value would leave the reading frozen)`, ok: (plain, wash) => plain.sweepBg === DESKTOP_SWEEP && wash.sweepBg === DESKTOP_SWEEP
+		&& plain.sweepBg !== plain.sidebarBg && wash.sweepBg !== wash.sidebarBg && plain.sweepAside === plain.surfaceBg },
+	{ id: 'desktop-shell-chrome-kept', group: 'desktop', msg: 'the shell’s own border must survive the wash', ok: (plain, wash) => wash.borderRight === plain.borderRight && /1px solid/.test(plain.borderRight || '') },
 ];
 
 /**
  * @param {Array<object>} readings the three samples, in order plain / wash / washed-again.
- * @param {string} [group] only run the checks in this group.
+ * @param {string[]} groups which check groups to run (REQUIRED — see the note above).
  * @returns {string[]} problems; empty means the states read as documented.
  */
-function checkReadings(readings, group) {
+function checkReadings(readings, groups) {
 	const [plain, wash, again] = readings || [];
 	if (!plain || !wash || !again) {
 		return [`expected the three states plain/wash/washed-again, got ${(readings || []).length}`];
 	}
+	// Review finding F12 (10.8.1): an empty group list — and the legacy single string —
+	// both silently graded NOTHING, and the CLI then printed "wash cascade OK" with exit
+	// 0. Zero selected checks is a failure of the CHECKER, not a verdict about the page,
+	// so it must be reported as one and it must be the first thing a broken caller sees.
+	if (!Array.isArray(groups) || groups.length === 0) {
+		return ['checkReadings: groups must be a NON-EMPTY ARRAY of declared groups '
+			+ `(got ${JSON.stringify(groups)}); declared groups are ${WASH_GROUPS.join('/')}. `
+			+ 'A call that selects no checks would hand a passing grade to a page nobody measured.'];
+	}
+	for (const g of groups) {
+		if (!WASH_GROUPS.includes(g)) return [`unknown check group ${JSON.stringify(g)} (declared: ${WASH_GROUPS.join('/')})`];
+	}
+	const wanted = groups;
 	const problems = [];
 	for (const check of WASH_CHECKS) {
-		if (group && check.group !== group) continue;
+		if (!wanted.includes(check.group)) continue;
 		let held = false;
 		try {
 			held = check.ok(plain, wash, again);
@@ -224,28 +595,45 @@ function checkReadings(readings, group) {
 			problems.push(`${check.id}: the check itself threw (${e.message})`);
 			continue;
 		}
-		if (!held) problems.push(`${check.id}: ${check.msg} (plain.corner=${plain.corner} wash.corner=${wash.corner} `
-			+ `plain.frameFill=${plain.frameFill} wash.frameFill=${wash.frameFill} plain.fadeBg=${plain.fadeBg} `
-			+ `wash.fadeBg=${wash.fadeBg} plain.chatMask=${plain.chatMask} wash.chatMask=${wash.chatMask})`);
+		if (!held) problems.push(`${check.id}: ${check.msg} (readings ${JSON.stringify([plain, wash, again])})`);
 	}
 	return problems;
 }
 
-module.exports = { measure, buildFixture, fixtureHtml, stripDeclaration, checkReadings, WASH_CHECKS, hostCss, HOST_PACKAGES, DEFAULT_HOST_ROOT };
+module.exports = {
+	measure, measureDesktop, buildFixture, buildDesktopFixture, fixtureHtml, desktopFixtureHtml,
+	checkDesktopReadings, cssAlpha, skinTokens, DESKTOP_SKINS, DESKTOP_SWEEP, browserAttempts,
+	stripDeclaration, checkReadings, WASH_CHECKS, WASH_GROUPS, hostCss, hostSidebarConsumer,
+	DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, HOST_PACKAGES, DEFAULT_HOST_ROOT
+};
 
 if (require.main === module) {
-	const r = measure();
-	if (!r.ran) { console.error('! ' + r.why); process.exitCode = 1; }
-	else if (r.error) { console.error('! ' + r.error + '\n' + (r.dom || '')); process.exitCode = 1; }
-	else {
-		for (const x of r.readings) console.log(JSON.stringify(x));
-		const problems = checkReadings(r.readings);
-		if (problems.length > 0) {
-			for (const p of problems) console.error('! ' + p);
-			console.error(`wash cascade: ${problems.length} problem(s).`);
-			process.exitCode = 1;
-		} else {
-			console.log(`wash cascade OK (${r.readings.length} states: corner 16px -> 0px -> 16px, host fade gradient -> none -> gradient, chat mask untouched).`);
+	// Both stages run every time, and a stage that CRASHES is reported as a problem instead
+	// of ending the process — review finding F13 (10.8.1): the first version let a
+	// buildDesktopFixture throw escape, which hid the host verdict that had already been
+	// computed and reported a shell-snapshot defect as "cannot read the host".
+	const grade = (label, groups, run) => {
+		let r;
+		try {
+			r = run();
+		} catch (e) {
+			return [`${label}: the fixture refused to build — ${e.message}`];
 		}
+		if (!r.ran) return [`${label}: ${r.why}`];
+		if (r.error) return [`${label}: ${r.error}\n${(r.dom || '').slice(0, 300)}`];
+		for (const x of r.readings) console.log(JSON.stringify(x));
+		const problems = label === 'desktop' ? checkDesktopReadings(r.readings) : checkReadings(r.readings, groups);
+		return problems.map((p) => `${label}: ${p}`);
+	};
+	const lines = grade('host', ['corner', 'fade'], () => measure())
+		.concat(grade('desktop', ['desktop'], () => measureDesktop()));
+	if (lines.length > 0) {
+		console.error(lines.join('\n'));
+		console.error('wash cascade: FAILED (every problem above is named by fixture + check id).');
+		process.exitCode = 1;
+	} else {
+		console.log('wash cascade OK — host: corner 16px -> 0px -> 16px, fade gradient -> none -> gradient, chat mask untouched; desktop: shell paint opaque -> transparent -> opaque on both skins, with nothing opaque left in the way under a wash.');
 	}
 }
+
+

@@ -498,6 +498,7 @@ module.exports = {
 	writeManifest,
 	readPngSize,
 	findChrome,
+	CHROME_CANDIDATES,
 	OUT_PNG,
 	MANIFEST,
 	W,

@@ -100,6 +100,39 @@ const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
 if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/**
+ * Wait until the drift ladder publishes its TERMINAL verdict, instead of sleeping a fixed
+ * guess past the FAST ladder's ≈160ms.
+ *
+ * Why the fixed sleep had to go: the fast-path patch shortens the ladder's RELATIVE gaps, and
+ * a timer budget is a promise about a scheduler this test does not control. `node --test` runs
+ * the suite's files in parallel, so on a loaded machine the rounds land later than the guess —
+ * which is exactly how `drift probe (J1)` flaked once in three full runs during the 10.8.1
+ * review round while passing in isolation. Polling for the verdict removes the wall-clock
+ * dependency from every case whose only precondition is "the ladder finished". Running out of
+ * the budget is reported as the probe failing to converge, NOT as a timing detail to widen.
+ *
+ * Deliberately not used by the mid-ladder and R-4 semantics cases: those assert that a verdict
+ * has NOT arrived yet, and no amount of polling can prove a "not yet".
+ */
+async function settleDrift(win, { timeoutMs = 4000, stepMs = 20, until } = {}) {
+	// `until` defaults to "the ladder published its terminal verdict". The one caller that
+	// only needs the FIRST snapshot passes its own predicate: a page with no liveness evidence
+	// stays pending forever, and waiting for a terminal verdict there would be a lie.
+	const done = until || ((s) => s && s.anchors && s.anchors.pending === false);
+	const deadline = Date.now() + timeoutMs;
+	for (;;) {
+		const status = win.__DSH_DREAM_SKIN_STATUS__;
+		if (done(status)) return status.anchors;
+		if (Date.now() >= deadline) {
+			assert.fail(`the drift ladder never published a terminal verdict within ${timeoutMs}ms `
+				+ `(anchors=${JSON.stringify(status && status.anchors)}) — the probe stopped converging; do not paper over `
+				+ 'this by sleeping longer');
+		}
+		await sleep(stepMs);
+	}
+}
+
 // --- Structural CSS matcher (T1, adversarial review 10.5.0) -----------------
 // WHY THIS EXISTS: the readability-fill assertions used to check that the sheet
 // STRING contains the stamp selectors (`selectors.includes('[data-approval-key] > div')`).
@@ -2905,6 +2938,64 @@ test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on th
 		'the desktop rule is not merged into a selector list with other surfaces');
 });
 
+test('issue #99: under a wash the desktop shell sidebar underlay stops eating the slider', () => {
+	// The #55 fix above re-inherits the TOKEN. Issue #99 is what that cannot reach:
+	// the shell paints its own opaque `background` on the very same element once the
+	// window material is `off`, and `off` is not a choice on Windows — the shell admits
+	// only off/transparent/acrylic/mica (v2.0.17 dsh-plugin-desktop/src/client/
+	// environment.ts:24), folds acrylic/mica down to off (:51-53) and THROWS for
+	// win32 + transparent (:58 and :61). The two paint rules are styles.ts:23 (base) and
+	// :24 (the `off` pair) and are byte-identical back to v2.0.5, so this is not a
+	// regression we caused. The reporter's own words are "窗口模式为增强模式下，侧边栏无法
+	// 调整不透明度" — the official sidebar inside does obey the slider, but what shows
+	// through it is the shell's layer-1, never the wallpaper.
+	let appended = null;
+	const documentMock = {
+		body: { contains: () => false, getAttribute: () => null },
+		head: {
+			children: [],
+			contains() { return false; },
+			appendChild(el) { appended = el; }
+		},
+		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: documentMock });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
+	const css = appended.textContent;
+
+	const tokenRule = css.match(/\.dshDesktopSidebarSurface\s*\{[^}]*\}/);
+	assert.ok(tokenRule && /--dsw-specific-sidebar-fill:\s*inherit\s*!important/.test(tokenRule[0]),
+		'the #55 token fix is still there (this issue adds to it, it does not replace it)');
+
+	const underlay = css.match(/html\[data-dsh-dream-skin-wash\]\s+\.dshDesktopSidebarSurface\s*\{[^}]*\}/);
+	assert.ok(underlay, 'a wash-gated rule targets the shell sidebar surface');
+	assert.match(underlay[0], /background-color:\s*transparent\s*!important/,
+		'the paint is cleared with !important — sheet order against a third-party bundle is not observable from here');
+	// F11 (adversarial review 10.8.1): "do not touch the chrome" is enforced by COUNTING the
+	// declarations, not by blacklisting a few property names. A `list-style` / `transform` /
+	// `filter` smuggled in later would have passed the name list while this rule is still
+	// supposed to be exactly one longhand.
+	const declarations = underlay[0].slice(underlay[0].indexOf('{') + 1, underlay[0].lastIndexOf('}'))
+		.split(';').map((x) => x.trim()).filter(Boolean);
+	assert.equal(declarations.length, 1, `the wash-gated rule is exactly one declaration, got: ${declarations.join(' | ')}`);
+	assert.match(declarations[0], /^background-color:\s*transparent\s*!important$/,
+		'and that one declaration is the paint clear, nothing else');
+	// F10: the reverse gate has to cover the shorthand too. The shell itself paints with
+	// `background:`, so a future edit that "fixes" the same problem by adding an UNGATED
+	// `background: transparent` would have sailed past a `background-color:`-only test — and
+	// would repaint the shell's sidebar for users with no wallpaper at all.
+	const bareRules = [...css.matchAll(/(^|\})\s*\.dshDesktopSidebarSurface\s*\{([^}]*)\}/g)].map((m) => m[2]);
+	assert.ok(bareRules.length >= 1, 'the #55 token rule on the bare element is still authored');
+	for (const body of bareRules) {
+		assert.ok(!/(^|[;.\s-])background(-color)?:/.test(body.replace(/--dsw-specific-sidebar-fill:[^;]*/g, '')),
+			`an ungated rule must not clear any paint (no-wallpaper case stays the shell's): ${body}`);
+	}
+});
+
 test('issue #55: the sidebar transparency slider is wired end to end', () => {
 	// Behaviour gate for the whole issue. Root cause B was that with the sidebar
 	// linked to the wallpaper, shadeTokens2() uses the CANVAS alpha and ignores
@@ -3180,7 +3271,7 @@ test('drift probe (#96/#97): an attribute-anchored group is judged by what the H
 		const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
 		const e = h.factory(makeRequire(makeRuntime().RT));
 		e.apply(makeApplyContext(h));
-		await sleep(250); // FAST ladder terminal ≈160ms
+		await settleDrift(h.window);
 		return h.window.__DSH_DREAM_SKIN_STATUS__.anchors;
 	};
 	const ATTR_GROUPS = ['div:has(> [data-shell-overlay])', '[class$="_fade"]'];
@@ -4291,7 +4382,7 @@ test('drift probe (desktop shell): probed covers the gated anchor, drifted stays
 	assert.equal(mid.anchors.pending, true, 'an intermediate round stays pending even with liveness proven');
 	assert.deepEqual(mid.anchors.drifted, [], 'no drift verdict before the ladder completes');
 	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'intermediate rounds stay silent');
-	await sleep(250);
+	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.shell, 'desktop', 'desktop shell detected via the documented body stamp');
 	assert.equal(status.anchors.probed, 9, 'eight host anchor groups + the gated desktop anchor');
@@ -4315,7 +4406,7 @@ test('drift probe (A-1): full host match converges to a conclusive zero-drift ve
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.anchors.pending, false, 'liveness proven via matched host anchors');
 	assert.deepEqual(status.anchors.drifted, [], 'every refinement confirmed live');
@@ -4339,7 +4430,7 @@ test('drift probe (A-1): one replaced anchor group is reported as exactly that g
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.anchors.pending, false, 'liveness proven (seven groups matched ≥ the two-group gate)');
 	assert.deepEqual(status.anchors.drifted, [driftedSel], 'drifted lists exactly the one unmatched group');
@@ -4378,13 +4469,36 @@ test('drift probe (J1): a healthy modern host can actually reach the positive si
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.anchors.pending, false, 'the ladder completed with liveness proven');
 	assert.deepEqual(status.anchors.drifted, [], 'drifted is EMPTY on a host whose live anchors all matched — the positive signal is reachable');
 	assert.deepEqual(status.anchors.notMounted, [], 'nothing to retract either');
 	assert.deepEqual(status.anchors.retired.sort(), [...RETIRED].sort(), 'the retired anchors are still reported, in their own pool');
 	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'a healthy host is never warned about');
+});
+
+test('settleDrift waits on the verdict, and still fails when the probe never converges', async () => {
+	// The helper replaced thirteen fixed `sleep(250)` calls, so it needs its own negative: a
+	// poll that silently timed out would turn "the probe stopped converging" into a green test.
+	// Two directions are pinned — it returns the moment the verdict exists (no budget burned),
+	// and it reports loudly when the verdict never arrives.
+	const t0 = Date.now();
+	const settled = await settleDrift({ __DSH_DREAM_SKIN_STATUS__: { anchors: { pending: false, drifted: [] } } });
+	assert.deepEqual(settled.drifted, [], 'a converged verdict is returned, not re-derived');
+	assert.ok(Date.now() - t0 < 200, `a converged ladder must not wait out the budget (took ${Date.now() - t0}ms)`);
+	await assert.rejects(
+		settleDrift({ __DSH_DREAM_SKIN_STATUS__: { anchors: { pending: true, drifted: [] } } }, { timeoutMs: 80, stepMs: 10 }),
+		/never published a terminal verdict/,
+		'a probe stuck pending is a failure the helper names, not a pass it grants');
+	await assert.rejects(settleDrift({ }, { timeoutMs: 80, stepMs: 10 }), /never published a terminal verdict/,
+		'a page that never published any status is the same failure');
+	// The one caller that only needs the FIRST snapshot opts out of the terminal condition —
+	// proving `until` is a real seam and not decoration.
+	const first = await settleDrift(
+		{ __DSH_DREAM_SKIN_STATUS__: { anchors: { pending: true }, checkedAt: 12 } },
+		{ until: (s) => s && s.anchors && s.checkedAt });
+	assert.equal(first.pending, true, 'the custom predicate is honoured, so an undecided page is reachable');
 });
 
 test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drifted (ownership classifier)', async () => {
@@ -4443,7 +4557,7 @@ test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drift
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	await settleDrift(h.window);
 	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(t0.anchors.pending, false, 'terminal verdict reached (liveness via the mounted groups)');
 	assert.deepEqual(t0.anchors.notMounted, ['.lXshSW_root, ._7yHdaG_panel'],
@@ -4503,7 +4617,7 @@ test('drift probe (T3): a surface mounting late leaves the notMounted pool throu
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.deepEqual(t0.anchors.notMounted, [LATE_GROUP], 'terminal snapshot names the unmounted group');
 	assert.deepEqual(t0.anchors.drifted, ['.uV2eYG_root'],
@@ -4582,7 +4696,7 @@ test('drift probe (R-2): a surface mounting AFTER the terminal verdict retracts 
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, MutationObserver: FakeMO, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	await settleDrift(h.window);
 	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(t0.anchors.pending, false, 'terminal verdict reached');
 	assert.deepEqual(t0.anchors.drifted, ['.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'], 'group missing at terminal is named');
@@ -4627,7 +4741,7 @@ test('drift probe (S-3): fiber unload disarms the late-correction observer and f
 	const baseLen = observers.length; // the boot guard is already armed at module load
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
+	await settleDrift(h.window);
 	// MID SAMPLE: while the fiber is mounted the observer is alive.
 	assert.equal(lateMOs(observers, baseLen, doc).length, 1, 'terminal drifted verdict armed exactly one observer');
 	assert.notEqual(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'the observer is live while the fiber is mounted');
@@ -4669,7 +4783,7 @@ test('drift probe (S-3): a re-applied probe supersedes the live observer instead
 	const baseLen = observers.length;
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	assert.equal(lateMOs(observers, baseLen, doc).length, 1, 'first chain armed one observer');
 	assert.notEqual(lateMOs(observers, baseLen, doc)[0].disconnected, true, 'and it is still live (no unload happened)');
 	// Re-apply WITHOUT unmounting (the host can re-enter apply()). ensureMaterialStyle
@@ -4679,7 +4793,7 @@ test('drift probe (S-3): a re-applied probe supersedes the live observer instead
 	// live. Detach it the way the DOM would, then re-apply.
 	h.document.head.children.slice().forEach((node) => node.remove());
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const armed = lateMOs(observers, baseLen, doc);
 	const live = armed.filter((o) => !o.disconnected);
 	assert.ok(armed.length >= 2, 'the second chain reached its own terminal drifted verdict and armed its observer');
@@ -4813,17 +4927,28 @@ test('drift probe (A-1): a late-mounting surface clears itself from the drifted 
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
-	await sleep(250);
+	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.anchors.pending, false, 'chain converged after the late mount');
 	assert.deepEqual(status.anchors.drifted, [], 'a surface that mounted at ANY round is not drifted (hit-once memory)');
 });
 
 test('diagnostics: later re-publishes keep the drift anchors via prev-merge (status never downgrades itself)', async () => {
-	const h = buildSandbox({ code: FAST_DRIFT_CODE, seed: { 'dsh-dream-skin:skin': 'abyss' } });
+	// The page has to be one the probe CAN decide (the `[data-composer-input]` sentinel
+	// proves liveness on its own), because "wait for the boot probe" without a terminal
+	// verdict is only ever a wall-clock guess — and a guess is what made the ladder cases
+	// flake under a loaded runner. With a decidable page the wait is on the verdict, not
+	// on the clock, and the anchors being compared below are final rather than mid-ladder.
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+		querySelector: (sel) => (sel === '[data-composer-input]' ? { matched: true } : null),
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, seed: { 'dsh-dream-skin:skin': 'abyss' } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h, { captureActions: true })));
-	await sleep(250);
+	const anchors = await settleDrift(h.window);
+	assert.equal(anchors.pending, false, 'the boot probe reached a terminal verdict before the re-publish');
 	const before = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.ok(before.anchors && before.checkedAt, 'anchors + timestamp from the boot probe');
 	h.actionBags['dream-skin'].setSkin('ember');
