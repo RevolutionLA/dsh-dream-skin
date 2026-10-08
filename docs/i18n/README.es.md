@@ -73,7 +73,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 </table>
 
 > Tonos claros y oscuros cubiertos: `mist`, `ivory` y `rose` son claros, el resto oscuros. ¿No te convencen los
-> presets? Sigue leyendo la **Forma #2**. Cada preset incluye sus propios valores por defecto afinados (opacidad/desenfoque del resplandor, transparencia de la barra lateral y el compositor, opacidad de diálogos, material de vidrio): al cambiar de tema se reajustan todos los valores que no hayas modificado tú, y los 8 presets superan 226 controles de calidad medibles (217 de paleta + 9 de oficio) (escalera de elevación OKLCH, contraste WCAG 2.1 + APCA, separación de tonos de señal, distinción entre presets).
+> presets? Sigue leyendo la **Forma #2**. Cada preset incluye sus propios valores por defecto afinados (opacidad/desenfoque del resplandor, transparencia de la barra lateral y el compositor, opacidad de diálogos, material de vidrio): al cambiar de tema se reajustan todos los valores que no hayas modificado tú, y los 8 presets superan 228 controles de calidad medibles (217 de paleta + 11 de oficio) (escalera de elevación OKLCH, contraste WCAG 2.1 + APCA, separación de tonos de señal, distinción entre presets).
 
 ---
 
@@ -87,7 +87,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 | 🖼️ **Wallpaper 2.0** | Imagen local / **URL de imagen** / **presets de gradiente**; además **opacidad / desenfoque**; cada skin incluso **sugiere** un gradiente y puede **atenuarse automáticamente** (reduce distracciones al enfocarte) |
 | 🌈 **Accent por usuario** | Superpone un acento de marca personalizado sobre la skin activa (capa `overrideTokens`, la skin intacta): **12 muestras de un clic**, selector de color, aleatorizar y una opción para limpiar/restaurar |
 | 📦 **Importar / exportar / compartir theme packs** | Un `*.dsh-theme.json` = manifest + tokens completos. Importa un archivo, aplícalo con un clic o copia un **enlace para compartir** (codificado en el hash de la URL) |
-| 🪟 **Opacidad de popups** | Un deslizador que controla la transparencia del relleno inferior de desplegables / overlays / diálogos, con persistencia |
+| 🪟 **Opacidad de popups** | Un deslizador que controla la transparencia del relleno inferior de desplegables / overlays / diálogos, con persistencia; todas las superficies pintadas con el token de fondo emergente (Ajustes, el gestor de complementos, las ayudas de trayectoria, las tarjetas flotantes) comparten un suelo de legibilidad del 92 % de opacidad —la propia superficie elevada del tema—, y las vías de menú y velo mantienen el rango completo |
 | 🧩 **Biblioteca local de packs** | Tus packs importados en un solo lugar; **aplicar / favorito / eliminar** con un clic |
 | 🎲 **Sorpréndeme** | Cambia aleatoriamente a otro tema; **marca con estrella** tus favoritos para cambiar rápido |
 | ✅ **Validación + rollback** | La importación valida el formato / los tokens obligatorios / la validez de los colores; los fallos o eliminaciones se revierten de forma segura |
@@ -376,6 +376,8 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
 - [ ] **M** Correr la ventana peer hasta `0.3.x` — **solo después de verificarla**; si queda cerrada, escribir «no soportado» en los docs en vez de dejar un salto silencioso
 - [ ] **S** La sonda de deriva no puede cubrir las superficies que se montan bajo demanda: la tarjeta de preguntas y la de aprobación solo entran en el DOM cuando la conversación plantea una pregunta real, así que un muestreo al arrancar las reportaría como derivadas de forma permanente — 10.5.0 las deja fuera de la sonda a propósito
       — aceptación: tras una pregunta real, `anchors` informa acierto / fallo de ambos anclajes funcionales, y una página recién abierta sigue leyendo `drifted: []`
+- [ ] **M** Llevar la evidencia de mecanismo a la CI: la puerta de estilos calculados (`npm run wash:check`) depende del Chrome de esta máquina de mantenimiento y del CSS del host instalado en local, así que en la CI los cuatro casos de estilos calculados se omiten — esa mitad de la prueba («el mecanismo realmente actúa») solo la puede recalcular hoy una persona; de paso, sustituir en el fixture los nombres de clase del host copiados a mano por anclas que aporte el DOM real / el censo de `scripts/host-consumers.cjs`
+      — aceptación: el registro de la CI muestra **lecturas** de los cuatro casos en lugar de un motivo de omisión; si falta el navegador o el host, falla con código distinto de cero y dice cuál falta, nunca pasa en silencio
 
 ### B. Publicación y canal de instalación
 

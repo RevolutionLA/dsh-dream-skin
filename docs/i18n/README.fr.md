@@ -72,7 +72,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
   </tr>
 </table>
 
-> Clair / sombre : `mist`, `ivory` et `rose` sont des thèmes clairs, les autres sont sombres. Les presets ne vous plaisent pas ? Poursuivez avec la **Voie n°2**. Chaque preset embarque ses propres réglages par défaut (opacité/flou du halo, transparence de la barre latérale et du composer, opacité des dialogues, matériau verre) : changer de thème réajuste toutes les valeurs que vous n’avez pas définies vous-même, et les 8 presets passent 226 contrôles qualité mesurables (217 palette + 9 métier) (échelle d’élévation OKLCH, contraste WCAG 2.1 + APCA, séparation des teintes de signal, distinction entre presets).
+> Clair / sombre : `mist`, `ivory` et `rose` sont des thèmes clairs, les autres sont sombres. Les presets ne vous plaisent pas ? Poursuivez avec la **Voie n°2**. Chaque preset embarque ses propres réglages par défaut (opacité/flou du halo, transparence de la barre latérale et du composer, opacité des dialogues, matériau verre) : changer de thème réajuste toutes les valeurs que vous n’avez pas définies vous-même, et les 8 presets passent 228 contrôles qualité mesurables (217 palette + 11 métier) (échelle d’élévation OKLCH, contraste WCAG 2.1 + APCA, séparation des teintes de signal, distinction entre presets).
 
 ---
 
@@ -86,7 +86,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 | 🖼️ **Wallpaper 2.0** | Image locale / **URL d'image** / **presets de gradient** ; plus **opacité / flou** ; chaque skin **suggère** même un gradient et peut **s'assombrir automatiquement** (moins de distractions en mode concentration) |
 | 🌈 **Accent par utilisateur** | Empilez un accent de marque personnalisé par-dessus le skin actif (couche `overrideTokens`, le skin reste intact) : **12 nuanciers prédéfinis en un clic**, sélecteur de couleur, aléatoire, et une option d'effacement / restauration |
 | 📦 **Import / export / partage de packs de thèmes** | Un `*.dsh-theme.json` = manifest + tokens complets. Importez un fichier, appliquez-le en un clic, ou copiez un **lien de partage** (encodé dans le hash de l'URL) |
-| 🪟 **Opacité des popups** | Un curseur qui contrôle la transparence du fond des menus déroulants / overlays / boîtes de dialogue, persisté |
+| 🪟 **Opacité des popups** | Un curseur qui contrôle la transparence du fond des menus déroulants / overlays / boîtes de dialogue, persisté ; toutes les surfaces peintes avec le jeton de fond flottant (Réglages, gestionnaire d’extensions, infobulles de trajectoire, cartes flottantes) partagent un seuil de lisibilité à 92 % d’opacité —la surface surélevée du thème elle-même—, tandis que les voies menu et voile restent en pleine amplitude |
 | 🧩 **Bibliothèque locale de packs** | Vos packs importés au même endroit ; **appliquer / mettre en favori / supprimer** en un clic |
 | 🎲 **Surprenez-moi** | Passez aléatoirement à un autre thème ; **étoilez** vos favoris pour changer rapidement |
 | ✅ **Validation + restauration** | L'import d'un pack valide le format / les tokens requis / la validité des couleurs ; en cas d'échec ou de suppression, retour arrière sécurisé |
@@ -366,6 +366,8 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 - [ ] **M** Faire glisser la fenêtre peer jusqu'à `0.3.x` — **seulement après vérification** ; si elle reste fermée, écrire « non pris en charge » dans la documentation au lieu de laisser un saut silencieux
 - [ ] **S** La sonde de dérive ne peut pas couvrir les surfaces montées à la demande : la carte de questions et la carte d'approbation n'entrent dans le DOM que lorsque la conversation pose réellement une question ; un échantillonnage au démarrage les signalerait donc comme dérivées en permanence — 10.5.0 les laisse volontairement hors de la sonde
       — critère d'acceptation : après une vraie question, `anchors` rapporte touché / raté pour les deux ancrages fonctionnels, tandis qu'une page fraîchement ouverte conserve `drifted: []`
+- [ ] **M** Faire passer la preuve de mécanisme dans la CI : la porte « styles calculés » (`npm run wash:check`) dépend du Chrome de la machine de maintenance et du CSS de l'hôte installé en local, donc ses quatre cas calculés sont sautés dans la CI — aujourd'hui une seule personne peut recalculer cette moitié de la preuve (« le mécanisme agit vraiment ») ; en passant, remplacer dans le fixture les noms de classes de l'hôte recopiés à la main par des ancres fournies par le DOM réel / le recensement `scripts/host-consumers.cjs`
+      — critère : les journaux de la CI affichent les **lectures** des quatre cas au lieu d'un motif de saut ; sans navigateur ou sans hôte, l'échec est un code non nul qui nomme ce qui manque, jamais un passage silencieux
 
 ### B. Publication et canal d'installation
 

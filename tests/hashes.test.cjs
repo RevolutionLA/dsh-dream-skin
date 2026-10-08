@@ -108,8 +108,40 @@ test("#92: a dead hash cannot survive by being forgotten — it must be reasoned
 	}
 });
 
-test("#94: the corpus is the install, and it is asked for by name", () => {
-	const c = census();
+/**
+ * J1 (adversarial review 10.8.0): the drift probe publishes a `retired` pool for the
+ * anchors kept only for the `0.1.0-rc.6 ~ 0.1.x` line, because on the hosts we can
+ * measure they can ONLY ever be missing — and `docs/desktop-support.md` teaches
+ * desktop tooling that `anchors.drifted: [] && pending: false` is the only positive
+ * "all refinements live" signal. A pool that made that signal unreachable was a red
+ * light that could never turn green. The authority for "which hashes are retired" is
+ * `DEAD_HASHES`, so the runtime list is derived-and-compared here rather than trusted:
+ * a hash retired in the bundle but not reasoned here (or vice versa) reddens this gate
+ * instead of quietly changing what the machine contract means.
+ */
+test("J1: the bundle's retired-anchor pool is exactly the reasoned dead-hash set", () => {
+	const bundle = readReal(path.join(ROOT, "lib", "client.js"));
+	const block = bundle.match(/const RETIRED_PROBE_GROUPS = \[([\s\S]*?)\];/);
+	assert.ok(block, "lib/client.js must declare RETIRED_PROBE_GROUPS (the drift classifier reads it)");
+	const bases = [...new Set([...block[1].matchAll(/\.([A-Za-z0-9_-]+)_/g)].map((m) => m[1]))].sort();
+	assert.deepEqual(bases, Object.keys(DEAD_HASHES).sort(),
+		`retired pool and dead-hash registry must be the same set — bundle: ${bases.join(",")} vs registry: ${Object.keys(DEAD_HASHES).join(",")}`);
+	// Every retired group must actually be a probe group, or the pool filters nothing.
+	const probes = bundle.match(/const MATERIAL_SELECTOR_PROBES = \[([\s\S]*?)\];/);
+	assert.ok(probes, "the probe table must still be readable by this gate");
+	for (const sel of [...block[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1])) {
+		assert.ok(probes[1].includes(sel), `retired group "${sel.slice(0, 40)}" is not in MATERIAL_SELECTOR_PROBES — it would never be sampled`);
+	}
+	// And the retirement must be measured, not remembered: a dead hash that came back
+	// into the corpus is no longer retired, and the gate above already covers the
+	// registry side — this side checks the runtime pool did not outlive its evidence.
+	for (const base of bases) {
+		assert.equal(census().hashes.bases[base].files, 0,
+			`${base} is retired in the bundle but the host corpus has it again — un-retire it there first`);
+	}
+});
+
+test("#94: the corpus is the install, and it is asked for by name", () => {	const c = census();
 	assert.ok(c.corpus && Array.isArray(c.corpus.packagesOnDisk), "the census must record the install's package inventory");
 	assert.equal(
 		c.corpus.packagesWithCode.length + c.corpus.packagesWithoutCode.length,

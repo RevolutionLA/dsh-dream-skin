@@ -807,13 +807,13 @@ test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drif
 	assert.ok(status.anchors, 'drift probe fills anchors even while pending');
 	assert.equal(status.anchors.pending, true, 'empty DOM is UNDECIDABLE, not drifted (A-1)');
 	assert.deepEqual(status.anchors.drifted, [], 'no drift verdict may be published while pending');
-	assert.equal(status.anchors.probed, 6, 'six host anchor groups probed on web shell');
+	assert.equal(status.anchors.probed, 8, 'eight host anchor groups probed on web shell (six hashed families + the two hash-free anchors of issue #96/#97)');
 	assert.ok(status.checkedAt > 0 && status.publishedAt > 0, 'timestamps present');
 	// Run the whole checkpoint ladder to its end, then re-read: the FINAL
 	// round of an undecidable DOM stays pending forever — that is the point.
 	// 400ms lands ~240ms past the FAST ladder's last round (≈160ms), so a
 	// `conclusive = final` (liveness-gate drop) mutation WOULD have published
-	// a 6-group drifted verdict here — the honest pending below is what the
+	// a 8-group drifted verdict here — the honest pending below is what the
 	// sentinel gate buys, not an untested race.
 	await sleep(400);
 	const settled = h.window.__DSH_DREAM_SKIN_STATUS__;
@@ -1862,7 +1862,14 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// it only discriminates on the MID-SWITCH skin, whose palette differs from
 	// both the boot bake and the final selection. Without the re-resolve the
 	// dialogs would keep rose through the midnight leg of the round-trip.
-	const midnightLayer2 = rgbaOf(skinById('midnight').tokens['--dsw-alias-bg-layer-2'], 0.5);
+	// Issue #98: the seeded slider value (0.5) is BELOW the dialog readability
+	// floor, so the layer-2 legs of this round-trip land on the floor while the
+	// menu leg keeps following the slider. Both halves are asserted below on
+	// purpose: a floor that also swallowed the menu token would pass a
+	// layer-2-only expectation, and a floor that never applied would pass a
+	// menu-only one.
+	const DIALOG_ALPHA = 0.92;
+	const midnightLayer2 = rgbaOf(skinById('midnight').tokens['--dsw-alias-bg-layer-2'], DIALOG_ALPHA);
 	assert.equal(theme.getTheme().active.tokens['--dsw-alias-bg-layer-2'], midnightLayer2,
 		'the deferred wallpaper re-shade re-resolves layer-2 for the mid-switch skin (midnight)');
 	// Adjudication 10.5.1 P1 (R4-style): pin BOTH scheme entries of the
@@ -1870,21 +1877,22 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	// scheme base — removing fillFor's colorScheme gate (kill-mutation E4)
 	// leaks midnight's dark hue into the light entry and reddens here.
 	const midLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
-	assert.equal(midLayer.light, 'rgba(255, 255, 255, 0.5)',
+	assert.equal(midLayer.light, 'rgba(255, 255, 255, ' + DIALOG_ALPHA + ')',
 		'the light entry of the mid-switch layer-2 is the scheme base (white), not the dark skin hue');
 	assert.equal(midLayer.dark, midnightLayer2,
-		'the dark entry of the mid-switch layer-2 keeps midnight\'s own hue at the seeded alpha');
+		'the dark entry of the mid-switch layer-2 keeps midnight\'s own hue at the floored alpha');
 	skin.setSkin('rose');
 	await new Promise((resolve) => setTimeout(resolve, 10));
 	const tokens = theme.getTheme().active.tokens;
 	assert.equal(tokens['--dsw-alias-bg-base'], rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.8),
 		'rose wallpaper wash survives the round-trip');
 	assert.equal(tokens['--dsw-specific-menu'], rgbaOf(skinById('rose').tokens['--dsw-alias-bg-base'], 0.5),
-		'popup opacity remains active after the wallpaper re-shade');
+		'popup opacity remains active after the wallpaper re-shade — and the MENU leg still follows the '
+		+ 'slider below the dialog floor (issue #98: the floor belongs to layer-2 only)');
 	assert.equal(tokens['--dsw-alias-brand-primary'], '#123456',
 		'custom accent remains active after the wallpaper re-shade');
 	// End state settles back to the seeded skin's own layer-2 hue (issue #67).
-	const roseLayer2 = rgbaOf(skinById('rose').tokens['--dsw-alias-bg-layer-2'], 0.5);
+	const roseLayer2 = rgbaOf(skinById('rose').tokens['--dsw-alias-bg-layer-2'], DIALOG_ALPHA);
 	assert.equal(tokens['--dsw-alias-bg-layer-2'], roseLayer2,
 		'the deferred wallpaper re-shade re-resolves layer-2 to the settled rose hue');
 	// Adjudication 10.5.1 P1: the settled (rose, light-scheme) override keeps
@@ -1893,7 +1901,7 @@ test('production facade keeps wallpaper, popup opacity, and accent visible toget
 	const roseLayer = (packageLayer && packageLayer.tokens['--dsw-alias-bg-layer-2']) || {};
 	assert.equal(roseLayer.light, roseLayer2,
 		'the settled rose layer-2 keeps rose\'s own (light) hue in the light entry');
-	assert.equal(roseLayer.dark, 'rgba(21, 21, 23, 0.5)',
+	assert.equal(roseLayer.dark, 'rgba(21, 21, 23, ' + DIALOG_ALPHA + ')',
 		'the inactive dark entry of the settled rose layer-2 falls back to the scheme base');
 	assert.equal(activeLayerRemovals, 0,
 		'same-source replacement never publishes an intermediate unshaded theme');
@@ -3019,6 +3027,176 @@ test('sidebar fill leak: the Windows title-bar frame stops painting the chat are
 	// or not — the marker is the whole reason the stock look survives.
 	const ungated = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*transparent/);
 	assert.equal(ungated, null, 'the frame rule only ever fires while the wash marker is present');
+
+	// Issue #96: the SAME drop exposes the host's Windows content radius. The host
+	// publishes `--dsh-windows-content-radius: 16px` on this frame element and rounds
+	// the centre column's top-left corner with it (measured in the shipped CSS of both
+	// hosts this release was built against: npm `.pI_x6G_frame` / `.pI_x6G_centerCol`,
+	// desktop `.BynINW_frame` / `.BynINW_centerCol` — same declarations, re-rolled
+	// hashes). While the frame carried its own paint the cut-out read as continuous
+	// chrome; with the paint dropped it shows the title strip behind it, which is the
+	// "lifted corner" beside the logo in the report.
+	assert.ok(/--dsh-windows-content-radius:\s*0px/.test(rule[0]),
+		'the wash flattens the content corner through the host\'s OWN radius variable');
+	// The answer must ride the variable, not a `border-radius` on a hashed class: the
+	// variable is what `dsh-client-ui-sidebar-right` reads for its fullscreen corner,
+	// so one declaration covers both notches and nothing depends on a build hash.
+	assert.ok(!/border-radius/.test(rule[0]),
+		'the corner is flattened via the host variable only — a border-radius here would miss the right panel and bet on a hash');
+	const ungatedRadius = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*--dsh-windows-content-radius/);
+	assert.equal(ungatedRadius, null, 'a wallpaper-less profile keeps the stock 16px corner');
+});
+
+test('issue #97: the session-list foot fade is neutralised under a wash through a hash-free anchor', () => {
+	// Reported: a horizontal gradient band sits permanently above the user row at the
+	// foot of the left sidebar whenever a wallpaper is on screen. Mechanism, read out
+	// of the shipped CSS of both hosts: the sidebar column is painted with the
+	// translucent `--dsw-specific-sidebar-fill`, and the list's foot fade
+	// (`<span class="<hash>_fade">`, 24px, `linear-gradient(to bottom, transparent,
+	// var(--dsw-specific-sidebar-fill))`, inset from the right edge) paints a SECOND
+	// layer of that same token over it — a band matching neither the list above nor
+	// the footer below. Without a wash the column is opaque, so the fade is invisible
+	// and doing its job: the neutralisation is wash-gated.
+	//
+	// WHY THIS IS A REGRESSION GATE AND NOT JUST A RULE: the 10.5.0 fix for this same
+	// complaint anchored on `.qDHVXG_fade`, which measures 0 hits on npm 0.2.0-rc.1
+	// (ships `bhn1Oq_fade`) and on the desktop app.asar (ships `_9lTDKa_fade`) alike.
+	// The rule was inert on every host anyone was running, and every offline test kept
+	// its green because it asserted the CSS STRING, not the match. This anchor carries
+	// no hash, so a re-roll cannot silently un-arm it.
+	const created = [];
+	const doc = {
+		body: makeEl(),
+		head: makeEl(),
+		documentElement: { style: { setProperty() {} }, setAttribute() {}, removeAttribute() {} },
+		createElement: () => { const el = makeEl(); created.push(el); return el; },
+		createTextNode: () => ({}),
+		querySelector: () => null,
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ document: doc });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	assert.doesNotThrow(() => e.apply(makeApplyContext(h)), 'apply');
+	const sheet = created.find((el) => el.id === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(sheet, 'the material sheet is injected');
+	const css = sheet.textContent;
+
+	const fadeRule = css.match(/html\[data-dsh-dream-skin-wash\]\s*\[class\$="_fade"\](\s*,\s*html\[data-dsh-dream-skin-wash\][^{]*)?\s*\{([^}]*)\}/);
+	assert.ok(fadeRule, 'the wash-gated fade rule is in the sheet');
+	assert.match(fadeRule[0], /background:\s*transparent/, 'the painted gradient is dropped');
+	assert.match(fadeRule[0], /(^|\n)\s*mask-image:\s*none/, 'the mask path is dropped too');
+	assert.match(fadeRule[0], /-webkit-mask-image:\s*none/, '…on both spellings');
+	// Reverse guards.
+	assert.equal(css.match(/(^|\n)\s*\[class\$="_fade"\]\s*\{/), null,
+		'the neutralisation never fires without the wash marker — the host fade is the stock look');
+	// P0-1 (adversarial review 10.8.0): the legacy `qDHVXG_fade` spelling is an
+	// OR-fallback for the 0.1.x line, so it lives INSIDE the gated group. What must
+	// never come back is a fade rule of its own that runs without the wash — which is
+	// the shape this sheet actually shipped for four releases, and the shape the craft
+	// gate could not see because its candidate list was attribute-shaped only.
+	const fadeRules = (css.match(/[^{}]+\{[^}]*\}/g) || []).filter((r) => /\.qDHVXG_fade\b/.test(r.split('{')[0]));
+	assert.ok(fadeRules.length >= 1, 'the legacy 0.1.x spelling is still covered');
+	for (const rule of fadeRules) {
+		assert.match(rule.split('{')[0], /data-dsh-dream-skin-wash/,
+			'a rule naming the legacy fade hash is not wash-gated');
+	}
+});
+
+test('issue #98: the layer-2 dialog floor holds at the transparent end while menus keep full travel', () => {
+	// `--dsw-alias-bg-layer-2` is one token serving two families: small elevated
+	// surfaces, where seeing through is the point, and the full-screen panels built on
+	// the host Modal primitive (`.dialog { background: var(--dsw-alias-bg-layer-2) }`
+	// — the 设置 dialog among them), which carry paragraphs of text over whatever the
+	// page behind them holds. The 弹窗不透明度 slider drives all of it, so a profile
+	// parked at the transparent end rendered the settings panel as a sheet of
+	// skin-coloured glass the conversation read straight through (this machine measured
+	// 0.5). Double sampling, both ends, because a floor applied to the wrong leg is
+	// invisible in a single sample.
+	const overrides = new Map();
+	const theme = {
+		setTheme() {},
+		getTheme() {
+			return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {
+				'--dsw-alias-bg-base': '#0b0b0e',
+				'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+			} }, themes: [], revision: 1 };
+		},
+		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+	};
+	const h = buildSandbox();
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0');
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply({ ...makeApplyContext(h, { captureActions: true }), theme });
+	const layer = () => overrides.get('dsh-dream-skin:appearance');
+
+	// Sample 1 — the fully transparent end: the dialog stops at the floor, the rest
+	// of the sheet keeps travelling to 0.
+	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.92)',
+		'the dialog leg holds the 0.92 readability floor at the transparent end');
+	assert.equal(layer()['--dsw-alias-bg-overlay'].dark, 'rgba(11, 11, 14, 0)',
+		'the overlay leg still reaches full transparency (the floor is not a global clamp)');
+	assert.equal(layer()['--dsw-specific-menu'].dark, 'rgba(11, 11, 14, 0)',
+		'the menu leg still reaches full transparency');
+
+	// Sample 2 — above the floor the slider is the only authority again, so the
+	// floor cannot quietly become a ceiling.
+	h.actionBags['dream-skin-glass'].setModalOpacity(95);
+	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.95)',
+		'above the floor the slider still owns layer-2');
+	h.actionBags['dream-skin-glass'].setModalOpacity(100);
+	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 1)',
+		'the solid end still reaches full occlusion');
+	h.actionBags['dream-skin-glass'].setModalOpacity(0);
+	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.92)',
+		'dragging back down re-applies the floor (it is a clamp on the value, not a one-shot retune)');
+});
+
+test('drift probe (#96/#97): an attribute-anchored group is judged by what the HOST css still declares', async () => {
+	// The two hash-free anchors carry no `.class` token for the ownership set to look
+	// up, so they need their own reading — and that reading has to stay strict enough
+	// to catch a rename. Two sandboxes, opposite verdicts, same mount shape:
+	//   host still ships a class token ENDING in `_fade` and mentions the shell stamp
+	//     → healthy surfaces this page never mounted (notMounted);
+	//   host renamed the fade to `_fadeFoot` and dropped the stamp
+	//     → the anchors are gone (drifted). A substring test would have waved the
+	//       rename through — `_fade` is still in `_fadeFoot` — and that is precisely
+	//       the silent no-op issue #97 exists to catch.
+	const HOST_ALIVE = '.lXshSW_root{display:block}'
+		+ '.bhn1Oq_fade{background:linear-gradient(to bottom,transparent,var(--dsw-specific-sidebar-fill))}'
+		+ '[data-shell-overlay]{position:absolute}';
+	const HOST_RENAMED = '.lXshSW_root{display:block}.bhn1Oq_fadeFoot{background:linear-gradient(red,blue)}';
+	const MOUNTED = new Set([
+		'.uV2eYG_root',
+		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'
+	]);
+	const run = async (hostCss) => {
+		const hostSheet = makeEl();
+		hostSheet.textContent = hostCss;
+		const doc = {
+			body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+			querySelector: (sel) => (MOUNTED.has(sel) ? { matched: true } : null),
+			querySelectorAll: (sel) => (sel === 'style[data-plugin-css]' ? [hostSheet] : [])
+		};
+		const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		e.apply(makeApplyContext(h));
+		await sleep(250); // FAST ladder terminal ≈160ms
+		return h.window.__DSH_DREAM_SKIN_STATUS__.anchors;
+	};
+	const ATTR_GROUPS = ['div:has(> [data-shell-overlay])', '[class$="_fade"]'];
+
+	const alive = await run(HOST_ALIVE);
+	assert.equal(alive.pending, false, 'liveness proven by the two mounted hashed groups');
+	for (const sel of ATTR_GROUPS) {
+		assert.ok(alive.notMounted.includes(sel), `${sel}: owned by the host css but unmounted ⇒ notMounted, got ${JSON.stringify(alive.notMounted)}`);
+		assert.ok(!alive.drifted.includes(sel), `${sel}: an anchor the host still declares must never be a drift alarm`);
+	}
+
+	const renamed = await run(HOST_RENAMED);
+	for (const sel of ATTR_GROUPS) {
+		assert.ok(renamed.drifted.includes(sel), `${sel}: the host no longer declares this anchor ⇒ drifted, got ${JSON.stringify(renamed.drifted)}`);
+		assert.ok(!renamed.notMounted.includes(sel), `${sel}: a renamed anchor must not be filed as healthy`);
+	}
 });
 
 test('sidebar fill leak: the wash marker and its opaque backdrop follow the wallpaper lifecycle', () => {
@@ -3656,6 +3834,10 @@ test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the
 	// dialog's input area (issue #67). The override layer must now carry the
 	// token, keep each skin's OWN layer-2 hue, and let only the alpha follow
 	// the slider.
+	//
+	// The seeded slider value is 0.9, i.e. ABOVE the issue #98 dialog floor: this
+	// gate is about hue ownership and slider authority, and a seed below the floor
+	// would grade the floor instead. The floor has its own gate below.
 	const overrides = new Map();
 	const theme = {
 		setTheme() {},
@@ -3668,7 +3850,7 @@ test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the
 		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
 	};
 	const h = buildSandbox();
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	assert.doesNotThrow(() => e.apply({ ...baseCtx, theme }));
@@ -3677,7 +3859,7 @@ test('issue #67: the popup-opacity slider drives --dsw-alias-bg-layer-2 with the
 	assert.ok(layer, 'the appearance layer is published');
 	const popupDark = layer['--dsw-alias-bg-layer-2'];
 	assert.ok(popupDark, 'layer-2 rides the popup-opacity override layer now (was unreachable by the slider)');
-	assert.equal(popupDark.dark, 'rgba(22, 22, 28, 0.6)', 'layer-2 keeps the SKIN\'s own hue (22,22,28) at the stored slider alpha 0.6');
+	assert.equal(popupDark.dark, 'rgba(22, 22, 28, 0.95)', 'layer-2 keeps the SKIN\'s own hue (22,22,28) at the stored slider alpha 0.95');
 	assert.ok(layer['--dsw-alias-bg-overlay'], 'overlay token still driven as before');
 	assert.ok(layer['--dsw-specific-menu'], 'menu token still driven as before');
 
@@ -3734,7 +3916,7 @@ test('issue #67: without a live wash, a skin switch still re-resolves the layer-
 		overrideTokens(source, tokens) { published.set(source, tokens); return () => {}; }
 	};
 	const h = buildSandbox(); // no wallpaper seeds: wallpaperBackgroundCss() stays null
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	const ctx = { ...baseCtx, theme };
@@ -3742,7 +3924,7 @@ test('issue #67: without a live wash, a skin switch still re-resolves the layer-
 	assert.doesNotThrow(() => e.apply(ctx));
 	await sleep(10); // let the boot-deferred pass settle
 
-	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.6)',
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.95)',
 		'boot resolves layer-2 from the midnight skin');
 
 	// Host-side skin switch: the snapshot now carries ember. The re-resolve is
@@ -3754,7 +3936,7 @@ test('issue #67: without a live wash, a skin switch still re-resolves the layer-
 	revision += 1;
 	for (const fn of handlers) fn(theme.getTheme());
 	await sleep(10);
-	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.6)',
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.95)',
 		'the deferred pass republishes the SETTLED skin hue (ember) without any slider move');
 });
 
@@ -3795,7 +3977,7 @@ test('adjudication R1: a skin switch without a live wash settles after one guard
 		}
 	};
 	const h = buildSandbox(); // no wallpaper seeds: the no-wash branch is live
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	const ctx = { ...baseCtx, theme };
@@ -3818,7 +4000,7 @@ test('adjudication R1: a skin switch without a live wash settles after one guard
 
 	assert.equal(s2, s1, `no-wallpaper re-resolve settles: no publishes in the +500ms..+2500ms window (got ${s1} then ${s2})`);
 	assert.ok(s2 - base < 10, `a single skin switch publishes a bounded number of times (base ${base}, settled ${s2})`);
-	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.6)',
+	assert.equal(published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'].dark, 'rgba(36, 28, 20, 0.95)',
 		'the settled layer-2 carries the ember hue at the stored alpha');
 });
 
@@ -3851,7 +4033,7 @@ test('adjudication R2: a skin switch WITH a live wash settles after one guarded 
 		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #000 0%, #fff 100%)',
 		'dsh-dream-skin:wallpaper-follows-skin': '0'
 	} });
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	const ctx = { ...baseCtx, theme };
@@ -3875,8 +4057,8 @@ test('adjudication R2: a skin switch WITH a live wash settles after one guarded 
 	assert.equal(s2, s1, `wallpaper re-shade settles: no publishes in the +500ms..+2500ms window (got ${s1} then ${s2})`);
 	assert.ok(s2 - base < 10, `a single skin switch publishes a bounded number of times (base ${base}, settled ${s2})`);
 	const entry = published.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
-	assert.equal(entry.light, 'rgba(255, 253, 253, 0.6)', 'the settled layer-2 keeps the rose hue in the light entry at the stored alpha');
-	assert.equal(entry.dark, 'rgba(21, 21, 23, 0.6)', 'the inactive dark entry of the settled layer-2 falls back to the scheme base');
+	assert.equal(entry.light, 'rgba(255, 253, 253, 0.95)', 'the settled layer-2 keeps the rose hue in the light entry at the stored alpha');
+	assert.equal(entry.dark, 'rgba(21, 21, 23, 0.95)', 'the inactive dark entry of the settled layer-2 falls back to the scheme base');
 });
 
 test('adjudication R3: unmount cancels the in-flight deferred popup re-resolve (no publishes after dispose)', async () => {
@@ -3892,7 +4074,7 @@ test('adjudication R3: unmount cancels the in-flight deferred popup re-resolve (
 		overrideTokens() { publishes += 1; return () => {}; }
 	};
 	const h = buildSandbox(); // no wallpaper seeds: the deferred popup timer is armed
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	const ctx = { ...baseCtx, theme };
@@ -3923,14 +4105,14 @@ test('adjudication R4: the layer-2 override keeps the scheme base for the INACTI
 		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
 	};
 	const h = buildSandbox();
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.6');
+	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0.95');
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	const baseCtx = makeApplyContext(h, { captureActions: true });
 	e.apply({ ...baseCtx, theme });
 	await sleep(20); // let the boot-deferred overlay pass publish
 	const entry = overrides.get('dsh-dream-skin:appearance')['--dsw-alias-bg-layer-2'];
-	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.6)', 'the ACTIVE (dark) scheme keeps the skin\'s own layer-2 hue at the slider alpha');
-	assert.equal(entry.light, 'rgba(255, 255, 255, 0.6)', 'the INACTIVE (light) scheme entry is painted from the scheme base (white), not the skin\'s dark hue');
+	assert.equal(entry.dark, 'rgba(22, 22, 28, 0.95)', 'the ACTIVE (dark) scheme keeps the skin\'s own layer-2 hue at the slider alpha');
+	assert.equal(entry.light, 'rgba(255, 255, 255, 0.95)', 'the INACTIVE (light) scheme entry is painted from the scheme base (white), not the skin\'s dark hue');
 });
 
 test('adjudication R5: missing slider key falls back to the 0.94 default in the layer-2 override (literal pin)', async () => {
@@ -4112,7 +4294,7 @@ test('drift probe (desktop shell): probed covers the gated anchor, drifted stays
 	await sleep(250);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.shell, 'desktop', 'desktop shell detected via the documented body stamp');
-	assert.equal(status.anchors.probed, 7, 'six host hashes + the gated desktop anchor');
+	assert.equal(status.anchors.probed, 9, 'eight host anchor groups + the gated desktop anchor');
 	// A-1 acceptance case ③ (desktop variant): liveness IS proven (host
 	// contract stamp + all six host anchors hit), so the single unmatched
 	// group may be called drifted — with the machine field kept an exact
@@ -4141,11 +4323,14 @@ test('drift probe (A-1): full host match converges to a conclusive zero-drift ve
 });
 
 test('drift probe (A-1): one replaced anchor group is reported as exactly that group', async () => {
-	// A-1 acceptance case ③ (web variant): five host groups mount (liveness
-	// proven), the sixth never appears — drifted must contain EXACTLY that
-	// group's raw selector, nothing else.
+	// A-1 acceptance case ③ (web variant): seven host groups mount (liveness
+	// proven), the eighth never appears — drifted must contain EXACTLY that
+	// group's raw selector, nothing else. The group under test is `.uV2eYG_root`,
+	// a LIVE anchor: since J1 (10.8.0) the three retired 0.1.x hashes go to their
+	// own pool and can no longer be used as a stand-in for "the host re-rolled a
+	// hash we still depend on".
 	const warns = [];
-	const driftedSel = '.qDHVXG_fade';
+	const driftedSel = '.uV2eYG_root';
 	const doc = {
 		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
 		querySelector: (sel) => (sel === driftedSel ? null : { matched: true }),
@@ -4156,7 +4341,7 @@ test('drift probe (A-1): one replaced anchor group is reported as exactly that g
 	e.apply(makeApplyContext(h));
 	await sleep(250);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
-	assert.equal(status.anchors.pending, false, 'liveness proven (five groups matched ≥ the two-group gate)');
+	assert.equal(status.anchors.pending, false, 'liveness proven (seven groups matched ≥ the two-group gate)');
 	assert.deepEqual(status.anchors.drifted, [driftedSel], 'drifted lists exactly the one unmatched group');
 	assert.ok(warns.some((w) => w.includes(driftedSel)), 'the console line names the drifted group');
 	// B8: "harmless, cosmetic only" is only true for the anchors the probe samples. The
@@ -4164,6 +4349,42 @@ test('drift probe (A-1): one replaced anchor group is reported as exactly that g
 	// human-facing line has to say where its own authority ends.
 	assert.ok(warns.some((w) => w.includes('NOT probed') && w.includes('question / approval / plan')),
 		'the console line declares its own coverage limit instead of implying every refinement was checked');
+});
+
+test('drift probe (J1): a healthy modern host can actually reach the positive signal', async () => {
+	// The machine contract in docs/desktop-support.md says `drifted: [] && pending:
+	// false` is the ONLY positive "all refinements live" signal. Before J1 that
+	// sentence described a state no measurable host could produce: the probe table
+	// still samples `.bqrRRG_card`, the `.nArs4W_*` family and `.qDHVXG_fade`, and all
+	// three measure 0 hits on every host install this repository can read (they are
+	// kept as OR-fallbacks for the 0.1.x line, which is an assumption — there is no
+	// 0.1.x corpus). So desktop tooling following the doc saw "anchor damage" on every
+	// page load of a host whose refinements were in fact all live.
+	//
+	// The fixture is that host: five live groups mounted (the two #96/#97 attribute
+	// anchors among them), three retired groups absent, no host sheet vouching for
+	// anything absent. This is the shape that used to publish a three-item drift list.
+	const warns = [];
+	const RETIRED = new Set([
+		'.bqrRRG_card',
+		'.nArs4W_panel, .nArs4W_pane, .nArs4W_paneContent, .nArs4W_workbench, .nArs4W_explorerBody',
+		'.qDHVXG_fade'
+	]);
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+		querySelector: (sel) => (RETIRED.has(sel) ? null : { matched: true }),
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await sleep(250);
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.anchors.pending, false, 'the ladder completed with liveness proven');
+	assert.deepEqual(status.anchors.drifted, [], 'drifted is EMPTY on a host whose live anchors all matched — the positive signal is reachable');
+	assert.deepEqual(status.anchors.notMounted, [], 'nothing to retract either');
+	assert.deepEqual(status.anchors.retired.sort(), [...RETIRED].sort(), 'the retired anchors are still reported, in their own pool');
+	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'a healthy host is never warned about');
 });
 
 test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drifted (ownership classifier)', async () => {
@@ -4184,10 +4405,25 @@ test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drift
 	const hostSheet = makeEl();
 	hostSheet.textContent = '.lXshSW_root{display:block}.host-other-chunk{color:red}';
 	const ourSheet = makeEl();
-	ourSheet.textContent = '.bqrRRG_card{padding:0}.qDHVXG_fade{opacity:1}.nArs4W_panel{background:none}';
+	// M21 differential, still intact and now aimed at a LIVE anchor: our own sheet
+	// contains `.uV2eYG_root` (it is the material rule's selector), so if the
+	// classifier ever dropped the `[data-plugin-css]` qualifier our stylesheet would
+	// vouch for our own selector and a real re-roll would be filed as
+	// "healthy, just not mounted".
+	ourSheet.textContent = '.uV2eYG_root{backdrop-filter:blur(1px)}';
+	const RETIRED = [
+		'.bqrRRG_card',
+		'.nArs4W_panel, .nArs4W_pane, .nArs4W_paneContent, .nArs4W_workbench, .nArs4W_explorerBody',
+		'.qDHVXG_fade'
+	];
 	const MOUNTED = new Set([
-		'.uV2eYG_root',
-		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'
+		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions',
+		// Issue #96/#97: the two hash-free anchors mount on any ordinary page (the
+		// AppFrame is the app root, the session-list fade ships with the list), so
+		// this fixture mounts them too — their classification path when they are
+		// ABSENT has its own gate further down.
+		'div:has(> [data-shell-overlay])',
+		'[class$="_fade"]'
 	]);
 	const observers = [];
 	class FakeMO {
@@ -4209,15 +4445,18 @@ test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drift
 	e.apply(makeApplyContext(h));
 	await sleep(250); // FAST ladder terminal ≈160ms — deliberately past it
 	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
-	assert.equal(t0.anchors.pending, false, 'terminal verdict reached (liveness via the two mounted groups)');
+	assert.equal(t0.anchors.pending, false, 'terminal verdict reached (liveness via the mounted groups)');
 	assert.deepEqual(t0.anchors.notMounted, ['.lXshSW_root, ._7yHdaG_panel'],
 		'the group the host CSS still owns reads notMounted — a healthy host that never opened that surface');
-	assert.deepEqual(t0.anchors.drifted,
-		['.bqrRRG_card', '.nArs4W_panel, .nArs4W_pane, .nArs4W_paneContent, .nArs4W_workbench, .nArs4W_explorerBody', '.qDHVXG_fade'],
-		'groups no host sheet vouches for stay drifted (our own sheet earns nothing — legacy branches are not host ownership)');
+	assert.deepEqual(t0.anchors.drifted, ['.uV2eYG_root'],
+		'a live group our own sheet mentions but no HOST sheet vouches for stays drifted');
+	assert.deepEqual(t0.anchors.retired.sort(), RETIRED.slice().sort(),
+		'J1: the three anchors kept only for the unmeasured 0.1.x line get their own pool');
+	assert.equal(warns.filter((w) => w.includes('bqrRRG') || w.includes('nArs4W') || w.includes('qDHVXG')).length, 0,
+		'J1: retired anchors never reach the human alarm — on a healthy modern host it would fire on every page load');
 	const driftWarns = warns.filter((w) => w.includes('drifted'));
-	assert.equal(driftWarns.length, 1, 'the drift warn fires once for the renamed hashes');
-	assert.ok(driftWarns[0].includes('.bqrRRG_card'), 'the warn names the drifted groups');
+	assert.equal(driftWarns.length, 1, 'the drift warn fires once for the renamed live hash');
+	assert.ok(driftWarns[0].includes('.uV2eYG_root'), 'the warn names the drifted group');
 	assert.ok(!driftWarns[0].includes('lXshSW'), 'an unmounted-but-owned surface is NOT an alarm');
 	assert.ok(observers.length >= 1, 'late-correction observer armed after a drifted terminal');
 });
@@ -4232,11 +4471,19 @@ test('drift probe (T3): a surface mounting late leaves the notMounted pool throu
 	const hostSheet = makeEl();
 	hostSheet.textContent = '.lXshSW_root{display:block}';
 	const ourSheet = makeEl();
-	ourSheet.textContent = '.bqrRRG_card{padding:0}';
+	// Our own sheet really does contain `.uV2eYG_root` (the material rule), so the
+	// drifted entry below cannot be made to look notMounted by loosening the
+	// `[data-plugin-css]` qualifier.
+	ourSheet.textContent = '.uV2eYG_root{backdrop-filter:blur(1px)}';
 	const LATE_GROUP = '.lXshSW_root, ._7yHdaG_panel';
 	const MOUNTED = new Set([
-		'.uV2eYG_root',
-		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions'
+		'.hHd-Xa_root .hHd-Xa_footArea, .hHd-Xa_root .hHd-Xa_settingsArea, .hHd-Xa_root .hHd-Xa_footerActions',
+		// Issue #96/#97: the two hash-free anchors mount on any ordinary page (the
+		// AppFrame is the app root, the session-list fade ships with the list), so
+		// this fixture mounts them too — their classification path when they are
+		// ABSENT has its own gate further down.
+		'div:has(> [data-shell-overlay])',
+		'[class$="_fade"]'
 	]);
 	const observers = [];
 	class FakeMO {
@@ -4259,7 +4506,8 @@ test('drift probe (T3): a surface mounting late leaves the notMounted pool throu
 	await sleep(250);
 	const t0 = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.deepEqual(t0.anchors.notMounted, [LATE_GROUP], 'terminal snapshot names the unmounted group');
-	assert.deepEqual(t0.anchors.drifted.length, 3, 'three renamed groups drifted');
+	assert.deepEqual(t0.anchors.drifted, ['.uV2eYG_root'],
+		'the one live renamed hash is the whole drift list — J1 retired anchors do not join it');
 	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'terminal drift warns once');
 	// User opens the surface "a minute later": the group mounts, DOM mutates.
 	MOUNTED.add(LATE_GROUP);
@@ -4287,7 +4535,7 @@ test('drift probe (R-4): the ladder array is RELATIVE gaps — an early terminal
 	// go red. Margins are ≥250ms on both sides so a loaded runner cannot flip it.
 	const code = CODE.replace('[0, 300, 1000, 3000]', '[0, 400, 400, 400]');
 	if (code === CODE) throw new Error('ladder anchor moved — update the R-4 semantics test');
-	const driftedSel = '.qDHVXG_fade';
+	const driftedSel = '.uV2eYG_root';
 	const warns = [];
 	const doc = {
 		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
@@ -4366,7 +4614,7 @@ test('drift probe (S-3): fiber unload disarms the late-correction observer and f
 	let mounted = false;
 	const doc = {
 		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),
-		querySelector: (sel) => (((sel.startsWith('.hHd-Xa_root') || sel === '.qDHVXG_fade') && !mounted) ? null : { matched: true }),
+		querySelector: (sel) => (((sel.startsWith('.hHd-Xa_root') || sel === '.uV2eYG_root') && !mounted) ? null : { matched: true }),
 		querySelectorAll: () => [], head: makeEl()
 	};
 	const observers = [];
@@ -4404,7 +4652,7 @@ test('drift probe (S-3): a re-applied probe supersedes the live observer instead
 	// single-owner handle a second chain could arm a second body observer while
 	// the first is still live (two independent samplers, ~7.5s of sampling each).
 	const lateMOs = (observers, baseLen, doc) => observers.slice(baseLen).filter((o) => o.target === doc.body);
-	const missing = '.qDHVXG_fade';
+	const missing = '.uV2eYG_root';
 	let mounted = false;
 	const doc = {
 		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}),

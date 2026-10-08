@@ -72,7 +72,7 @@ The two ways are layered and independent: a preset decides the "material &amp; b
   </tr>
 </table>
 
-> Light & dark both covered: `mist`, `ivory` and `rose` are light themes, the rest are dark. Not into presets? See **Way #2** below. Each preset also ships its own tuned defaults (glow opacity / blur, sidebar & composer transparency, dialog opacity, glass material): switching skins retunes every value you have not set yourself, and all 8 presets pass 226 measurable quality gates (217 palette + 9 craft) (OKLCH elevation ladder, WCAG 2.1 + APCA text contrast, signal-hue separation, cross-skin distinctiveness).
+> Light & dark both covered: `mist`, `ivory` and `rose` are light themes, the rest are dark. Not into presets? See **Way #2** below. Each preset also ships its own tuned defaults (glow opacity / blur, sidebar & composer transparency, dialog opacity, glass material): switching skins retunes every value you have not set yourself, and all 8 presets pass 228 measurable quality gates (217 palette + 11 craft) (OKLCH elevation ladder, WCAG 2.1 + APCA text contrast, signal-hue separation, cross-skin distinctiveness).
 
 ---
 
@@ -86,7 +86,7 @@ The two ways are layered and independent: a preset decides the "material &amp; b
 | 🖼️ **Wallpaper 2.0** | Local image / **image URL** / **gradient presets**; plus **opacity / blur**; each skin even **suggests** a gradient and can **auto-dim** (lower distraction when focusing) |
 | 🌈 **Per-user Accent** | Stack a custom brand-accent over the active skin (`overrideTokens` layer, the skin untouched): **12 one-click preset swatches**, color picker, randomize, and a clear/restore option |
 | 📦 **Theme-pack import / export / share** | A `*.dsh-theme.json` = manifest + full tokens. Import a file, one-click apply, or copy a **share link** (encoded in the URL hash) |
-| 🪟 **Popup opacity** | A slider that controls dropdown / overlay / dialog bottom-fill transparency, persisted |
+| 🪟 **Popup opacity** | A slider that controls dropdown / overlay / dialog bottom-fill transparency, persisted; every surface painted from the popup-base token (Settings, the plugin manager, trajectory tooltips, floating cards) shares a readability floor at 92% opaque — the skin's own elevation fill — while the menu and scrim legs stay full-range |
 | 🧩 **Local pack library** | Your imported packs in one place; **apply / favorite / remove** in a click |
 | 🎲 **Surprise me** | Randomly switch to a different theme; **star** favorites to switch fast |
 | ✅ **Validation + rollback** | Pack import validates format / required tokens / color legality; failures or removals fall back safely |
@@ -367,6 +367,8 @@ seeds (`react`, `react/jsx-runtime`, …) and registered client bundles (`@deeps
 - [ ] **M** Roll the peer window up to `0.3.x` — **only once it has been verified**; if it stays closed, write "not supported" in the docs instead of leaving a silent skip
 - [ ] **S** The drift probe cannot cover mount-on-demand surfaces: the question and approval cards only enter the DOM once a conversation actually asks something, so a boot-time sampling ladder would report them as permanently drifted — 10.5.0 keeps them out of the probe on purpose
       — acceptance: after one real question, `anchors` reports hit / miss for both functional anchors, while a freshly opened page still reads `drifted: []`
+- [ ] **M** Move the mechanism-level evidence into CI: the computed-style gate (`npm run wash:check`) depends on this maintenance machine's Chrome plus the CSS of the locally installed host, so its four computed-style cases skip in CI — today only one person can recompute the "the mechanism really fires" half of the proof; while there, replace the hand-copied host class names in the fixture with anchors supplied by the live DOM / the `scripts/host-consumers.cjs` census
+      — acceptance: the CI log shows **readings** for those four cases instead of a skip reason; a missing browser or missing host fails with a non-zero exit naming which one, never a silent pass
 
 ### B. Publishing and the install channel
 

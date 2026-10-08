@@ -31,6 +31,17 @@
  *                         (two documented allowlisted exceptions)
  *   blur-derived          a hardcoded blur radius must be a documented material
  *                         constant
+ *   wash-frame-flattened  under a wallpaper wash the frame rule must ALSO flatten
+ *                         the host's content corner — through the host's own
+ *                         variable, `!important` (the one cascade case no string
+ *                         gate can see), and only while the wash marker is live
+ *                         (issue #96)
+ *   wash-fade-neutralised EVERY rule naming a `_fade` token, hash spelling
+ *                         included, must be wash-gated, must travel with a
+ *                         hash-free anchor in the same selector, and must
+ *                         neutralise both the paint and the mask path
+ *                         (issue #97 — the previous rule's hash had measured 0
+ *                         hits on the two hosts this release was built against)
  *
  * Scope, stated so it cannot quietly overstate itself (issue #77): the two
  * stylesheets this audit reads are the ones in REGISTERED_SHEETS — the material
@@ -871,6 +882,86 @@ function auditCraft(source) {
 	push('blur-derived', strayBlur.length === 0,
 		strayBlur.length ? `undocumented blur radius: ${strayBlur.join(' | ')}`
 			: `hardcoded radii are the ${BLUR_CONSTANTS.join('/')}px material constants; everything else follows the skin`);
+
+	// ---- 6. the wash state owns the two corners it exposes -------------------
+	// Both rules exist because a wallpaper makes host chrome visible that the skin
+	// otherwise covers. They are graded on DECLARATIONS, not on a selector string
+	// existing: issue #97 is precisely a rule whose selector survived every test
+	// while matching nothing.
+	{
+		const problems = [];
+		const isWashGated = (sel) => /data-dsh-dream-skin-wash/.test(sel);
+		const frameRule = blocks.find((b) => isWashGated(b.selector) && /:has\(\s*>\s*\[data-shell-overlay\]\s*\)/.test(b.selector));
+		if (!frameRule) {
+			problems.push('no wash-gated AppFrame rule — neither the frame fill nor the content corner is owned');
+		} else {
+			const props = new Map(frameRule.decls.map((d) => [d.prop, d.value]));
+			const radius = props.get('--dsh-windows-content-radius');
+			if (radius !== '0px !important') {
+				problems.push(`the wash-gated frame rule leaves the host content radius alone or unarmed (got ${radius === undefined ? 'nothing' : radius}) — an inline stamp on the host side needs the important flag`);
+			}
+			// Going through the host's OWN variable is the point: the same corner is
+			// read by the right panel's fullscreen clip, so a `border-radius` written
+			// here would fix one notch and bet on a hash to find it.
+			if (props.has('border-radius')) problems.push('the corner is flattened with border-radius instead of the host variable');
+			const ungated = blocks.filter((b) => !isWashGated(b.selector)
+				&& b.decls.some((d) => d.prop === '--dsh-windows-content-radius'));
+			if (ungated.length) problems.push(`radius reset is not wash-gated (${ungated[0].selector.slice(0, 48)})`);
+		}
+		push('wash-frame-flattened', problems.length === 0,
+			problems.length ? problems.join('; ')
+				: 'under a wash the frame fill is dropped and the host content corner is flattened through the host variable');
+	}
+
+	// ---- 7. the session-list foot fade cannot paint a band under a wash ------
+	// CANDIDATE SET: EVERY rule whose selector mentions a `_fade` class token, in
+	// either spelling. Grading only the hash-free one is the hole issue #97 fell
+	// through: a sibling rule pinned to a build hash sat in the same sheet,
+	// ungated, and no check in this repository could see it because the filter
+	// never looked at hash-shaped selectors (measured — the sheet passed 11/11
+	// while that rule was in it). A fade rule that runs unconditionally erases
+	// the host fade on wallpaper-less profiles; a fade rule anchored on a hash
+	// ALONE silently un-arms itself on the next re-roll.
+	{
+		const problems = [];
+		const HASH_FREE_FADE = '[class$="_fade"]';
+		const isWashGated = (sel) => /data-dsh-dream-skin-wash/.test(sel);
+		const mentionsFade = (sel) => sel.includes(HASH_FREE_FADE)
+			|| /(^|[\s,>])\.?[\w-]*_fade(?![\w-])/.test(sel);
+		const fadeRules = blocks.filter((b) => mentionsFade(b.selector));
+		if (!fadeRules.some((b) => b.selector.includes(HASH_FREE_FADE))) {
+			problems.push('no hash-free fade anchor in the sheet — issue #97 shipped as a rule on a dead hash');
+		}
+		for (const b of fadeRules) {
+			// TWO different invariants, on two different scopes — and getting them apart
+			// is the whole point of this check:
+			//   · WASH GATING is per BRANCH. In `html[a] X, html[b] Y { }` either branch
+			//     can match on its own, so an ungated hash branch would erase the host
+			//     fade on wallpaper-less profiles no matter what the other branch says.
+			//   · ANCHORING is per RULE. The 0.1.x fallback branch is a hash BY DESIGN,
+			//     and it is redundant coverage rather than a bet, because the hash-free
+			//     branch of the same rule already matches everything that hash can match
+			//     on any host. What may never happen is a fade RULE that carries no
+			//     hash-free branch at all — that is the shape issue #97 died of.
+			const branches = b.selector.split(',');
+			for (const branch of branches) {
+				if (!isWashGated(branch)) {
+					problems.push(`fade rule is not wash-gated (${branch.trim().slice(0, 48)}) — it would erase the host fade on wallpaper-less profiles`);
+				}
+			}
+			if (!branches.some((branch) => branch.includes(HASH_FREE_FADE))) {
+				problems.push(`fade rule has no hash-free branch (${b.selector.slice(0, 48)}) — a re-roll silently un-arms the whole rule`);
+			}
+			const props = new Map(b.decls.map((d) => [d.prop, d.value]));
+			if (props.get('background') !== 'transparent') problems.push('the fade still paints a gradient');
+			if (props.get('mask-image') !== 'none' || props.get('-webkit-mask-image') !== 'none') {
+				problems.push('the mask path is not neutralised — a mask-image fade would keep the band');
+			}
+		}
+		push('wash-fade-neutralised', problems.length === 0,
+			problems.length ? problems.join('; ')
+				: 'the session-list foot fade is neutralised under a wash through both the paint and the mask path, anchored without a build hash');
+	}
 
 	return { blocks, checks, css: extractCss(source), sheets };
 }

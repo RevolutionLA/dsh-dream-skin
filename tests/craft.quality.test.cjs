@@ -29,7 +29,9 @@ const CHECK_NAMES = [
 	'radius-inherit',
 	'glass-scheme-pairs',
 	'layout-neutral',
-	'blur-derived'
+	'blur-derived',
+	'wash-frame-flattened',
+	'wash-fade-neutralised'
 ];
 
 const checkNamed = (report, name) => report.checks.find((c) => c.name === name);
@@ -100,13 +102,68 @@ test('mutation: painting a module with a token no skin ships reddens module-toke
 });
 
 test('mutation: resizing a host box reddens layout-neutral', () => {
-	const broken = mutate(['".qDHVXG_fade {",', '".qDHVXG_fade { width: 100%;",']);
+	const broken = mutate(['"html[" + WASH_ACTIVE_ATTR + "] .qDHVXG_fade {",', '"html[" + WASH_ACTIVE_ATTR + "] .qDHVXG_fade { width: 100%;",']);
 	assert.equal(checkNamed(auditCraft(broken), 'layout-neutral').pass, false, 'layout gate can fail');
 });
 
 test('mutation: an unexplained blur radius reddens blur-derived', () => {
 	const broken = mutate(['"    backdrop-filter: blur(24px) saturate(150%);",', '"    backdrop-filter: blur(37px) saturate(150%);",']);
 	assert.equal(checkNamed(auditCraft(broken), 'blur-derived').pass, false, 'blur gate can fail');
+});
+
+test('mutation: leaving the host content corner alone reddens wash-frame-flattened', () => {
+	// Issue #96's defect, four ways: never flatten, flatten to a wrong value,
+	// flatten for wallpaper-less profiles too, or ship the declaration without the
+	// `!important` belt (the one case the offline gates cannot see coming is the host
+	// stamping the variable inline, and a string-level gate has to at least notice
+	// when the belt itself was dropped).
+	for (const [label, pair] of [
+		['dropped', ['"  --dsh-windows-content-radius: 0px !important;",', '']],
+		['wrong value', ['"  --dsh-windows-content-radius: 0px !important;",', '"  --dsh-windows-content-radius: 16px !important;",']],
+		['ungated', ['"html[data-windows-titlebar][" + WASH_ACTIVE_ATTR + "] " + APP_FRAME_SELECTOR + " {",', '"html[data-windows-titlebar] " + APP_FRAME_SELECTOR + " {",']],
+		['belt removed', ['"  --dsh-windows-content-radius: 0px !important;",', '"  --dsh-windows-content-radius: 0px;",']]
+	]) {
+		const report = auditCraft(mutate(pair));
+		const c = checkNamed(report, 'wash-frame-flattened');
+		assert.equal(c.pass, false, `${label}: corner gate can fail — ${c.detail}`);
+	}
+	assert.equal(checkNamed(auditCraft(CODE), 'wash-frame-flattened').pass, true, '…and passes on the shipped sheet');
+});
+
+test('mutation: putting the fade back on a build hash reddens wash-fade-neutralised', () => {
+	// The first pair IS issue #97 re-shipped: a rule anchored on `qDHVXG_fade`
+	// matches nothing on any host anyone is running, and every string-level
+	// assertion in the suite still calls it present.
+	for (const [label, pair] of [
+		['hash anchor', ['const SESSION_FADE_SELECTOR = "[class$=\\"_fade\\"]";', 'const SESSION_FADE_SELECTOR = ".qDHVXG_fade";']],
+		['mask path left in', ['"  mask-image: none;",', '']],
+		['ungated', ['"html[" + WASH_ACTIVE_ATTR + "] " + SESSION_FADE_SELECTOR + ",",', '"html " + SESSION_FADE_SELECTOR + ",",']]
+	]) {
+		const report = auditCraft(mutate(pair));
+		const c = checkNamed(report, 'wash-fade-neutralised');
+		assert.equal(c.pass, false, `${label}: fade gate can fail — ${c.detail}`);
+	}
+	assert.equal(checkNamed(auditCraft(CODE), 'wash-fade-neutralised').pass, true, '…and passes on the shipped sheet');
+});
+
+test('mutation: a HASH-SHAPED fade rule slips past no gate (adversarial review T1)', () => {
+	// T1/B2/A4: the candidate list this gate grades used to be filtered on
+	// `[class$="_fade"]`, so a SECOND fade rule written in hash form was invisible to
+	// it — which is how an ungated `.qDHVXG_fade { background: transparent }` sat in
+	// the shipped sheet for four releases while the audit reported 11/11. Both shapes
+	// below are planted in the same rule-list position the legacy rule actually
+	// occupied, and each must redden the fade gate.
+	const GATED = '"html[" + WASH_ACTIVE_ATTR + "] " + SESSION_FADE_SELECTOR + ",",';
+	for (const [label, planted] of [
+		// ungated, hash spelling, live on wallpaper-less profiles
+		['hash-shaped and ungated', GATED + '\n\t\t\t\t".uV2eYG_fade {",\n\t\t\t\t"  background: transparent;",\n\t\t\t\t"  -webkit-mask-image: none;",\n\t\t\t\t"  mask-image: none;",\n\t\t\t\t"}",'],
+		// gated but hash-only: silent the moment the host re-rolls
+		['hash-shaped and unanchored', GATED + '\n\t\t\t\t"html[" + WASH_ACTIVE_ATTR + "] .uV2eYG_fade {",\n\t\t\t\t"  background: transparent;",\n\t\t\t\t"  -webkit-mask-image: none;",\n\t\t\t\t"  mask-image: none;",\n\t\t\t\t"}",']
+	]) {
+		if (!CODE.includes(GATED)) throw new Error('fade anchor missing — update this mutation');
+		const c = checkNamed(auditCraft(CODE.replace(GATED, planted)), 'wash-fade-neutralised');
+		assert.equal(c.pass, false, `${label}: the gate must see hash-shaped fade rules — ${c.detail}`);
+	}
 });
 
 // ── the two failure modes this audit already had ───────────────────────────

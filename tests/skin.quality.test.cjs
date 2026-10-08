@@ -153,6 +153,39 @@ test('mutation: a layer-2 the popup slider cannot re-hue reddens layer2-shape', 
 	assert.equal(checkNamed(auditSkin(skin), 'layer2-shape').pass, true, '…and passes on the real skin');
 });
 
+test('issue #98: the dialog alpha floor IS the design system\'s own elevation fill', () => {
+	// The runtime floors the DIALOG leg of the popup slider at DIALOG_ALPHA_FLOOR,
+	// so a profile parked at the transparent end still renders 设置 opaque enough to
+	// read. The number is only defensible if it names a state the palette was actually
+	// solved in: every shipped skin authors its own `--dsw-alias-bg-layer-2` WITH an
+	// alpha, and `scripts/skin-audit.cjs` grades the three text levels against that
+	// surface. So the floor is graded against the skins here, from the tokens, and in
+	// BOTH directions — below the authored fill the dialog is rendered in a state no
+	// audit ever measured; above it, the slider loses authority for no design reason.
+	const { parseColor } = require('../scripts/lib/color.cjs');
+	const authored = SKINS.map((s) => parseColor(String(s.tokens['--dsw-alias-bg-layer-2']).trim()).a);
+	assert.ok(authored.every((a) => Number.isFinite(a) && a > 0 && a <= 1), `every skin must carry a real alpha: ${authored.join('/')}`);
+	const min = Math.min(...authored);
+	const src = fs.readFileSync(CLIENT, 'utf8');
+	const raw = (src.match(/DIALOG_ALPHA_FLOOR\s*=\s*([\d.]+)/) || [])[1];
+	assert.ok(raw !== undefined, 'could not read DIALOG_ALPHA_FLOOR from lib/client.js — an unreadable claim is a finding, not a pass');
+
+	const grade = (floor) => {
+		const problems = [];
+		if (!(floor > 0 && floor < 1)) problems.push(`floor ${floor} leaves the slider no authority at all`);
+		if (floor !== min) {
+			problems.push(`floor ${floor} vs the skins' own layer-2 alphas ${[...new Set(authored)].join('/')}`);
+		}
+		return problems;
+	};
+
+	assert.deepEqual(grade(Number(raw)), [], `the shipped floor must be the audited elevation fill (skins: ${[...new Set(authored)].join('/')})`);
+	// The gate can fail, three ways a maintainer might actually get it wrong.
+	assert.ok(grade(0.85).length, 'a floor below the audited fill is reported');
+	assert.ok(grade(0.94).length, 'a floor above the darkest skin\'s own fill is reported');
+	assert.ok(grade(1).length, 'a floor at full opacity is reported');
+});
+
 test('mutation #89: a host-slot token in a shape the runtime cannot re-hue reddens token-shape', () => {
 	const skin = SKINS[0];
 	// Issue #89's mutation 3, generalised: the shape rule used to grade ONE

@@ -72,7 +72,7 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
   </tr>
 </table>
 
-> Hell und dunkel im Angebot: `mist`, `ivory` und `rose` sind helle Themes, alle anderen dunkle. Die Presets nicht dein Ding? Weiter geht's mit **Weg #2**. Jedes Preset bringt zudem seine eigenen abgestimmten Standardwerte mit (Glow-Deckkraft/Unschärfe, Transparenz von Sidebar & Eingabe, Dialog-Deckkraft, Glas-Material): Beim Themenwechsel werden alle Werte nachjustiert, die du nicht selbst gesetzt hast — alle 8 Presets bestehen 226 messbare Qualitätsprüfungen (217 Farb- + 9 Handwerksprüfungen) (OKLCH-Elevationsleiter, WCAG 2.1 + APCA-Textkontrast, Signalton-Trennung, Abgrenzung der Presets).
+> Hell und dunkel im Angebot: `mist`, `ivory` und `rose` sind helle Themes, alle anderen dunkle. Die Presets nicht dein Ding? Weiter geht's mit **Weg #2**. Jedes Preset bringt zudem seine eigenen abgestimmten Standardwerte mit (Glow-Deckkraft/Unschärfe, Transparenz von Sidebar & Eingabe, Dialog-Deckkraft, Glas-Material): Beim Themenwechsel werden alle Werte nachjustiert, die du nicht selbst gesetzt hast — alle 8 Presets bestehen 228 messbare Qualitätsprüfungen (217 Farb- + 11 Handwerksprüfungen) (OKLCH-Elevationsleiter, WCAG 2.1 + APCA-Textkontrast, Signalton-Trennung, Abgrenzung der Presets).
 
 ---
 
@@ -86,7 +86,7 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
 | 🖼️ **Wallpaper 2.0** | Lokales Bild / **Bild-URL** / **Gradient-Presets**; dazu **Deckkraft / Unschärfe**; jeder Skin **schlägt** sogar einen Gradient vor und kann **automatisch abdunkeln** (weniger Ablenkung beim Fokussieren) |
 | 🌈 **Accent pro Nutzer** | Lege eine eigene Marken-Akzentfarbe über den aktiven Skin (`overrideTokens`-Ebene, der Skin bleibt unangetastet): **12 Preset-Farbfelder per Klick**, Farbwähler, Zufallsfunktion und eine Option zum Entfernen/Wiederherstellen |
 | 📦 **Theme-Pack importieren / exportieren / teilen** | Eine `*.dsh-theme.json` = Manifest + vollständige Tokens. Datei importieren, per Klick anwenden oder einen **Freigabelink** kopieren (im URL-Hash kodiert) |
-| 🪟 **Popup-Deckkraft** | Ein Regler für die Transparenz von Dropdowns / Overlays / Dialog-Hintergrundfüllung, dauerhaft gespeichert |
+| 🪟 **Popup-Deckkraft** | Ein Regler für die Transparenz von Dropdowns / Overlays / Dialog-Hintergrundfüllung, dauerhaft gespeichert; alle Flächen mit dem Popup-Grund-Token (Einstellungen, Plugin-Verwaltung, Trajektorien-Tooltips, schwebende Karten) teilen eine Lesbarkeitsuntergrenze von 92 % undurchsichtig – die erhöhte Fläche des Themas selbst –, Menü- und Abdunklungs-Layer bleiben im vollen Bereich |
 | 🧩 **Lokale Pack-Bibliothek** | Deine importierten Packs an einem Ort; **anwenden / favorisieren / entfernen** per Klick |
 | 🎲 **Überrasch mich** | Wechsle zufällig zu einem anderen Theme; **markiere** Favoriten mit einem Stern, um schnell zu wechseln |
 | ✅ **Validierung + Rollback** | Beim Pack-Import werden Format / Pflicht-Tokens / Farbgültigkeit geprüft; Fehler oder Entfernungen fallen sicher auf den Ausgangszustand zurück |
@@ -363,6 +363,8 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 - [ ] **M** Das peer-Fenster auf `0.3.x` weiterschieben — **erst nach Verifizierung**; bleibt es zu, in den Docs „nicht unterstützt" schreiben statt eines stillen Überspringens
 - [ ] **S** Die Drift-Sonde kann keine Flächen erfassen, die erst bei Bedarf eingehängt werden: Frage- und Genehmigungskarte tauchen im DOM erst auf, wenn die Unterhaltung wirklich etwas fragt — eine Abstufung beim Start würde sie permanent als Drift melden, deshalb lässt 10.5.0 sie bewusst aus der Sonde
       — Abnahme: nach einer echten Frage meldet `anchors` Treffer / Fehlschlag bei beiden funktionalen Ankern, und eine frisch geöffnete Seite bleibt bei `drifted: []`
+- [ ] **M** Den Mechanismus-Nachweis in die CI holen: das Computed-Style-Gate (`npm run wash:check`) hängt am Chrome dieses Wartungsrechners und am CSS des lokal installierten Hosts, daher überspringen die vier Computed-Style-Fälle in der CI — die Hälfte des Nachweises „der Mechanismus greift wirklich" kann derzeit nur eine Person nachrechnen; dabei die handgeschriebenen Host-Klassennamen im Fixture durch Anker ersetzen, die der Live-DOM / der `scripts/host-consumers.cjs`-Zensus liefert
+      — Abnahme: das CI-Log zeigt für die vier Fälle **Messwerte** statt einer Überspringens-Begründung; fehlt Browser oder Host, bricht sie mit Exit-Code ungleich 0 ab und benennt, was fehlt – niemals still durchlassen
 
 ### B. Veröffentlichen und Installationskanal
 

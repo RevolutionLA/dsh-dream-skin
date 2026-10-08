@@ -43,6 +43,24 @@ const CLIENT = path.join(ROOT, 'lib', 'client.js');
 // the live numbers
 // ---------------------------------------------------------------------------
 
+/**
+ * The probe-group count, read out of the bundle the same way the drift probe
+ * publishes it (`MATERIAL_SELECTOR_PROBES.length`, +1 for the desktop shell's own
+ * anchor). docs/desktop-support.md documents `probed` as a machine-readable field, so
+ * its value is a claim about this array — before J1 it was a claim three reviewers
+ * could read as "6, still current" while the code probed 8.
+ */
+function liveProbeGroups(source) {
+	const body = source.match(/const MATERIAL_SELECTOR_PROBES = \[([\s\S]*?)\n\t\t\];/);
+	if (!body) throw new Error('MATERIAL_SELECTOR_PROBES is gone or reshaped — the probed count cannot be derived');
+	const entries = body[1]
+		.split('\n')
+		.map((l) => l.trim())
+		.filter((l) => /^"(?:[^"\\]|\\.)*",?$|^[A-Za-z_][\w.]*,?$/.test(l));
+	if (entries.length < 6) throw new Error(`probe-group parse found only ${entries.length} entries — the array formatting changed`);
+	return entries.length;
+}
+
 /** Call the audits. Nothing here is a literal that could drift. */
 function liveNumbers() {
 	const skinAudit = require('../scripts/skin-audit.cjs');
@@ -55,13 +73,18 @@ function liveNumbers() {
 	const catalogCheck = 1;
 	const palette = reports.reduce((n, r) => n + r.checks.length, 0) + catalogCheck;
 	const craft = craftAudit.auditCraft(source).checks.length;
+	const probed = liveProbeGroups(source);
 	return {
 		skins: skins.length,
 		perSkin: reports[0].checks.length,
 		palette,
 		craft,
 		total: palette + craft,
-		suite: liveSuiteCount().total
+		suite: liveSuiteCount().total,
+		probed,
+		// The desktop shell adds exactly one anchor of its own (issue #55), which is
+		// what `publishVerdict` computes as `probed + (isDesktopShell() ? 1 : 0)`.
+		probedDesktop: probed + 1
 	};
 }
 
@@ -123,9 +146,9 @@ function liveSuiteCount(files = null, dir = null) {
 const CLAIM_SITES = [
 	{ label: 'README.md 皮肤段', file: 'README.md', marker: '可测质量门', needs: ['total', 'palette', 'craft'] },
 	{
-		label: 'README.md 10.6.1 版本块',
+		label: 'README.md 10.8.0 版本块',
 		file: 'README.md',
-		scope: { from: '**版本 10.6.1', until: '**版本 10.6.0' },
+		scope: { from: '**版本 10.8.0', until: '**版本 10.6.1' },
 		marker: '回归门',
 		needs: ['suite']
 	},
@@ -141,6 +164,35 @@ const CLAIM_SITES = [
 	{ label: 'desktop-support.md 兼容表', file: 'docs/desktop-support.md', marker: '回归测试覆盖', needs: ['suite'] },
 	{ label: 'desktop-support.md 已验证清单', file: 'docs/desktop-support.md', marker: 'Node 18/20/22/24 CI', needs: ['suite'] }
 ];
+
+/**
+ * J1 (adversarial review 10.8.0): the probe-group count, checked as a FIELD rather than
+ * as "this number appears somewhere on the line". The marker-line form of this claim was
+ * tried first and is VACUOUS — the explanatory comment sits on the same line and carries
+ * the number already, so rewriting `probed: 8` to `probed: 6` stayed green (measured).
+ * A check that cannot fail is worse than no check, because it is written down as coverage.
+ * So the two places that state the count are matched against their exact shape, and the
+ * reverse case below mutates them to prove the gate has teeth.
+ */
+function probedFieldProblems(text, live) {
+	const problems = [];
+	// The field value is captured, not searched: a trailing `//` annotation may say
+	// anything it likes (that is what made the marker-line version vacuous — the
+	// annotation carried the number and the check could not tell who was claiming it).
+	const snapshot = text.match(/^\s*probed:\s*(\d+),\s*(?:\/\/.*)?$/m);
+	if (!snapshot) {
+		problems.push('no line in this document is the machine field `probed: <n>,` — the field shape moved, update the gate');
+	} else if (Number(snapshot[1]) !== live.probed) {
+		problems.push(`the snapshot field says probed: ${snapshot[1]}, the bundle probes ${live.probed} groups`);
+	}
+	const pair = text.match(/Web `probed=(\d+)`、桌面 `probed=(\d+)`/);
+	if (!pair) {
+		problems.push('the web/desktop probe-pair sentence is gone — the prose that states both counts moved');
+	} else if (Number(pair[1]) !== live.probed || Number(pair[2]) !== live.probedDesktop) {
+		problems.push(`the prose says probed=${pair[1]} / ${pair[2]}, the bundle says ${live.probed} / ${live.probedDesktop}`);
+	}
+	return problems;
+}
 
 const intsIn = (text) => (text.match(/\d+/g) || []).map(Number);
 
@@ -238,7 +290,36 @@ test('docs numbers: a scratch file is counted by its declarations, not by its fi
 
 test('docs numbers: every document states the live gate counts', () => {
 	const problems = numberProblems(CLAIM_SITES, readReal);
+	problems.push(...probedFieldProblems(readReal('docs/desktop-support.md'), liveNumbers()));
 	assert.deepEqual(problems, [], `\n${problems.join('\n')}\n`);
+});
+
+test('docs numbers: the probe-count claim is a field, and mutating it reddens it', () => {
+	// Reverse case for the J1 gate. This exists because the FIRST version of this check
+	// was vacuous: it asked "does the line carrying `probed:` contain the number 8", and
+	// the line's own explanatory comment contained it, so rewriting the field to 6 kept
+	// every document green (measured on this tree). The field form is therefore pinned
+	// against its own failure, in both of the two places the count is claimed.
+	const live = liveNumbers();
+	const doc = readReal('docs/desktop-support.md');
+	assert.deepEqual(probedFieldProblems(doc, live), [], 'the real document must satisfy the field check');
+	const mutatedField = doc.replace(/^\s*probed:\s*(\d+),/m, '    probed: 999,');
+	assert.notEqual(mutatedField, doc, 'the field anchor moved');
+	assert.equal(probedFieldProblems(mutatedField, live).length, 1, 'the snapshot field must be able to fail');
+	const mutatedProse = doc.replace(/Web `probed=(\d+)`/, 'Web `probed=3`');
+	assert.notEqual(mutatedProse, doc, 'the prose anchor moved');
+	assert.equal(probedFieldProblems(mutatedProse, live).length, 1, 'the prose pair must be able to fail');
+	// And a document that no longer claims the numbers is a failure too — silence is not
+	// agreement. Both claims are removed here, because either one alone would still be a
+	// claim the other could satisfy.
+	const silent = doc
+		.replace(/^\s*probed:.*\n/m, '')
+		.replace(/Web `probed=(\d+)`、桌面 `probed=(\d+)`/, 'the probe counts (see the snapshot above)');
+	assert.notEqual(silent, doc, 'both claim anchors moved');
+	assert.deepEqual(probedFieldProblems(silent, live), [
+		'no line in this document is the machine field `probed: <n>,` — the field shape moved, update the gate',
+		'the web/desktop probe-pair sentence is gone — the prose that states both counts moved'
+	], 'deleting both claims must report both, not "nothing to check"');
 });
 
 test('mutation: an arbitrary wrong gate total in README.md reddens the count check', () => {
@@ -301,18 +382,16 @@ test('guard: a newly added translation cannot escape this gate', () => {
 
 test('guard: a deleted claim site is a failure, not a pass', () => {
 	// The failure mode of every "find the number" gate is silently matching
-	// nothing. A missing scope must be reported by name.
-	const oneSite = [{
-		label: 'README.md 10.6.1 版本块',
-		file: 'README.md',
-		scope: { from: '**版本 10.6.1', until: '**版本 10.6.0' },
-		marker: '回归门',
-		needs: ['suite']
-	}];
-	const problems = numberProblems(oneSite, () => '# nothing here\n');
+	// nothing. A missing scope must be reported by name. The site is TAKEN FROM
+	// CLAIM_SITES instead of restated here: the current release block moves with
+	// every version, and a second copy of that pointer is exactly the
+	// two-inventories-drift shape this repository keeps having to fix.
+	const scoped = CLAIM_SITES.find((s) => s.scope);
+	assert.ok(scoped, 'the claim-site table must still carry a scoped (current-release) site');
+	const problems = numberProblems([scoped], () => '# nothing here\n');
 	assert.equal(problems.length, 1, 'an absent scope must produce exactly one problem');
-	assert.match(problems[0], /the block starting "\*\*版本 10\.6\.1" is gone/);
+	assert.ok(problems[0].includes(`the block starting "${scoped.scope.from}" is gone`), problems[0]);
 
-	const control = numberProblems(oneSite, readReal);
+	const control = numberProblems([scoped], readReal);
 	assert.deepEqual(control, [], 'control: the real tree must still satisfy a single-site check');
 });
