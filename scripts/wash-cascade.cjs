@@ -314,7 +314,14 @@ function hostSidebarConsumer(root) {
 	const css = hostCss(root, 'dsh-client-ui-sidebar', '--dsw-specific-sidebar-fill')
 		|| hostCss(root, 'dsh-client-ui-layout', '--dsw-specific-sidebar-fill');
 	if (!css) return null;
-	const hit = css.match(/[-a-z]+:\s*var\(--dsw-specific-sidebar-fill\)/);
+	// Prefer a FILL property. Taking "the first match" was blue-team dimension #8: if the
+	// host's first consumer happened to be `border-color: var(...)`, the fixture's consumer
+	// element would have no background to compute and the slider-sweep check would go red —
+	// loud rather than silently passing, but a gate whose shape depends on which declaration a
+	// bundle happens to list first is not a gate. Non-fill properties stay as the fallback so a
+	// host that never paints from the token still produces a fixture that FAILS visibly.
+	const hit = css.match(/background(?:-color)?:\s*var\(--dsw-specific-sidebar-fill\)/)
+		|| css.match(/[-a-z]+:\s*var\(--dsw-specific-sidebar-fill\)/);
 	return hit ? hit[0] : null;
 }
 
