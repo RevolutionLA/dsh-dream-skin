@@ -349,7 +349,15 @@ test('the shell snapshot guards every declaration the desktop checks read', () =
 	// shell's token re-declaration from the copy left a page that still claimed to prove the
 	// #55 half. Each needle below is one the verdict reads, and the guard is what makes the
 	// fixture refuse rather than silently grade a page that never painted anything.
-	assert.match(buildDesktopFixture().material, /dshDesktopSidebarSurface/, 'the shipped sheet targets the shell surface');
+	// The shipped sheet really targets the shell surface. Read out of the BUNDLE rather than
+	// through `buildDesktopFixture()`: the first version called the fixture builder here, and
+	// the fixture builder needs an installed host — CI, which has none, reddened the case.
+	// Anything placed above the skip line has to be computable from files in this repository.
+	const material = require('../scripts/craft-audit.cjs').extractSheets(BUNDLE).find((s) => /material/.test(s.id)).css;
+	assert.match(material, /\.dshDesktopSidebarSurface\s*\{[^}]*--dsw-specific-sidebar-fill:\s*inherit\s*!important/,
+		'the #55 token rule targets the shell surface');
+	assert.match(material, /html\[data-dsh-dream-skin-wash\]\s+\.dshDesktopSidebarSurface\s*\{[^}]*background-color:\s*transparent\s*!important/,
+		'the #99 wash-gated paint clear ships in the same sheet');
 	for (const needle of [
 		'.dshDesktopSidebarSurface { --dsw-specific-sidebar-fill: transparent;',
 		'--dsw-specific-sidebar-fill: var(--dsw-alias-bg-layer-1); background: var(--dsw-alias-bg-layer-1);',
