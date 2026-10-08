@@ -48,6 +48,7 @@ const { themeEntryPath, THEME_PACKAGE } = require('./lib/host-colour-tokens.cjs'
 const { DISPOSITIONS } = require('./data/host-gap-dispositions.cjs');
 const { scanHashLiterals, indexCorpus, measureHashCorpus } = require('./lib/hash-literals.cjs');
 const { HOST_SLOTS } = require('./lib/host-slots.cjs');
+const { FADE_RULER, FADE_DISPOSITIONS, OUR_FADE_ANCHOR, measureFade, checkFade } = require('./lib/fade-owners.cjs');
 
 /**
  * Host regions we watch but do not paint (issue #90).
@@ -190,6 +191,90 @@ function packageInventory(root, files) {
 	};
 }
 
+/**
+ * The THIRD-PARTY plugin corpus (issue #105).
+ *
+ * The host install answers "what does DSH itself draw". It says nothing about the
+ * coexistence question the review round raised: a skin/theme plugin installed next to us in
+ * the SAME browser document can address the same faces (`[class*="_fade"]`), and a page with
+ * two skin plugins on it is exactly where "who covers whom" stops being inferable. So the
+ * census also reads the profile directories, restricted to what is actually a DSH plugin —
+ * scanning `node_modules` whole would be a multi-hundred-MB walk and would count lodash as a
+ * UI owner.
+ *
+ * A missing profile directory is recorded as `exists: false` rather than as "no other owner":
+ * the difference between "we measured nobody else" and "we could not look" is the whole point.
+ */
+function pluginCorpora(explicit, home = process.env.HOME || process.env.USERPROFILE || '') {
+	// Every profile that exists, not a hardcoded pair (blue-team B7): a machine with an extra
+	// profile (`lark`, a second account, a future name) was outside the corpus, and "not
+	// scanned" is exactly the state this census refuses to report as "nobody else uses it".
+	const profilesDir = path.join(home, '.dsh', 'profiles');
+	let roots;
+	if (explicit) {
+		// An absolute node_modules path (third-party 10.9.0, T6): the variable used to be read
+		// as a PROFILE NAME and joined under ~/.dsh/profiles, so passing a path silently
+		// scanned nothing. A path means a path.
+		roots = [explicit];
+	} else {
+		let profiles = [];
+		try {
+			profiles = fs.readdirSync(profilesDir, { withFileTypes: true })
+				// `node_modules` lives INSIDE this directory on some installs — it is storage,
+				// not a profile, and listing it produced a permanent "corpus absent" notice.
+				.filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules')
+				.map((e) => e.name)
+				.sort();
+		} catch {}
+		roots = profiles.length
+			? profiles.map((p) => path.join(profilesDir, p, 'node_modules'))
+			: [path.join(profilesDir, 'web', 'node_modules')]; // the documented default when nothing is installed
+	}
+	const corpora = [];
+	const files = [];
+	const labelOf = new Map();
+	for (const root of roots) {
+		let exists = false;
+		try { exists = fs.statSync(root).isDirectory(); } catch {}
+		const entry = { kind: 'plugin', path: root, exists, packages: 0, names: [] };
+		if (!exists) { corpora.push(entry); continue; }
+		let dirs = [];
+		const push = (rel) => {
+			const full = path.join(root, rel);
+			let manifest;
+			try { manifest = JSON.parse(fs.readFileSync(path.join(full, 'package.json'), 'utf8')); } catch { return; }
+			const peers = Object.keys(manifest.peerDependencies || {});
+			const isPlugin = !!manifest.dsh || peers.some((p) => p === '@deepseek-ai/dsh' || p.startsWith('@deepseek-ai/dsh-'));
+			// Ourselves: our repo's own client bundle mentions `_fade` by definition (it owns
+			// the anchor), and counting it as a third-party owner would be self-confirmation.
+			if (!isPlugin || manifest.name === 'dsh-dream-skin') return;
+			const scanned = listFiles(full, ['.js', '.mjs', '.cjs', '.css']);
+			if (scanned.length === 0) return;
+			entry.packages += 1;
+			// The NAMES matter as much as the count (third-party 10.9.0, T2): "this package is
+			// not installed here" and "it is installed and no longer does this" are different
+			// facts, and without the roster the gate could only offer one verdict for both.
+			entry.names.push(rel);
+			for (const f of scanned) {
+				files.push(f);
+				labelOf.set(f, rel);
+			}
+		};
+		try {
+			for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+				if (!e.isDirectory() || e.name.startsWith('.')) continue;
+				if (e.name.startsWith('@')) {
+					let inner = [];
+					try { inner = fs.readdirSync(path.join(root, e.name), { withFileTypes: true }); } catch {}
+					for (const s of inner) if (s.isDirectory()) push(`${e.name}/${s.name}`);
+				} else push(e.name);
+			}
+		} catch {}
+		corpora.push(entry);
+	}
+	return { files, labelOf, corpora };
+}
+
 function build({ quiet = false } = {}) {
 	const root = findHostRoot();
 	const files = listFiles(root, ['.css', '.js', '.mjs', '.cjs']);
@@ -220,6 +305,18 @@ function build({ quiet = false } = {}) {
 		} catch {}
 	}
 	const gap = measureGap({ hostRoot: root, readFile, files });
+	// Issue #105: who else addresses `_fade`. Measured over BOTH corpora — the host install
+	// and the third-party plugins sitting next to us in the same document.
+	const plugin = pluginCorpora(process.env.DSH_PLUGIN_ROOT || null);
+	const hostScope = path.basename(root).startsWith('@') ? path.basename(root) + '/' : '';
+	const fadePackageOf = (f) => (plugin.labelOf.has(f) ? plugin.labelOf.get(f) : hostScope + packageOf(f, root));
+	const fadeOwners = measureFade(files.concat(plugin.files), readFile, fadePackageOf);
+	const fadeCorpora = [{
+		kind: 'host', path: root, exists: true, packages: inventory.packagesWithCode.length,
+		// The host roster, scoped the same way the owners are labelled, so the gate can tell
+		// "this package is not installed" from "it is installed and no longer does this".
+		names: inventory.packagesWithCode.map((n) => hostScope + n)
+	}].concat(plugin.corpora);
 	// The hash half of the same corpus (issue #92). Our own literals are
 	// enumerated from OUR tree, then looked up in the ONE corpus index — not
 	// re-walked, so the two halves cannot describe different bytes.
@@ -297,6 +394,15 @@ function build({ quiet = false } = {}) {
 				'registrant, but it is proof the region stopped being invisible — which is the moment the "nothing to ' +
 				'paint" decision has to be taken again.',
 			entries: measureSlots(files, readFile)
+		},
+		// The coexistence half (issue #105): every package — host OR third-party plugin —
+		// that addresses a `_fade` class, and whether our hash-free suffix anchor can reach
+		// what it draws.
+		fade: {
+			ruler: FADE_RULER,
+			anchor: OUR_FADE_ANCHOR,
+			corpora: fadeCorpora,
+			owners: fadeOwners
 		}
 	};
 	if (!quiet) {
@@ -306,6 +412,9 @@ function build({ quiet = false } = {}) {
 		console.log(`corpus: ${inventory.packagesWithCode.length}/${inventory.packagesOnDisk.length} packages carry code (issue #94)`);
 		console.log(`forward gap: ${gaps} host colour token(s) read by the host and shipped by no skin`);
 		console.log(`hash literals: ${literals.length} site(s) over ${Object.keys(hashTable).length} base(s), ${dead.length} with 0 host hits (${dead.join(', ') || '—'})`);
+		const fadeRows = fadeGate(out.fade, null);
+		console.log(`fade owners: ${Object.keys(fadeOwners).length} package(s) address _fade, ${Object.values(fadeOwners).filter((r) => r.suffixAddressable).length} reachable by ${OUR_FADE_ANCHOR}; corpora read: ${fadeCorpora.map((c) => `${c.kind}=${c.exists ? c.packages : 'ABSENT'}`).join(', ')}`);
+		for (const line of fadeRows.notices) console.log(`fade: ${line}`);
 		const slots = out.slots.entries;
 		console.log(`watched regions: ${Object.entries(slots).map(([n, r]) => `${n}=${r.registrants} registrant(s)`).join(', ')}`);
 	}
@@ -328,9 +437,34 @@ function censusDrift(fresh, frozen) {
 		gap: { ruler: c.gap && c.gap.ruler, entries: c.gap && c.gap.entries },
 		hashes: c.hashes && c.hashes.bases,
 		slots: c.slots && c.slots.entries,
+		// Deliberately NOT `fade.owners` (blue-team B2): that half is measured over the
+		// THIRD-PARTY plugin corpus, which is whatever the person running this happens to
+		// have installed. Comparing it byte-for-byte would let "I do not have that plugin"
+		// masquerade as "the host moved" — it reddened this very gate on a machine whose
+		// profile differs from the one that froze the census. The fade half has its own
+		// named gate below, which is the one that can say something useful about it.
 		corpus: c.corpus && c.corpus.packagesWithCode
 	});
 	return norm(fresh) !== norm(frozen);
+}
+
+/**
+ * The fade half, reported BY PACKAGE NAME (issue #105's acceptance criterion).
+ *
+ * `censusDrift` is deliberately opaque — "something in the census moved" — which is right
+ * for a token count and wrong for coexistence: a NEW package starting to address `_fade`
+ * is a decision somebody has to make, so the message has to carry which package.
+ *
+ * `frozen` is the recorded census. Its owner rows are what let the gate tell "measured, but
+ * not installed on THIS machine" (a notice) from "never measured at all" (a red).
+ */
+function fadeGate(fade, frozen) {
+	return checkFade({
+		owners: (fade && fade.owners) || {},
+		dispo: FADE_DISPOSITIONS,
+		corpora: (fade && fade.corpora) || [],
+		known: Object.keys((frozen && frozen.owners) || {})
+	});
 }
 
 /**
@@ -363,6 +497,15 @@ function main() {
 		return;
 	}
 	const frozen = JSON.parse(fs.readFileSync(OUT, 'utf8'));
+	// Issue #105 first: coexistence is reported by name, before the opaque byte compare,
+	// so "a new plugin started painting the same face" never arrives as "census drift".
+	const gate = fadeGate(fresh.fade, frozen.fade);
+	for (const line of gate.notices) console.log(`fade: ${line}`);
+	if (gate.problems.length > 0) {
+		for (const line of gate.problems) console.error(`fade: ${line}`);
+		process.exitCode = 1;
+		return;
+	}
 	const shortfall = corpusShortfall(fresh, frozen);
 	if (shortfall.shrank) {
 		console.error(
@@ -382,4 +525,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { build, findHostRoot, censusTokens, listFiles, packageInventory, censusDrift, corpusShortfall, OUT };
+module.exports = { build, findHostRoot, censusTokens, listFiles, packageInventory, censusDrift, corpusShortfall, pluginCorpora, fadeGate, OUT };

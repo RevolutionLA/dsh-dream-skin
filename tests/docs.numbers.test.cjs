@@ -146,9 +146,9 @@ function liveSuiteCount(files = null, dir = null) {
 const CLAIM_SITES = [
 	{ label: 'README.md 皮肤段', file: 'README.md', marker: '可测质量门', needs: ['total', 'palette', 'craft'] },
 	{
-		label: 'README.md 10.8.1 版本块',
+		label: 'README.md 10.9.0 版本块',
 		file: 'README.md',
-		scope: { from: '**版本 10.8.1', until: '**版本 10.8.0' },
+		scope: { from: '**版本 10.9.0', until: '**版本 10.8.1' },
 		marker: '回归门',
 		needs: ['suite']
 	},

@@ -1215,11 +1215,38 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 		const end = src.indexOf('};', start);
 		const body = src.slice(start, end);
 		const keys = [...body.matchAll(/"([a-zA-Z0-9.]+)":\s*"/g)].map((m) => m[1]);
+		assert.equal(new Set(keys).size, keys.length, `${lang} declares a duplicate key`);
 		dicts[lang] = new Set(keys);
-		assert.equal(keys.length, 68, `${lang} has ${keys.length} keys (expected 68)`);
 	}
+	// The expected key set is DERIVED, not counted: a hand-copied literal ("68 keys")
+	// reddens on every legitimate addition and, worse, says nothing when a key is
+	// added to one locale only as long as the totals still match by luck. What has to
+	// hold is (a) all eight dictionaries are identical, (b) every key the code looks up
+	// exists, and (c) every key that exists is reachable — either literally, or through
+	// one of the two dynamic families below (skin.<id> / material.<id>[.desc]).
+	const literalUses = new Set([...src.matchAll(/\b(?:t|localeT)\(\s*"([a-zA-Z0-9.]+)"/g)].map((m) => m[1]));
+	const DYNAMIC_FAMILIES = [
+		{ prefix: 'skin.', ids: SHIPPED_SKINS.map((s) => s.id) },
+		{ prefix: 'material.', ids: ['frosted', 'liquid'] },
+		{ prefix: 'material.', ids: ['frosted', 'liquid'], suffix: '.desc' }
+	];
+	const reachable = (key) => {
+		if (literalUses.has(key)) return true;
+		return DYNAMIC_FAMILIES.some((f) => f.ids.some((id) => key === f.prefix + id + (f.suffix || '')));
+	};
 	const zhKeys = dicts.zh;
+	assert.ok(zhKeys.size >= 60, `the zh dictionary looks truncated (${zhKeys.size} keys)`);
+	for (const key of zhKeys) {
+		assert.ok(reachable(key), `zh key "${key}" is looked up nowhere — dead copy (delete it or wire it)`);
+	}
+	for (const key of literalUses) {
+		assert.ok(zhKeys.has(key), `code looks up "${key}" but zh has no such key`);
+	}
 	for (const lang of langs.slice(1)) {
+		// Key-set equality (blue-team B11): the per-language `reachable()` loop that used to sit
+		// here tested `zhKeys` against the SAME predicate already asserted above, so it was
+		// true by construction and never looked at this language's own dictionary. The honest
+		// form of "this locale is complete" is the set comparison, and it is already here.
 		const missing = [...zhKeys].filter((k) => !dicts[lang].has(k));
 		const extra = [...dicts[lang]].filter((k) => !zhKeys.has(k));
 		assert.deepEqual(missing, [], `${lang} missing keys`);
@@ -3193,53 +3220,238 @@ test('issue #97: the session-list foot fade is neutralised under a wash through 
 	}
 });
 
-test('issue #98: the layer-2 dialog floor holds at the transparent end while menus keep full travel', () => {
-	// `--dsw-alias-bg-layer-2` is one token serving two families: small elevated
-	// surfaces, where seeing through is the point, and the full-screen panels built on
-	// the host Modal primitive (`.dialog { background: var(--dsw-alias-bg-layer-2) }`
-	// — the 设置 dialog among them), which carry paragraphs of text over whatever the
-	// page behind them holds. The 弹窗不透明度 slider drives all of it, so a profile
-	// parked at the transparent end rendered the settings panel as a sheet of
-	// skin-coloured glass the conversation read straight through (this machine measured
-	// 0.5). Double sampling, both ends, because a floor applied to the wrong leg is
-	// invisible in a single sample.
-	const overrides = new Map();
-	const theme = {
-		setTheme() {},
-		getTheme() {
-			return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {
-				'--dsw-alias-bg-base': '#0b0b0e',
-				'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
-			} }, themes: [], revision: 1 };
-		},
-		overrideTokens(source, tokens) { overrides.set(source, tokens); return () => {}; }
+test('issue #100/#101: the readability floor is a WASH state, and it travels on both floored channels', () => {
+	// Two questions this gate answers, five sample points each (the shape issue #100
+	// asks for), both floored channels, plus the two exempt legs read alongside:
+	//   1. Does the floor exist when nothing translucent is behind the surface? It must
+	//      NOT (issue #100: with no wallpaper the 10.8.0 floor ate 92% of the slider's
+	//      travel for zero readability gain — displayed 8..100 all rendered 0.92).
+	//   2. Does one slider mean one minimum? It must (issue #101: layer-2 held at 92%
+	//      while the question / approval / plan-review cards — the surfaces you read
+	//      BEFORE answering — could still be dragged to fully transparent).
+	// Reading the menu / overlay leg in the SAME state is what keeps "gate the floor"
+	// from quietly turning into "gate the whole slider".
+	const FLOOR = 0.92;
+	const DISPLAYED = [0, 25, 50, 75, 100]; // transparency %, i.e. what the row shows
+	const alphaOf = (value) => Number(/,\s*([\d.]+)\)/.exec(String(value))[1]);
+	const boot = (withWallpaper) => {
+		const attrs = new Map();
+		const styleProps = {};
+		const overrides = new Map();
+		const documentMock = {
+			body: { contains: () => false, prepend() {}, appendChild() {} },
+			head: { children: [], contains() { return false; }, appendChild() {}, append(c) { this.children.push(c); } },
+			createElement() { return { style: {}, dataset: {}, textContent: '', remove() {}, append() {} }; },
+			createTextNode: () => ({}),
+			querySelector: () => null,
+			querySelectorAll: () => [],
+			documentElement: {
+				style: { setProperty(k, v) { styleProps[k] = v; } },
+				setAttribute(k, v) { attrs.set(k, v); },
+				removeAttribute(k) { attrs.delete(k); }
+			}
+		};
+		const theme = {
+			setTheme() {},
+			getTheme() {
+				return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {
+					'--dsw-alias-bg-base': '#0b0b0e',
+					'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+				} }, themes: [], revision: 1 };
+			},
+			overrideTokens(source, tokens) { overrides.set(source, { ...tokens }); return () => {}; }
+		};
+		const h = buildSandbox({
+			document: documentMock,
+			seed: withWallpaper ? { 'dsh-dream-skin:wallpaper': 'data:image/png;base64,AAAA' } : {}
+		});
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		e.apply({ ...makeApplyContext(h, { captureActions: true }), theme });
+		const layer = () => overrides.get('dsh-dream-skin:appearance');
+		const bag = h.actionBags['dream-skin-glass'];
+		// The row's onChange is `(v) => setModalOpacity(100 - v)`: the ACTION takes
+		// solidness while the UI shows transparency. Sampling through the displayed
+		// number is the point of this gate, so go through the same inversion.
+		const setTransparency = (v) => bag.setModalOpacity(100 - v);
+		return {
+			h,
+			layer,
+			bag,
+			setTransparency,
+			washAttr: () => attrs.has('data-dsh-dream-skin-wash'),
+			travel: (token) => DISPLAYED.map((v) => { setTransparency(v); return alphaOf(layer()[token].dark); }),
+			cardTravel: () => DISPLAYED.map((v) => { setTransparency(v); return styleProps['--dsh-dream-skin-modal-fill']; })
+		};
 	};
+
+	// --- No wallpaper: full travel on every leg, floor absent.
+	const plain = boot(false);
+	assert.equal(plain.washAttr(), false, 'no wallpaper means no wash marker to read');
+	assert.deepEqual(plain.travel('--dsw-alias-bg-layer-2'), [1, 0.75, 0.5, 0.25, 0],
+		'issue #100: with no wash the dialog channel keeps the slider\'s full 0–1 travel');
+	assert.deepEqual(plain.cardTravel(), ['100%', '75%', '50%', '25%', '0%'],
+		'issue #101: the card channel keeps the same full travel in the same state');
+	assert.deepEqual(plain.travel('--dsw-alias-bg-overlay'), [1, 0.75, 0.5, 0.25, 0], 'overlay leg full travel, no wash');
+	assert.deepEqual(plain.travel('--dsw-specific-menu'), [1, 0.75, 0.5, 0.25, 0], 'menu leg full travel, no wash');
+
+	// --- Wallpaper wash on: floor engages on BOTH floored channels, exempt legs do not move.
+	const washed = boot(true);
+	assert.equal(washed.washAttr(), true, 'a seeded wallpaper publishes the wash marker');
+	assert.deepEqual(washed.travel('--dsw-alias-bg-layer-2'), [1, FLOOR, FLOOR, FLOOR, FLOOR],
+		'issue #98/#101: under a wash the dialog channel holds the 0.92 readability floor');
+	assert.deepEqual(washed.cardTravel(), ['100%', '92%', '92%', '92%', '92%'],
+		'issue #101: the card channel floors at the SAME 92% — one slider, one minimum');
+	assert.deepEqual(washed.travel('--dsw-alias-bg-overlay'), [1, 0.75, 0.5, 0.25, 0],
+		'issue #100: gating the floor did not gate the overlay leg — it still reaches 0');
+	assert.deepEqual(washed.travel('--dsw-specific-menu'), [1, 0.75, 0.5, 0.25, 0],
+		'issue #100: the menu leg still reaches 0 under a wash');
+
+	// The floor is a clamp on the VALUE, not a rewrite of what the user set: the stored
+	// slider number stays where they left it (so removing the wallpaper restores it).
+	washed.setTransparency(100);
+	assert.equal(washed.h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0',
+		'the floor clamps what is painted, it does not remap the stored slider value');
+	// And it is not a ceiling: the solid end still reaches full occlusion.
+	washed.setTransparency(0);
+	assert.equal(alphaOf(washed.layer()['--dsw-alias-bg-layer-2'].dark), 1, 'the solid end still reaches 1');
+	washed.setTransparency(50);
+	assert.equal(alphaOf(washed.layer()['--dsw-alias-bg-layer-2'].dark), FLOOR,
+		'dragging back down re-applies the floor (a clamp on the value, not a one-shot retune)');
+});
+
+test('issue #100: adding or clearing the wallpaper re-publishes the floored channels, slider untouched', () => {
+	// The floor lives in BAKED token values, so a wash that appears or disappears after
+	// boot changes nothing until something re-publishes. A user who sets (or clears) a
+	// wallpaper without ever touching the 弹窗滑杆 is exactly that case — and if this
+	// re-publish is missing, the dialog either keeps a floor it no longer has a right
+	// to, or keeps leaking through the wallpaper it just got.
+	const bootPlain = () => {
+		const attrs = new Map();
+		const styleProps = {};
+		const overrides = new Map();
+		const documentMock = {
+			body: { contains: () => false, prepend() {}, appendChild() {} },
+			head: { children: [], contains() { return false; }, appendChild() {}, append(c) { this.children.push(c); } },
+			createElement() { return { style: {}, dataset: {}, textContent: '', remove() {}, append() {} }; },
+			createTextNode: () => ({}),
+			querySelector: () => null,
+			querySelectorAll: () => [],
+			documentElement: {
+				style: { setProperty(k, v) { styleProps[k] = v; } },
+				setAttribute(k, v) { attrs.set(k, v); },
+				removeAttribute(k) { attrs.delete(k); }
+			}
+		};
+		const theme = {
+			setTheme() {},
+			getTheme() {
+				return { preference: 'midnight', active: { id: 'midnight', colorScheme: 'dark', tokens: {
+					'--dsw-alias-bg-base': '#0b0b0e',
+					'--dsw-alias-bg-layer-2': 'rgba(22, 22, 28, 0.85)'
+				} }, themes: [], revision: 1 };
+			},
+			overrideTokens(source, tokens) { overrides.set(source, { ...tokens }); return () => {}; }
+		};
+		const h = buildSandbox({ document: documentMock });
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		e.apply({ ...makeApplyContext(h, { captureActions: true }), theme });
+		return {
+			h,
+			layer: () => overrides.get('dsh-dream-skin:appearance'),
+			styleProps,
+			attrs,
+			bags: h.actionBags
+		};
+	};
+	const alphaOf = (value) => Number(/,\s*([\d.]+)\)/.exec(String(value))[1]);
+	const s = bootPlain();
+	s.bags['dream-skin-glass'].setModalOpacity(50);
+	assert.equal(alphaOf(s.layer()['--dsw-alias-bg-layer-2'].dark), 0.5, 'start: no wash, slider owns layer-2');
+	assert.equal(s.styleProps['--dsh-dream-skin-modal-fill'], '50%', 'start: card channel matches the slider');
+
+	// The user picks a wallpaper from the Wallpaper row — never touches the popup slider.
+	s.bags['dream-skin-wallpaper'].setWallpaper('data:image/png;base64,BBBB');
+	assert.equal(s.attrs.has('data-dsh-dream-skin-wash'), true, 'the wash marker went up');
+	assert.equal(alphaOf(s.layer()['--dsw-alias-bg-layer-2'].dark), 0.92,
+		'issue #100: the floor engages the moment a wash appears, with the slider still at 50');
+	assert.equal(s.styleProps['--dsh-dream-skin-modal-fill'], '92%',
+		'issue #101: the card channel floors in the same move, not one repaint later');
+
+	// …and the other way round: clearing it must give the travel back, not strand 0.92.
+	s.bags['dream-skin-wallpaper'].clearWallpaper();
+	assert.equal(s.attrs.has('data-dsh-dream-skin-wash'), false, 'the wash marker came down');
+	assert.equal(alphaOf(s.layer()['--dsw-alias-bg-layer-2'].dark), 0.5,
+		'clearing the wallpaper restores the slider\'s own value on layer-2');
+	assert.equal(s.styleProps['--dsh-dream-skin-modal-fill'], '50%',
+		'and on the card channel — the floor is not allowed to stick');
+	assert.equal(s.h.localStorage.getItem('dsh-dream-skin:modal-opacity'), '0.5',
+		'the round trip never wrote to the slider');
+});
+
+test('issue #100 (adjudication R2): a wash flip re-renders BOTH opacity rows, not just the tokens', () => {
+	// The hook that keeps the two rows honest had zero coverage: deleting `onWashFlip = …` left
+	// every case green (measured). What it is for: the floor is decided by the WASH, so a
+	// wallpaper added or cleared from the Wallpaper row has to re-render the slider rows — their
+	// own actions are the only other thing that syncs them, and this path does not go through
+	// those actions. Asserted on the two STORE revisions (the render inputs), not on a call
+	// count: a hook that ran but published nothing would be no better than no hook.
 	const h = buildSandbox();
-	h.localStorage.setItem('dsh-dream-skin:modal-opacity', '0');
 	const e = h.factory(makeRequire(makeRuntime().RT));
-	e.apply({ ...makeApplyContext(h, { captureActions: true }), theme });
-	const layer = () => overrides.get('dsh-dream-skin:appearance');
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	const glass = h.storeStates['dream-skin-glass'];
+	const legacy = h.storeStates['dream-skin-modal-opacity'];
+	const before = { glass: glass.revision, legacy: legacy.revision };
+	h.actionBags['dream-skin-wallpaper'].setWallpaper('data:image/png;base64,BBBB');
+	assert.ok(glass.revision > before.glass, 'the glass row store must be synced when the wash appears (its floor marker changed)');
+	assert.ok(legacy.revision > before.legacy, 'and so must the legacy modal row');
+	const afterAdd = { glass: glass.revision, legacy: legacy.revision };
+	h.actionBags['dream-skin-wallpaper'].clearWallpaper();
+	assert.ok(glass.revision > afterAdd.glass, 'clearing the wallpaper is the same kind of event and must sync too');
+	assert.ok(legacy.revision > afterAdd.legacy, 'both rows, both directions');
+});
 
-	// Sample 1 — the fully transparent end: the dialog stops at the floor, the rest
-	// of the sheet keeps travelling to 0.
-	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.92)',
-		'the dialog leg holds the 0.92 readability floor at the transparent end');
-	assert.equal(layer()['--dsw-alias-bg-overlay'].dark, 'rgba(11, 11, 14, 0)',
-		'the overlay leg still reaches full transparency (the floor is not a global clamp)');
-	assert.equal(layer()['--dsw-specific-menu'].dark, 'rgba(11, 11, 14, 0)',
-		'the menu leg still reaches full transparency');
+test('issue #100: the slider says so when the floor is holding it (marker wired, 8 languages)', () => {
+	// String-level ON PURPOSE, and labelled as such: the marker lives in a JSX `format`
+	// closure that this sandbox cannot render, so what can be pinned here is that the branch
+	// exists, that it reads the SAME two facts the floor reads (the wash state and the floor
+	// constant — not a copied number), that a plain form still exists for the unclamped range,
+	// and that every shipped dictionary carries the key it prints. The visual behaviour needs a
+	// real page and is recorded as unverified in docs/desktop-support.md.
+	const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8');
+	const branch = src.match(/format:\s*\(v\)\s*=>\s*\(([\s\S]{0,300}?)\)\s*,\n\s*onChange:\s*\(v\)\s*=>\s*setModalOpacity/);
+	assert.ok(branch, 'the modal slider must still carry its own format branch');
+	assert.match(branch[1], /washActive/, 'the marker is gated on the wash state, like the floor itself');
+	assert.match(branch[1], /DIALOG_ALPHA_FLOOR/, 'and on the floor constant — not on a literal 0.92');
+	assert.match(branch[1], /modal\.floorMark/, 'and it prints the translated marker');
+	assert.match(branch[1], /`\$\{v\}%`/, 'a plain form still exists for the unclamped range (the marker is conditional, not a suffix)');
+	for (const lang of ['zh', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'ru']) {
+		const at = src.indexOf(`const ${lang} = {`);
+		assert.ok(at !== -1, `${lang} dictionary`);
+		const body = src.slice(at, src.indexOf('};', at));
+		assert.ok(body.includes('"modal.floorMark"'), `${lang} must carry modal.floorMark (an untranslated marker is a blank chip in that UI)`);
+	}
+});
 
-	// Sample 2 — above the floor the slider is the only authority again, so the
-	// floor cannot quietly become a ceiling.
-	h.actionBags['dream-skin-glass'].setModalOpacity(95);
-	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.95)',
-		'above the floor the slider still owns layer-2');
-	h.actionBags['dream-skin-glass'].setModalOpacity(100);
-	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 1)',
-		'the solid end still reaches full occlusion');
-	h.actionBags['dream-skin-glass'].setModalOpacity(0);
-	assert.equal(layer()['--dsw-alias-bg-layer-2'].dark, 'rgba(22, 22, 28, 0.92)',
-		'dragging back down re-applies the floor (it is a clamp on the value, not a one-shot retune)');
+test('issue #103: mist seeds BELOW the floor on purpose, and both halves of that claim are pinned', () => {
+	// A deliberate deviation with no gate is a deviation waiting to be "fixed" by
+	// someone who cannot tell it was a decision (issue #95's whole complaint). mist
+	// authors its dialog fill at 0.90 while the floor is 0.92, so a FRESH mist install
+	// with a wallpaper renders the floored surfaces one step more solid than that
+	// skin intent. Raising mist means re-rolling the design-system output (8 skins
+	// x 57 tokens), so the deviation stays. Pinning only "0.90" would let the floor
+	// move under it, and pinning only "floor > 0.90" would let mist be re-rolled while
+	// the note claims otherwise — both halves are asserted, from the shipped data.
+	const mist = skinById('mist');
+	assert.equal(mist.defaults.modalOpacity, 0.90,
+		'issue #103: mist\'s factory dialog seed is 0.90 (if this redden because you raised it, delete the deviation note too)');
+	const floor = Number(/const DIALOG_ALPHA_FLOOR = ([\d.]+);/.exec(CODE)[1]);
+	assert.equal(floor, 0.92, 'issue #103: the readability floor is 0.92');
+	assert.ok(mist.defaults.modalOpacity < floor,
+		'issue #103: the two are STILL in the deviating order — if you aligned them, the claim in client.js / README is no longer true');
+	// The other seven skins must NOT be quietly drifting under the floor as well.
+	const under = SHIPPED_SKINS.filter((s) => s.defaults.modalOpacity < floor).map((s) => s.id);
+	assert.deepEqual(under, ['mist'],
+		'issue #103: mist is the ONLY skin seeded under the floor; a second one is a new decision, not a new datum');
 });
 
 test('drift probe (#96/#97): an attribute-anchored group is judged by what the HOST css still declares', async () => {
@@ -4469,13 +4681,104 @@ test('drift probe (J1): a healthy modern host can actually reach the positive si
 	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn: (...a) => warns.push(a.join(' ')), log() {}, error() {} } });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	e.apply(makeApplyContext(h));
+	// Sample 1 (intermediate, read SYNCHRONOUSLY — no timer in this assertion, so it cannot
+	// race): the page is published at boot, but the anchor verdict belongs to a ladder whose
+	// first round has not been given a tick yet. A terminal verdict here would mean the probe
+	// answered before it looked.
+	const early = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.ok(!early || !early.anchors || early.anchors.pending === true,
+		`no terminal anchor verdict may exist before the ladder runs (got ${JSON.stringify(early && early.anchors)})`);
+	// Sample 2 (terminal, waited on by condition, not by a fixed sleep — issue #104: the
+	// 10.8.0 version of this case slept 250ms and the 4-step ladder could finish later than
+	// that under load, which is how it flaked once in four full runs).
 	await settleDrift(h.window);
 	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(status.anchors.pending, false, 'the ladder completed with liveness proven');
+	assert.ok(status.checkedAt >= (early ? early.checkedAt || 0 : 0), 'the terminal sample is the later one');
 	assert.deepEqual(status.anchors.drifted, [], 'drifted is EMPTY on a host whose live anchors all matched — the positive signal is reachable');
 	assert.deepEqual(status.anchors.notMounted, [], 'nothing to retract either');
 	assert.deepEqual(status.anchors.retired.sort(), [...RETIRED].sort(), 'the retired anchors are still reported, in their own pool');
 	assert.equal(warns.filter((w) => w.includes('drifted')).length, 0, 'a healthy host is never warned about');
+});
+
+test('issue #105: the snapshot counts what the broad `_fade` anchor actually addresses', async () => {
+	// `[class$="_fade"]` trades scope for durability (issue #97), so on a machine that also
+	// runs another skin plugin the anchor may be reaching faces we never meant to touch. The
+	// census measures that from installed bytes; this measures it from a LIVE page, because
+	// the reviewer's acceptance criterion is a field a two-plugin machine can self-report:
+	// one host fade + one third-party fade MUST read 2 — reporting 1 is the failure.
+	const fade = (cls) => ({ className: cls, getAttribute: (k) => (k === 'class' ? cls : null) });
+	const boot = (nodes, throwing) => {
+		const RETIRED = new Set([
+			'.bqrRRG_card',
+			'.nArs4W_panel, .nArs4W_pane, .nArs4W_paneContent, .nArs4W_workbench, .nArs4W_explorerBody',
+			'.qDHVXG_fade'
+		]);
+		const doc = {
+			body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+			querySelector: (sel) => (RETIRED.has(sel) ? null : { matched: true }),
+			querySelectorAll: (sel) => {
+				// Only the fade read throws: the ownership classifier and the marker passes
+				// must keep working, or "the verdict is unaffected" below would be measuring
+				// a page that broke everywhere rather than the one field that could not read.
+				if (throwing && sel === '[class$="_fade"]') throw new Error('sandbox closed');
+				return sel === '[class$="_fade"]' ? nodes : [];
+			}
+		};
+		const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
+		const e = h.factory(makeRequire(makeRuntime().RT));
+		e.apply(makeApplyContext(h));
+		return h;
+	};
+
+	const two = await settleDrift(boot([fade('bhn1Oq_fade'), fade('skinshop_workspace_fade')]).window);
+	assert.equal(two.fadeMatches, 2, 'a host fade PLUS a third-party fade must be reported as 2, not quietly as 1');
+	assert.deepEqual(two.fadeClasses, ['bhn1Oq_fade', 'skinshop_workspace_fade'],
+		'the class tokens come along too — a machine has to be able to attribute the overlap, not just count it');
+
+	const one = await settleDrift(boot([fade('bhn1Oq_fade')]).window);
+	assert.equal(one.fadeMatches, 1, 'the count follows the page, it is not a constant');
+
+	const none = await settleDrift(boot([]).window);
+	assert.equal(none.fadeMatches, 0, 'a page with no such element says 0');
+	assert.deepEqual(none.fadeClasses, [], 'and names nothing');
+
+	// 兜底不许伪造观测值: an unreadable DOM is `null` ("could not look"), never a 0 that a
+	// dashboard would draw as "no coexistence here".
+	const blind = await settleDrift(boot([], true).window);
+	assert.equal(blind.fadeMatches, null, 'a DOM that throws on the fade read is NOT reported as zero matches');
+	assert.equal(blind.pending, false, 'and the drift verdict still converges — the observation is separate from the verdict, so one unreadable field cannot hold the ladder hostage');
+});
+
+test('drift probe (J1, issue #104 reverse): a host that cannot prove liveness never reaches the positive signal', async () => {
+	// Waiting on a condition instead of a clock is only safe if the gate still reddens when
+	// the terminal state is unreachable. Same fixture, one change: the page matches a SINGLE
+	// anchor and offers no `[data-composer-input]` sentinel and no desktop shell, so
+	// driftProbeLivenessProven() stays false on every round — and a probe that has not proven
+	// it is looking at a live page must keep `pending: true` instead of publishing
+	// `drifted: []` (that empty list is exactly the green the machine contract reserves for
+	// "all refinements live"). If this case ever passes, the waiting version of J1 became a
+	// light that can never be red.
+	const asked = new Set();
+	const doc = {
+		body: makeEl(), createElement: () => makeEl(), createTextNode: () => ({}), head: makeEl(),
+		querySelector: (sel) => {
+			if (sel === '[data-composer-input]') return null;
+			if (asked.size === 0 && !asked.has(sel)) { asked.add(sel); return { matched: true }; }
+			return null;
+		},
+		querySelectorAll: () => []
+	};
+	const h = buildSandbox({ code: FAST_DRIFT_CODE, document: doc, console: { warn() {}, log() {}, error() {} } });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	await assert.rejects(
+		settleDrift(h.window, { timeoutMs: 600, stepMs: 20 }),
+		/never published a terminal verdict/,
+		'an unproven liveness must keep the verdict pending — the helper names it, it does not grant a pass');
+	const status = h.window.__DSH_DREAM_SKIN_STATUS__;
+	assert.equal(status.anchors.pending, true, 'and what it publishes on the way is pending, not an empty drift list');
+	assert.deepEqual(status.anchors.drifted, [], 'drifted stays empty BECAUSE the round is undecided (pending guards it)');
 });
 
 test('settleDrift waits on the verdict, and still fails when the probe never converges', async () => {

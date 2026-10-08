@@ -26,37 +26,108 @@
  */
 const { test } = require('node:test');
 const assert = require('node:assert');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const {
 	measure, measureDesktop, buildFixture, buildDesktopFixture, stripDeclaration,
 	checkReadings, checkDesktopReadings, cssAlpha, skinTokens, WASH_CHECKS, WASH_GROUPS,
-	DESKTOP_SKINS, DESKTOP_SWEEP, DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, browserAttempts
+	DESKTOP_SKINS, DESKTOP_SWEEP, DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, browserAttempts,
+	probeBrowser, gradeStage, runChrome, environmentError,
+	measureCoexist, buildCoexistFixture, checkCoexistReadings, COEXIST_CHECKS,
+	hostFadeClasses, pluginFadeRule, SKIN_CENTER_PKG
 } = require('../scripts/wash-cascade.cjs');
-const { findChrome } = require('../scripts/generate-skin-mockups.cjs');
 
-const browser = findChrome();
+// Issue #102: "a browser binary exists" is NOT "an engine can be run here". The review
+// machine had Chrome installed and could not spawn it (EBUSY on every attempt, node's own
+// child_process included), and the old precondition keyed off the path — so 7 computed
+// cases went RED and read exactly like the cascade having broken. The probe starts one
+// throwaway page and reports the truth; a machine that cannot run these cases SKIPS them
+// with the reason named, which is a different thing from passing and from failing.
+const engine = probeBrowser();
 let hostError = null;
-try { buildFixture(); } catch (e) { hostError = e.message; }
-const hostReadable = hostError === null;
+let hostEnvironment = false;
+try { buildFixture(); } catch (e) { hostError = e.message; hostEnvironment = !!e.environment; }
 // Two independent preconditions, each declared by name in the skip reason. CI has
 // neither a browser nor an installed host, so the computed halves skip there.
-const RUN = browser.path !== null && hostReadable;
-const skipWhy = !browser.path
-	? `no headless browser: ${browser.why}`
+const RUN = engine.ran && !hostEnvironment;
+const skipWhy = !engine.ran
+	? `no headless browser usable here: ${engine.why}`
 	: `no installed DSH host to read CSS from: ${hostError}`;
 
 // The desktop page needs the browser AND one declaration read out of the installed
 // host, so it gets its own readiness pair rather than borrowing the host fixture's.
 let desktopError = null;
-try { buildDesktopFixture(); } catch (e) { desktopError = e.message; }
-const RUN_DESKTOP = browser.path !== null && desktopError === null;
-const desktopSkipWhy = !browser.path
-	? `no headless browser: ${browser.why}`
-	: `the desktop fixture cannot be built: ${desktopError}`;
+let desktopEnvironment = false;
+try { buildDesktopFixture(); } catch (e) { desktopError = e.message; desktopEnvironment = !!e.environment; }
+const RUN_DESKTOP = engine.ran && !desktopEnvironment;
+const desktopSkipWhy = !engine.ran
+	? `no headless browser usable here: ${engine.why}`
+	: `the desktop fixture cannot be built here: ${desktopError}`;
+
+// The coexistence page (issue #105) needs a THIRD thing: the other plugin installed. Its
+// absence is an environment skip with the reason named — never a silent "nobody else
+// addresses _fade", which is the sentence the census exists to make measurable.
+let coexistError = null;
+let coexistEnvironment = false;
+try {
+	buildCoexistFixture();
+	// T1 (third-party 10.9.0): the precondition has to include the THIRD-PARTY rule, not just
+	// the host parts. `buildCoexistFixture()` never touches the other plugin, so a machine
+	// with a browser and a host but WITHOUT skin-center passed the check and then threw inside
+	// the live cases — red where the honest answer is "this machine cannot measure it".
+	pluginFadeRule();
+} catch (e) {
+	coexistError = e.message;
+	coexistEnvironment = !!e.environment;
+}
+const RUN_COEXIST = engine.ran && !coexistEnvironment;
+const coexistSkipWhy = !engine.ran
+	? `no headless browser usable here: ${engine.why}`
+	: `the coexistence fixture cannot be built here: ${coexistError}`;
+
+// Blue-team B3: the CLI case below used to signal its own environment skip by RETURNING a
+// string — and `node:test` treats a returned value as a PASS, so on a machine that cannot
+// spawn node at all the exit-code contract silently went green. The preconditions an option
+// skip needs are computed here, at collection time, where they can actually skip.
+const selfSpawn = require('node:child_process').spawnSync(process.execPath, ['--version'], { timeout: 30000 });
+const SELF_SPAWN_OK = !selfSpawn.error && selfSpawn.status === 0;
+const selfSpawnWhy = `cannot spawn node here (${(selfSpawn.error && selfSpawn.error.code) || 'status ' + selfSpawn.status}) — the exit-code contract fits the 10.9.0 (#102) environment state and stays UNVERIFIED on this box`;
 
 // ── the pure halves: run everywhere, including CI ─────────────────────────
+
+test('issue #102 (blue-team B4): "no host here" and "the host renamed a package" part ways', () => {
+	// The first split keyed off the ONE package's file: a host that renamed
+	// `dsh-client-ui-layout` therefore read as "no host installed" and the whole stage
+	// SKIPPED — a real drift hiding inside an environment excuse. Two directories, one
+	// expectation each.
+	const empty = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-empty-'));
+	const populated = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-populated-'));
+	try {
+		const envErr = (() => { try { buildFixture({ root: empty }); return null; } catch (e) { return e; } })();
+		assert.ok(envErr, 'an empty root must refuse to build');
+		assert.equal(!!envErr.environment, true, 'an empty root is an ENVIRONMENT skip — there is nothing to read');
+		// A root with other packages but not ours: the install is here, the package is not.
+		fs.mkdirSync(path.join(populated, 'dsh-client-ui-chat'), { recursive: true });
+		const claimErr = (() => { try { buildFixture({ root: populated }); return null; } catch (e) { return e; } })();
+		assert.ok(claimErr, 'a populated root without the host package must refuse to build');
+		assert.equal(!!claimErr.environment, false, 'it is NOT an environment skip — the install is right there');
+		assert.match(claimErr.message, /GONE from/, 'and it says which package is gone and why that is not a missing host');
+		// The desktop half made the same distinction for the sidebar consumer.
+		const deskErr = (() => { try { buildDesktopFixture({ root: empty }); return null; } catch (e) { return e; } })();
+		assert.equal(!!(deskErr && deskErr.environment), true, 'no host at all stays an environment skip for the desktop stage too');
+		// …and its RED half needs its own case (third-party 10.9.0 T7): an install that lost the
+		// sidebar package must not be filed as "no host here" either.
+		const deskClaim = (() => { try { buildDesktopFixture({ root: populated }); return null; } catch (e) { return e; } })();
+		assert.ok(deskClaim, 'a populated root without the sidebar packages must refuse to build');
+		assert.equal(!!deskClaim.environment, false, 'the desktop split has to redden too, not just the host one');
+		assert.match(deskClaim.message, /stopped reading/, 'and it says the host stopped reading the token rather than blaming a missing install');
+	} finally {
+		fs.rmSync(empty, { recursive: true, force: true });
+		fs.rmSync(populated, { recursive: true, force: true });
+	}
+});
 
 test('the probe refuses a fixture that could not fail', () => {
 	// The failure mode guarded here is not "the host is missing" — it is subtler. A
@@ -111,11 +182,78 @@ test('the browser half attempts every installed engine and never ignores CHROME_
 	assert.match(refused.why, /CHROME_PATH is set/);
 	assert.deepEqual(browserAttempts({}, [bogus, path.join(os.tmpdir(), 'nor-here')]).list, [],
 		'nothing installed still resolves to an empty attempt list');
-	// The refusal has to reach the caller as "did not run": the CLI exits 1 on it and the live
-	// cases skip with the reason. Neither may be an empty pass.
-	const nope = measure({ parts: { layout: '', fade: '', chat: '', material: '' }, env: { CHROME_PATH: bogus } });
+	// The refusal has to reach the caller as "did not run": the CLI reports it as a skip and
+	// the live cases skip with the reason. Neither may be an empty pass. Read through
+	// `runChrome` (not `measure`): `measure` would first build a page, and since issue #105 the
+	// fixture REFUSES to build one whose host class names were not derived — a different
+	// refusal, which would make this assertion measure the wrong thing.
+	const nope = runChrome('<!doctype html><html><head><title>DSH_RESULTS[]</title></head><body></body></html>', { CHROME_PATH: bogus });
 	assert.equal(nope.ran, false, 'no browser is reported as not-ran, never as a page that graded nothing');
 	assert.match(nope.why, /CHROME_PATH is set/);
+});
+
+test('issue #102: a browser that exists but cannot be spawned is a SKIP, not a red', () => {
+	// The third state this gate had no name for: the binary IS there, the OS refuses to start
+	// it (EBUSY on the review machine, EPERM/EACCES under an enterprise policy or in a
+	// container). Before, that landed in the exception path — a stack, exit 1, no summary —
+	// and 6–7 computed cases became indistinguishable from "the cascade broke". Pinned in
+	// both directions: cannot-spawn reads as skip, and skip still may not look like a pass.
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-spawn-'));
+	try {
+		// Present, readable, NOT an executable — the same shape as "installed but refused".
+		const fake = path.join(dir, process.platform === 'win32' ? 'chrome.exe' : 'chrome');
+		fs.writeFileSync(fake, 'this is not a binary\n');
+		const html = '<!doctype html><html><head><title>DSH_RESULTS[]</title></head><body></body></html>';
+
+		let threw = null;
+		let r = null;
+		try { r = runChrome(html, { CHROME_PATH: fake }); } catch (e) { threw = e; }
+		assert.equal(threw, null, `a spawn failure must be absorbed, not rethrown (got: ${threw && threw.code})`);
+		assert.equal(r.ran, false, 'the caller is told "did not run"');
+		assert.match(r.why, /chrome/, `the reason has to name what was attempted, got: ${r.why}`);
+		assert.match(r.why, /failed to launch/, `spawn failure is reported as a launch failure, got: ${r.why}`);
+
+		const probe = probeBrowser({ CHROME_PATH: fake });
+		assert.equal(probe.ran, false, 'the probe reports the same verdict the gate would hit');
+		assert.match(probe.why, /cannot be spawned/, `the probe has to name the state, got: ${probe.why}`);
+
+		// Grading: not-ran is `skip`, and the two kinds of throw are NOT the same thing.
+		const skipped = gradeStage('host', ['corner'], () => ({ ran: false, why: 'EBUSY here' }));
+		assert.equal(skipped.kind, 'skip', 'an engine that cannot run cannot hand out a verdict');
+		assert.match(skipped.lines.join('\n'), /not a pass/, 'the skip has to say it is not a pass');
+		assert.match(skipped.lines.join('\n'), /SKIPPED \(environment\)/);
+		assert.equal(gradeStage('host', ['corner'], () => { throw environmentError('no DSH host install at X'); }).kind, 'skip',
+			'no host on disk is an environment skip too');
+		assert.equal(gradeStage('host', ['corner'], () => { throw new Error('the shell snapshot lost X'); }).kind, 'fail',
+			'a fixture that lost a guarded declaration is a CLAIM red, never a skip');
+		assert.equal(gradeStage('host', ['corner'], () => ({ ran: true, error: 'no results marker' })).kind, 'fail',
+			'an engine that started and read garbage is a failure');
+		// Reverse: a run that produced readings and disagrees still reddens — the skip lane
+		// must not become a new place for real problems to hide.
+		assert.equal(gradeStage('host', ['corner'], () => ({ ran: true, readings: [], via: 'x' })).kind, 'fail',
+			'empty readings are not a pass either');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('issue #102: the CLI exits 3 when it could not run, and 3 is not 0', { skip: SELF_SPAWN_OK ? false : selfSpawnWhy }, () => {
+	// The user-visible half: `npm run wash:check` has to be tellable apart in three states
+	// (0 checked-and-clean / 1 checked-and-wrong / 3 could-not-check). Anything that only
+	// reads `=== 0` would treat "no usable browser on this box" as a green gate.
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-cli-'));
+	try {
+		const fake = path.join(dir, process.platform === 'win32' ? 'chrome.exe' : 'chrome');
+		fs.writeFileSync(fake, 'not a binary\n');
+		const r = require('child_process').spawnSync(process.execPath,
+			[path.join(__dirname, '..', 'scripts', 'wash-cascade.cjs')],
+			{ encoding: 'utf8', timeout: 120000, env: { ...process.env, CHROME_PATH: fake } });
+		assert.equal(r.status, 3, `expected the "not run" exit code, got ${r.status}\n${r.stdout}\n${r.stderr}`);
+		assert.match(r.stdout + r.stderr, /SKIPPED \(environment\)/, 'the skip has to be printed, not just coded');
+		assert.match(r.stdout + r.stderr, /NOT RUN/, 'and named as "no verdict was read"');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
 });
 
 test('the verdict table claims every reading, and each claim is in a named issue group', () => {
@@ -488,4 +626,163 @@ test('mutation: removing the fade rule brings the band back in the same engine',
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const wash = r.readings.find((x) => x.state === 'wash');
 	assert.match(wash.fadeBg, /linear-gradient/, 'without the hash-free rule the band survives the wash — so the `none` above was our rule');
+});
+
+// ── issue #105: two plugins, one face ─────────────────────────────────────
+
+/** The four readings the coexistence page produces, with one thing broken at a time. */
+function coexistQuad(flag) {
+	const chatMask = 'linear-gradient(rgba(0, 0, 0, 0) 0px, rgb(0, 0, 0) 24px, rgb(0, 0, 0) 100%)';
+	const band = 'linear-gradient(rgba(0, 0, 0, 0), rgba(16, 16, 24, 0.75))';
+	const rows = [
+		{ state: 'plain', realBg: band, realColour: 'rgba(0, 0, 0, 0)', probeBg: 'rgb(1, 2, 3)', chatMask, wash: false, theirs: false },
+		{ state: 'wash', realBg: 'none', realColour: 'rgba(0, 0, 0, 0)', probeBg: 'rgb(1, 2, 3)', chatMask, wash: true, theirs: false },
+		{ state: 'coexist', realBg: 'none', realColour: 'rgba(0, 0, 0, 0)', probeBg: 'rgba(0, 0, 0, 0)', chatMask, wash: true, theirs: true },
+		{ state: 'their-only', realBg: 'none', realColour: 'rgba(0, 0, 0, 0)', probeBg: 'rgba(0, 0, 0, 0)', chatMask, wash: false, theirs: true }
+	];
+	const at = (s) => rows.find((row) => row.state === s);
+	if (flag === 'noBand') at('plain').realBg = 'none';
+	if (flag === 'oursLeavesBand') at('wash').realBg = band;
+	if (flag === 'probeLosesAnyway') at('wash').probeBg = 'rgba(0, 0, 0, 0)';
+	if (flag === 'theirsNotStronger') at('coexist').probeBg = 'rgb(1, 2, 3)';
+	if (flag === 'userSeesBand') at('coexist').realBg = band;
+	if (flag === 'theirRuleUngated') at('their-only').probeBg = 'rgb(1, 2, 3)';
+	if (flag === 'maskDamaged') at('coexist').chatMask = 'none';
+	if (flag === 'dropState') rows.pop();
+	return rows;
+}
+
+test('issue #105: the coexistence verdict is falsifiable, one claim at a time', () => {
+	// Every check is aimed at a different failure, and this is the case that says so: a
+	// verdict table nobody can break is a verdict table that cannot tell anything. The
+	// baseline first (an all-green quad), then one break per check, asserting the OTHER
+	// checks stay quiet so a failure can be attributed rather than guessed at.
+	assert.deepEqual(checkCoexistReadings(coexistQuad()), [], 'the baseline quad must grade clean');
+	// Expectations are SETS, not single ids: two of these breaks really do damage two claims
+	// (a band that survives our wash is also a band the user sees in the coexist state), and
+	// pretending otherwise would mean writing an assertion that tolerates collateral reds.
+	// What the exactness still buys is the other direction — no flag may redden a check it has
+	// no business touching, which is how a runaway condition would be caught.
+	const broken = {
+		noBand: ['coexist-host-paints'],
+		oursLeavesBand: ['coexist-ours-kills-band', 'coexist-user-result-agrees'],
+		probeLosesAnyway: ['coexist-ours-not-important', 'coexist-their-lane-stronger'],
+		theirsNotStronger: ['coexist-their-lane-stronger'],
+		userSeesBand: ['coexist-user-result-agrees'],
+		theirRuleUngated: ['coexist-band-gated'],
+		maskDamaged: ['coexist-chat-mask-untouched']
+	};
+	for (const [flag, expectedIds] of Object.entries(broken)) {
+		const problems = checkCoexistReadings(coexistQuad(flag));
+		assert.deepEqual(problems.map((p) => p.split(':')[0]).sort(), expectedIds.slice().sort(),
+			`flag ${flag} must redden exactly ${expectedIds.join(' + ')}`);
+	}
+	const missing = checkCoexistReadings(coexistQuad('dropState'));
+	assert.equal(missing.length, 1, 'a run that lost a state is refused');
+	assert.match(missing[0], /never produced their-only/, 'and the missing state is named');
+	assert.match(missing[0], /refusing to grade/, 'a partial run cannot be graded');
+	// Every check must belong to this group's naming, and every state must be read by
+	// something — an unread state is a page half nobody grades.
+	assert.equal(COEXIST_CHECKS.length, 7, 'the table size is pinned so a check cannot vanish silently');
+	for (const c of COEXIST_CHECKS) assert.match(c.id, /^coexist-/, `${c.id} is not in the coexist group`);
+	const source = COEXIST_CHECKS.map((c) => c.ok.toString()).join(' ');
+	for (const state of ['plain', 'wash', 'coexist', 'their-only']) {
+		// `.plain` for the bare names, `['their-only']` for the hyphenated one — either is a
+		// real read of that state; a state no check looks at is a page half nobody grades.
+		assert.ok(source.includes(`.${state}`) || source.includes(`['${state}']`),
+			`no check reads the ${state} state`);
+	}
+});
+
+test('issue #105: the fade class names are DERIVED from the host CSS, not remembered', () => {
+	// Boundary ⑤ in docs/desktop-support.md: the fixture used to hand-copy `bhn1Oq_fade`
+	// and `O_Ebla_fadeTop`, so a hash re-roll would leave it measuring a class nobody
+	// renders while every reading still "passed". Derivation turns that into a loud break.
+	const derived = hostFadeClasses({ fade: '.zzz_root{a:1}.abc123_fade{left:0}', chat: '.def456_fadeTop{mask-image:none}' });
+	assert.deepEqual(derived, { fadeClass: 'abc123_fade', chatClass: 'def456_fadeTop' });
+	assert.throws(() => hostFadeClasses({ fade: '', chat: '.def456_fadeTop{a:1}' }), /would have to INVENT/,
+		'no fade rule in the CSS must break the fixture, not produce one that measures nothing');
+	assert.throws(() => hostFadeClasses({ fade: '.abc123_fade{a:1}', chat: '' }), /protecting nothing/,
+		'the collateral half needs its own class, or the mask check protects nothing');
+	assert.throws(() => hostFadeClasses({ fade: '.abc123_fadeTop{a:1}', chat: '.x_fadeTop{a:1}' }), /_fade \{/,
+		'a `_fadeTop`-only host is NOT a `_fade` host — the suffix anchor would have nothing to match');
+});
+
+test('issue #105: the other plugin rule is read from its installed bundle, or refused', () => {
+	// The rule is composed exactly as that bundle composes it (their scopes × their
+	// selector), so the measurement cannot drift from the shipped code. Everything is
+	// needles-and-refusals: a missing piece is an error, never a thinner page.
+	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-skincenter-'));
+	// A miniature of their bundle's shape: the scope list, and the scoped() call with the
+	// declaration block after it. Written as plain strings (the escapes matter — the real
+	// bundle carries `\"` inside its own string literal, and the extractor unescapes them).
+	const scopedCall = '${scoped("[data-slot=\\"sidebar.workspaces\\"] [class*=\\"_fade\\"]")}';
+	const bundle = (block) => [
+		'const ACTIVE_VISUAL_SELECTOR = [',
+		'  "html[data-dsh-skin]",',
+		'  "html[data-dsh-custom-theme]:not([data-dsh-skin])",',
+		'  "html[data-dsh-wallpaper-active]"',
+		'].join(", ");',
+		`const css = \`${scopedCall} {\n  ${block}\n}\`;`
+	].join('\n');
+	const write = (text) => {
+		const f = path.join(dir, 'client.js');
+		fs.writeFileSync(f, text, 'utf8');
+		return f;
+	};
+	try {
+		const good = write(bundle('background: none !important;\n  background-image: none !important;'));
+		const rule = pluginFadeRule({ DSH_SKIN_CENTER: good });
+		assert.equal(rule.scopes.length, 3, 'three host-level scopes');
+		assert.match(rule.selector, /\[class\*="_fade"\]/, 'the selector is theirs, verbatim');
+		assert.match(rule.css, /background: none !important;/, 'the declaration block is theirs, verbatim');
+		assert.ok(rule.css.split('\n').length >= 4, 'and it is composed per scope, not once');
+
+		// Refusals, one piece at a time.
+		const devolved = write(bundle('background: none;'));
+		assert.throws(() => pluginFadeRule({ DSH_SKIN_CENTER: devolved }), /lost !important/,
+			'a rule that dropped !important changes the cascade answer and must not be measured silently');
+		const shapeless = write('nothing to see here');
+		assert.throws(() => pluginFadeRule({ DSH_SKIN_CENTER: shapeless }), /ACTIVE_VISUAL_SELECTOR|scoped\(\)/,
+			'a bundle whose shape moved must be refused, not composed from nothing');
+		const err = (() => { try { pluginFadeRule({ DSH_SKIN_CENTER: path.join(dir, 'nope', 'client.js') }); return null; } catch (e) { return e; } })();
+		assert.ok(err && err.environment, 'an uninstalled plugin is an ENVIRONMENT skip, not a claim about coexistence');
+		assert.match(err.message, /NOT evidence that nobody else addresses _fade/,
+			'the skip has to refuse the wrong conclusion in writing');
+	} finally {
+		fs.rmSync(dir, { recursive: true, force: true });
+	}
+});
+
+test('issue #105 (live): two plugins, one face — measured, not argued', { skip: RUN_COEXIST ? false : coexistSkipWhy }, () => {
+	const r = measureCoexist();
+	assert.ok(r.ran, `the coexistence page must run: ${r.why || r.error}`);
+	assert.match(r.provenance || '', new RegExp(SKIN_CENTER_PKG.replace('/', '\\/')), 'the verdict names whose rule was measured');
+	assert.deepEqual(checkCoexistReadings(r.readings), []);
+	const byState = Object.fromEntries(r.readings.map((x) => [x.state, x]));
+	// The two readings the whole issue turns on, quoted rather than summarised: our rule is
+	// a normal declaration (the inline sentinel survives it), theirs is an !important one
+	// (the sentinel loses), and the face the user sees is neutralised either way.
+	assert.equal(byState.wash.probeBg, 'rgb(1, 2, 3)', 'our declaration is NOT !important — inline still wins over it');
+	assert.equal(byState.coexist.probeBg, 'rgba(0, 0, 0, 0)', 'their !important lane takes the element even from an inline style');
+	assert.equal(byState.coexist.realBg, 'none', 'and the band is gone in either world');
+	assert.equal(byState['their-only'].wash, false, 'the last state is genuinely without our wash');
+	assert.match(byState.coexist.chatMask, /linear-gradient/, 'their broader operator reaches the chat masks and does NOT break them');
+});
+
+test('mutation: with our fade declaration gone the coexistence band comes back', { skip: RUN_COEXIST ? false : coexistSkipWhy }, () => {
+	// The coexistence readings have to be caused by OUR shipped declaration, not by the other
+	// plugin happening to paint the same nothing. Remove only `background: transparent` from
+	// the wash-gated fade rule and re-measure: the band must survive our own wash state while
+	// their !important rule still holds the probe down — which is also how we know the
+	// attribution line is reading THEIR lane and not ours.
+	const parts = buildCoexistFixture();
+	const material = parts.material.replace(/(\[class\$="_fade"\][^{]*\{)([^}]*)\}/,
+		(m, head, body) => head + body.replace(/background:\s*transparent;/, '') + '}');
+	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
+	const r = measureCoexist({ parts: { ...parts, material } });
+	assert.ok(r.ran && !r.error, `the mutated page must still read: ${r.why || r.error}`);
+	const byState = Object.fromEntries(r.readings.map((x) => [x.state, x]));
+	assert.match(byState.wash.realBg, /linear-gradient/, 'without our declaration the host band survives our own wash');
+	assert.equal(byState.coexist.probeBg, 'rgba(0, 0, 0, 0)', 'their lane still wins the probe — the attribution was not reading our rule');
 });
