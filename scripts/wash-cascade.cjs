@@ -180,8 +180,7 @@ function stripDeclaration(css, prop) {
  * fixture hands-writes `bhn1Oq_fade` / `O_Ebla_fadeTop`: a hash re-roll would then leave
  * the page measuring a class nobody renders while every reading still "passed". Deriving
  * them means a re-roll breaks the fixture LOUDLY (no rule to derive from) instead of
- * quietly. The frame/center-column names stay pinned for now — that half is the #96 rule,
- * whose anchor is the `data-shell-overlay` stamp rather than a class.
+ * quietly.
  */
 function hostFadeClasses(parts) {
 	const fade = parts.fade.match(/(?:^|[},])\.([A-Za-z0-9_-]*_fade)\s*\{/);
@@ -193,6 +192,31 @@ function hostFadeClasses(parts) {
 		throw new Error('the host chat CSS carries no `.<token>_fadeTop {` rule — the collateral half of the check would be protecting nothing');
 	}
 	return { fadeClass: fade[1], chatClass: chat[1] };
+}
+
+/**
+ * 10.9.1 — the three AppFrame names, derived the same way, and this half is not cosmetic.
+ * Our own rule reaches the frame STRUCTURALLY (`div:has(> [data-shell-overlay])`), so a
+ * stale hand-copied class would not break OUR rule — it would break the HOST's, and the
+ * page would then measure "our declaration cleared nothing" while still reading
+ * `rgba(0, 0, 0, 0)` and calling that a pass. That is issue #97's shape one level up: a
+ * fixture whose target quietly vanished. `docs/desktop-support.md` boundary ⑤ used to name
+ * these two (`pI_x6G_frame` / `pI_x6G_centerCol`) as the last hand-writes in the page.
+ */
+function hostLayoutClasses(parts) {
+	if (!parts.layout) throw new Error('no host layout CSS to read the AppFrame classes from — build the fixture through buildFixture()');
+	const pick = (suffix, what) => {
+		const hit = parts.layout.match(new RegExp('(?:^|[},])\\.([A-Za-z0-9_-]*)_' + suffix + '\\s*\\{'));
+		if (!hit) {
+			throw new Error(`the host layout CSS carries no \`.<token>_${suffix} {\` rule — the fixture would have to INVENT the ${what} it claims to measure`);
+		}
+		return hit[1] + '_' + suffix;
+	};
+	return {
+		frameClass: pick('frame', 'frame whose ::before paints the caption row'),
+		centerColClass: pick('centerCol', 'content corner issue #96 flattens'),
+		sidebarColClass: pick('sidebarCol', 'sidebar column that must survive untouched')
+	};
 }
 
 /**
@@ -240,48 +264,72 @@ function buildFixture(opts = {}) {
 	const classes = hostFadeClasses(parts);
 	parts.fadeClass = classes.fadeClass;
 	parts.chatClass = classes.chatClass;
+	const frame = hostLayoutClasses(parts);
+	parts.frameClass = frame.frameClass;
+	parts.centerColClass = frame.centerColClass;
+	parts.sidebarColClass = frame.sidebarColClass;
 	return parts;
 }
 
 /** The page: host chrome on top, plugin sheet above it, three samples taken in one task. */
 function fixtureHtml(parts) {
-	// The fade / chat classes are the ones just read out of the host CSS (issue #105).
-	// Deliberately NO remembered fallback: a page built without the derivation would be a page
-	// measuring a class nobody renders, and that is the failure this change removes.
+	// The fade / chat classes are the ones just read out of the host CSS (issue #105), and so
+	// are the three AppFrame names (10.9.1). Deliberately NO remembered fallback: a page
+	// built without the derivation would be a page measuring a class nobody renders, and that
+	// is the failure this change removes.
 	if (!parts.fadeClass || !parts.chatClass) {
 		throw new Error('the host fade/chat classes were not derived from the host CSS — build the fixture through buildFixture()');
+	}
+	if (!parts.frameClass || !parts.centerColClass || !parts.sidebarColClass) {
+		throw new Error('the host AppFrame classes were not derived from the host CSS — build the fixture through buildFixture()');
 	}
 	const fadeClass = parts.fadeClass;
 	const chatClass = parts.chatClass;
 	const inJs = JSON.stringify('.' + fadeClass);
 	const inJsChat = JSON.stringify('.' + chatClass);
+	const inJsCenter = JSON.stringify('.' + parts.centerColClass);
+	const inJsSidebar = JSON.stringify('.' + parts.sidebarColClass);
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <style>:root{--dsw-alias-bg-base:#101018;--dsw-specific-sidebar-fill:rgba(16,16,24,.75);--dsw-alias-bg-layer-2:rgba(22,22,28,.92);--dsh-session-list-edge-inset:8px;--dsh-windows-titlebar-height:34px}</style>
 <style>${parts.layout}
 ${parts.fade}
 ${parts.chat}</style>
+<style id="fixture-chrome">#sidebar-fill-ref{position:fixed;left:-9999px;top:0;width:1px;height:1px;background:var(--dsw-specific-sidebar-fill)}</style>
 <style id="plugin-material">${parts.material}</style>
 </head><body>
-<div class="pI_x6G_frame" data-shell-frame>
-  <div data-shell-overlay>titlebar</div>
-  <div class="pI_x6G_centerCol">
+<div class="${parts.frameClass}" data-shell-frame>
+  <div class="${parts.sidebarColClass}">sidebar column</div>
+  <div class="${parts.centerColClass}">
     <span class="${fadeClass}">fade</span>
     <div class="${chatClass}">chat scroll mask</div>
   </div>
+  <div data-shell-overlay>titlebar</div>
 </div>
+<i id="sidebar-fill-ref"></i>
 <script>
 (function () {
   var frame = document.querySelector('[data-shell-frame]');
-  var col = document.querySelector('.pI_x6G_centerCol');
+  var col = document.querySelector(${inJsCenter});
+  var sidebarCol = document.querySelector(${inJsSidebar});
+  var ref = document.getElementById('sidebar-fill-ref');
   var fade = document.querySelector(${inJs});
   var chat = document.querySelector(${inJsChat});
   var WASH = 'data-dsh-dream-skin-wash';
   var out = [];
   function sample(label) {
+    // The caption row is a PSEUDO-ELEMENT of the frame, not the frame: a separate box with
+    // its own paint, and a background-color set on the element does not reach it. Reading
+    // getComputedStyle(frame) — all this page used to sample — therefore says nothing about
+    // the strip across the top of the window.
+    var strip = getComputedStyle(frame, '::before');
     out.push({
       state: label,
       corner: getComputedStyle(col).borderTopLeftRadius,
       frameFill: getComputedStyle(frame).backgroundColor,
+      stripFill: strip.backgroundColor,
+      stripRegion: strip.webkitAppRegion || strip.getPropertyValue('-webkit-app-region').trim(),
+      sidebarColFill: getComputedStyle(sidebarCol).backgroundColor,
+      refFill: getComputedStyle(ref).backgroundColor,
       fadeBg: fade ? getComputedStyle(fade).backgroundImage : null,
       fadeMask: fade ? getComputedStyle(fade).maskImage : null,
       chatMask: chat ? getComputedStyle(chat).maskImage : null
@@ -843,6 +891,11 @@ const WASH_CHECKS = [
 	{ id: 'corner-restored', group: 'corner', msg: 'washed-again: removing the wash must restore 16px', ok: (plain, wash, again) => again.corner === '16px' },
 	{ id: 'frame-fill-dropped', group: 'corner', msg: 'wash: the frame fill must be dropped', ok: (plain, wash) => wash.frameFill === 'rgba(0, 0, 0, 0)' },
 	{ id: 'frame-fill-kept', group: 'corner', msg: 'plain: without a wash the frame must keep its own fill', ok: (plain) => plain.frameFill !== 'rgba(0, 0, 0, 0)' },
+	{ id: 'caption-paints', group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the two checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
+	{ id: 'caption-cleared', group: 'corner', msg: 'wash: that pseudo-element paint must go with the frame’s own — it is the one chrome surface sitting across the whole window in the SIDEBAR colour, over a centre column that paints the canvas colour', ok: (plain, wash) => wash.stripFill === 'rgba(0, 0, 0, 0)' },
+	{ id: 'caption-restored', group: 'corner', msg: 'washed-again: with no wallpaper the host caption row comes back exactly as it shipped', ok: (plain, wash, again) => again.stripFill === plain.stripFill },
+	{ id: 'caption-still-drags', group: 'corner', msg: 'both states: clearing the paint must not clear -webkit-app-region — that strip is how the window is dragged, and a wallpaper may not cost the user the drag. EQUALITY, not "contains drag": the engine normalizes `none` to `no-drag`, which a substring test happily accepts (measured)', ok: (plain, wash) => plain.stripRegion === 'drag' && wash.stripRegion === 'drag' },
+	{ id: 'sidebar-column-untouched', group: 'corner', msg: 'wash: the sidebar column keeps the paint the host gave it (this flattens the frame, not the column) — if this reading moves, the 侧边栏透明度 slider has silently changed meaning between shells', ok: (plain, wash) => wash.sidebarColFill === plain.sidebarColFill && plain.sidebarColFill === plain.refFill },
 	{ id: 'fade-paints', group: 'fade', msg: 'plain: the host fade must really paint, else the check below is vacuous', ok: (plain) => /linear-gradient/.test(plain.fadeBg || '') },
 	{ id: 'fade-neutralised', group: 'fade', msg: 'wash: issue #97 wants the foot-fade band neutralised', ok: (plain, wash) => wash.fadeBg === 'none' },
 	{ id: 'chat-mask-present', group: 'fade', msg: 'plain: the chat scroll mask must exist in the page', ok: (plain) => /linear-gradient/.test(plain.chatMask || '') },
@@ -903,7 +956,7 @@ module.exports = {
 	fixtureHtml, desktopFixtureHtml, coexistFixtureHtml,
 	checkDesktopReadings, checkCoexistReadings, COEXIST_CHECKS, cssAlpha, skinTokens, DESKTOP_SKINS,
 	DESKTOP_SWEEP, browserAttempts, stripDeclaration, checkReadings, WASH_CHECKS, WASH_GROUPS,
-	hostCss, hostSidebarConsumer, hostFadeClasses, pluginFadeRule, SKIN_CENTER_PKG,
+	hostCss, hostSidebarConsumer, hostFadeClasses, hostLayoutClasses, pluginFadeRule, SKIN_CENTER_PKG,
 	DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, HOST_PACKAGES, DEFAULT_HOST_ROOT,
 	probeBrowser, gradeStage, environmentError, runChrome
 };

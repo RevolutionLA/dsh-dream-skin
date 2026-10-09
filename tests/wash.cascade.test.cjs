@@ -36,7 +36,7 @@ const {
 	DESKTOP_SKINS, DESKTOP_SWEEP, DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, browserAttempts,
 	probeBrowser, gradeStage, runChrome, environmentError,
 	measureCoexist, buildCoexistFixture, checkCoexistReadings, COEXIST_CHECKS,
-	hostFadeClasses, pluginFadeRule, SKIN_CENTER_PKG
+	hostFadeClasses, hostLayoutClasses, pluginFadeRule, SKIN_CENTER_PKG
 } = require('../scripts/wash-cascade.cjs');
 
 // Issue #102: "a browser binary exists" is NOT "an engine can be run here". The review
@@ -263,7 +263,8 @@ test('the verdict table claims every reading, and each claim is in a named issue
 	// split-brain this table exists to prevent, in a new costume.
 	const groups = [...new Set(WASH_CHECKS.map((c) => c.group))].sort();
 	assert.deepEqual(groups, [...WASH_GROUPS].sort(), 'every declared group has a check, and every check sits in a declared group');
-	assert.deepEqual(groups, ['corner', 'desktop', 'fade'], 'the groups are #96 (corner), #97 (fade) and #99 (desktop) — a new issue adds a group HERE');
+	assert.deepEqual(groups, ['corner', 'desktop', 'fade'],
+		'the groups are #96 (corner: the frame, its content corner and its caption ::before), #97 (fade) and #99 (desktop) — a new issue adds a group HERE');
 	for (const check of WASH_CHECKS) {
 		assert.ok(WASH_GROUPS.includes(check.group), `${check.id} claims an unknown group ${check.group}`);
 		assert.ok(typeof check.ok === 'function' && check.msg, `${check.id} needs both a predicate and a message`);
@@ -318,24 +319,54 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	// the PLAIN state is. A predicate written as `ok: (w) => …` really receives the plain
 	// sample (the call passes plain/wash/again positionally), and that bug is invisible if
 	// both fixtures are uniform. Split the two halves and the arg order is pinned.
-	const UNWASHED = { corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)' };
-	const WASHED = { corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)' };
+	const UNWASHED = {
+		corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
+		stripFill: 'rgba(16, 16, 24, 0.75)', stripRegion: 'drag', sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+	};
+	const WASHED = {
+		corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
+		stripFill: 'rgba(0, 0, 0, 0)', stripRegion: 'drag', sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+	};
 	const HOST_GROUPS = ['corner', 'fade'];
 	const ids = (problems) => problems.map((p) => p.split(':')[0]).sort();
 
 	assert.deepEqual(ids(checkReadings([UNWASHED, UNWASHED, UNWASHED], HOST_GROUPS)),
-		['corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
-		'a wash that changes nothing must report exactly the three wash-side checks');
+		['caption-cleared', 'corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
+		'a wash that changes nothing must report exactly the four wash-side checks');
 
 	assert.deepEqual(ids(checkReadings([WASHED, WASHED, UNWASHED], HOST_GROUPS)),
-		['corner-host-own', 'fade-paints', 'frame-fill-kept'],
-		'a plain state that already looks washed must report the three plain-side checks instead — and proves no wash check is quietly reading the plain sample');
+		['caption-paints', 'caption-restored', 'corner-host-own', 'fade-paints', 'frame-fill-kept'],
+		'a plain state that already looks washed must report the plain-side and restore-side checks instead — and proves no wash check is quietly reading the plain sample');
 
 	// The restore half is its own sample: if `washed-again` is not read, a rule that
 	// permanently restyles the host would pass as "the wash works".
-	assert.deepEqual(ids(checkReadings([UNWASHED, WASHED, WASHED], HOST_GROUPS)), ['corner-restored'],
-		'a corner stuck at 0px after the wash leaves is the only new complaint');
+	assert.deepEqual(ids(checkReadings([UNWASHED, WASHED, WASHED], HOST_GROUPS)), ['caption-restored', 'corner-restored'],
+		'a corner AND a caption row stuck at the washed value after the wash leaves are the only new complaints');
 	assert.deepEqual(checkReadings([UNWASHED, WASHED, UNWASHED], HOST_GROUPS), [], 'the healthy trio reads no problems at all');
+
+	// 10.9.1 — each new caption claim gets its OWN breakage, so a check cannot ride along on
+	// another one's failure. Written against synthetic rows on purpose: these four run in CI,
+	// where the browser half skips. `'no-drag'` is what the engine really answers for `none`:
+	// the FIRST version of `caption-still-drags` tested "contains drag" and stayed green
+	// through a mutation that genuinely stole the drag region — caught by running the
+	// mutation, not by reading the check.
+	const cornerTrio = (flag) => {
+		const plain = { ...UNWASHED }, wash = { ...WASHED }, again = { ...UNWASHED };
+		if (flag === 'stripSurvives') wash.stripFill = plain.stripFill;
+		if (flag === 'dragGone') wash.stripRegion = 'no-drag';
+		if (flag === 'columnMoved') wash.sidebarColFill = 'rgba(0, 0, 0, 0)';
+		if (flag === 'hostNeverPainted') { plain.stripFill = 'rgba(0, 0, 0, 0)'; again.stripFill = 'rgba(0, 0, 0, 0)'; }
+		return [plain, wash, again];
+	};
+	for (const [flag, want] of [
+		['stripSurvives', ['caption-cleared']],
+		['dragGone', ['caption-still-drags']],
+		['columnMoved', ['sidebar-column-untouched']],
+		['hostNeverPainted', ['caption-paints']]
+	]) {
+		assert.deepEqual(ids(checkReadings(cornerTrio(flag), ['corner'])), want,
+			`${flag}: the caption claims must name their own failure mode, nothing else`);
+	}
 	assert.deepEqual(checkReadings([]), ['expected the three states plain/wash/washed-again, got 0'],
 		'a short sampling is a problem, not an empty pass');
 
@@ -626,6 +657,80 @@ test('mutation: removing the fade rule brings the band back in the same engine',
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const wash = r.readings.find((x) => x.state === 'wash');
 	assert.match(wash.fadeBg, /linear-gradient/, 'without the hash-free rule the band survives the wash — so the `none` above was our rule');
+});
+
+// ── 10.9.1: the caption row is a second box, and the fixture now reads it ─
+
+const STRIP_RULE_RE = /html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*\}/g;
+
+test('mutation: with the caption ::before rule gone the strip paints through the wash again', { skip: RUN ? false : skipWhy }, () => {
+	// The proof that the transparent reading above is our doing. Delete ONLY the pseudo-element
+	// rule and leave the element rule in place — the failure mode worth isolating is "the frame
+	// is cleared, and somebody reads that as the strip being cleared too", which is exactly the
+	// mistake the 10.9.0 sheet made.
+	const parts = buildFixture();
+	const material = parts.material.replace(STRIP_RULE_RE, '');
+	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
+	assert.ok(!/wash\][^{}]*::before/.test(material),
+		'the caption rule really went away (the sheet keeps other ::before rules — the composer glass has one — so this names ours, not the spelling)');
+	assert.match(material, /html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\] div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*--dsh-windows-content-radius/,
+		'the frame rule is still in the mutated sheet — this mutation isolates the pseudo-element only');
+	const r = measure({ parts: { ...parts, material } });
+	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
+	const readings = r.readings;
+	const ids = checkReadings(readings, ['corner']).map((p) => p.split(':')[0]);
+	assert.deepEqual(ids, ['caption-cleared'],
+		'the caption is the ONLY thing this mutation breaks: the corner, the frame fill and the sidebar column must all still read as fixed');
+	const wash = readings.find((x) => x.state === 'wash');
+	assert.equal(wash.stripFill, wash.refFill,
+		'without our rule the host caption row paints the sidebar token straight through the wash — that IS the band the report circles');
+});
+
+test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, not the mechanism', { skip: RUN ? false : skipWhy }, () => {
+	// Stated the other way round from issue #99's case on purpose. There, `!important` was
+	// load-bearing: the shell outranked us (0,3,1) against (0,2,1) and dropping the flag
+	// repainted the column. Here the arithmetic is the reverse — (0,3,3) against the host's
+	// (0,2,1) — so the engine must STILL clear the strip with the flag removed. If this ever
+	// reddens, the specificity claim in lib/client.js is wrong and the comment above the rule
+	// has to be re-measured before anyone repeats it.
+	const parts = buildFixture();
+	const material = parts.material.replace(
+		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background-color: transparent)\s*!important/, '$1');
+	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
+	assert.match(material, /::before[^{]*\{[^}]*background-color: transparent;/, 'the declaration is still there, only unflagged');
+	const r = measure({ parts: { ...parts, material } });
+	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
+	const wash = r.readings.find((x) => x.state === 'wash');
+	assert.equal(wash.stripFill, 'rgba(0, 0, 0, 0)',
+		'the selector alone beats the host rule — which is why the flag guards a different case (an inline stamp), not this one');
+});
+
+test('the AppFrame class names are DERIVED from the host CSS, and a re-roll stops the fixture', () => {
+	// 10.9.1 closes the last two hand-written class names in this page (docs boundary ⑤ named
+	// `pI_x6G_frame` / `pI_x6G_centerCol`). The reason is not tidiness: our rule reaches the
+	// frame STRUCTURALLY, so a stale name would not break our rule — it would break the HOST's,
+	// and the page would then read `rgba(0, 0, 0, 0)` for a strip that nothing ever painted.
+	const layout = '.AAA_frame{background:red}[data-windows-titlebar] .AAA_frame{--dsh-windows-content-radius:16px}'
+		+ '.AAA_centerCol{border-radius:0}.AAA_sidebarCol{background:red}';
+	assert.deepEqual(hostLayoutClasses({ layout }),
+		{ frameClass: 'AAA_frame', centerColClass: 'AAA_centerCol', sidebarColClass: 'AAA_sidebarCol' },
+		'the three names come out of the CSS text as authored');
+	for (const [drop, name] of [
+		[/\.AAA_frame\{[^}]*\}/, 'frame'],
+		[/\.AAA_centerCol\{[^}]*\}/, 'center column'],
+		[/\.AAA_sidebarCol\{[^}]*\}/, 'sidebar column']
+	]) {
+		const trimmed = layout.replace(drop, '');
+		assert.notEqual(trimmed, layout, `the trim for ${name} has to actually remove something`);
+		assert.throws(() => hostLayoutClasses({ layout: trimmed }), /would have to INVENT/,
+			`losing the ${name} rule must stop the build instead of measuring a class nobody renders`);
+	}
+	assert.throws(() => hostLayoutClasses({}), /no host layout CSS/);
+	// A re-rolled hash is the case the derivation EXISTS for: the names move, the fixture
+	// follows, and nothing is remembered. What must stop the build is the rule disappearing.
+	assert.deepEqual(hostLayoutClasses({ layout: layout.split('AAA_').join('BBB_panel_') }),
+		{ frameClass: 'BBB_panel_frame', centerColClass: 'BBB_panel_centerCol', sidebarColClass: 'BBB_panel_sidebarCol' },
+		'a fresh hash on the same families re-derives cleanly — that is the point of reading them out of the CSS');
 });
 
 // ── issue #105: two plugins, one face ─────────────────────────────────────

@@ -3163,6 +3163,22 @@ test('sidebar fill leak: the Windows title-bar frame stops painting the chat are
 		'the corner is flattened via the host variable only — a border-radius here would miss the right panel and bet on a hash');
 	const ungatedRadius = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*div:has\(> \[data-shell-overlay\]\)\s*\{[^}]*--dsh-windows-content-radius/);
 	assert.equal(ungatedRadius, null, 'a wallpaper-less profile keeps the stock 16px corner');
+
+	// 10.9.1 — the caption row is the frame's `::before`: a SEPARATE box, and a
+	// background-color set on the element does not reach it. The two rules above left it
+	// painting `--dsw-specific-sidebar-fill` across the full window width under a wash — the
+	// band the report circles — so it needs a rule of its own, and that rule must stay out of
+	// the drag geometry the same pseudo-element carries.
+	assert.ok(!/::before/.test(rule[0]),
+		'the element rule is its own block — a merged selector list would let one declaration read as covering both boxes');
+	const strip = css.match(/html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{]*div:has\(> \[data-shell-overlay\]\)::before\s*\{[^}]*\}/);
+	assert.ok(strip, 'the caption row gets its OWN wash-gated rule (a pseudo-element inherits no declaration from its owner’s block)');
+	assert.ok(/background-color:\s*transparent\s*!important/.test(strip[0]),
+		'the caption paint is dropped while a wash is live');
+	assert.ok(!/app-region/.test(strip[0]),
+		'the rule touches the paint only — -webkit-app-region stays the host’s, or the window stops being draggable');
+	const ungatedStrip = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*\[data-shell-overlay\]\)::before/);
+	assert.equal(ungatedStrip, null, 'a wallpaper-less profile keeps the stock caption row');
 });
 
 test('issue #97: the session-list foot fade is neutralised under a wash through a hash-free anchor', () => {

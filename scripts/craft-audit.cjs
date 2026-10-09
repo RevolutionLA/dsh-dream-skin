@@ -35,7 +35,13 @@
  *                         the host's content corner — through the host's own
  *                         variable, `!important` (the one cascade case no string
  *                         gate can see), and only while the wash marker is live
- *                         (issue #96)
+ *                         (issue #96) — and the caption row the frame paints
+ *                         through its `::before` must be cleared by a rule of its
+ *                         own, because a pseudo-element inherits no declaration
+ *                         from its owning element's block. Nothing in the sheet
+ *                         may declare `-webkit-app-region`: the strip is how the
+ *                         window is dragged, and dropping its paint must not drop
+ *                         that (10.9.1)
  *   wash-fade-neutralised EVERY rule naming a `_fade` token, hash spelling
  *                         included, must be wash-gated, must travel with a
  *                         hash-free anchor in the same selector, and must
@@ -883,15 +889,22 @@ function auditCraft(source) {
 		strayBlur.length ? `undocumented blur radius: ${strayBlur.join(' | ')}`
 			: `hardcoded radii are the ${BLUR_CONSTANTS.join('/')}px material constants; everything else follows the skin`);
 
-	// ---- 6. the wash state owns the two corners it exposes -------------------
-	// Both rules exist because a wallpaper makes host chrome visible that the skin
+	// ---- 6. the wash state owns the three chrome faces it exposes ---------------
+	// All three exist because a wallpaper makes host chrome visible that the skin
 	// otherwise covers. They are graded on DECLARATIONS, not on a selector string
 	// existing: issue #97 is precisely a rule whose selector survived every test
 	// while matching nothing.
 	{
 		const problems = [];
 		const isWashGated = (sel) => /data-dsh-dream-skin-wash/.test(sel);
-		const frameRule = blocks.find((b) => isWashGated(b.selector) && /:has\(\s*>\s*\[data-shell-overlay\]\s*\)/.test(b.selector));
+		const onFrame = (sel) => /:has\(\s*>\s*\[data-shell-overlay\]\s*\)/.test(sel);
+		// The pseudo-element block is a DIFFERENT box with a different answer, so it must not
+		// be allowed to satisfy the element's checks (or be satisfied by them). Matching the
+		// anchor is not matching the target: `blocks.find` returns the first hit, and without
+		// this split the frame rule and its `::before` were interchangeable to the grader —
+		// deleting either one could leave the gate green.
+		const isPseudo = (sel) => /::?[a-z-]*before|::?[a-z-]*after/.test(sel);
+		const frameRule = blocks.find((b) => isWashGated(b.selector) && onFrame(b.selector) && !isPseudo(b.selector));
 		if (!frameRule) {
 			problems.push('no wash-gated AppFrame rule — neither the frame fill nor the content corner is owned');
 		} else {
@@ -908,9 +921,28 @@ function auditCraft(source) {
 				&& b.decls.some((d) => d.prop === '--dsh-windows-content-radius'));
 			if (ungated.length) problems.push(`radius reset is not wash-gated (${ungated[0].selector.slice(0, 48)})`);
 		}
+		// The caption row. `background-color` on the frame does not reach `::before`, so this
+		// half needs a rule of its own; the host paints the sidebar token there across the
+		// whole window width (`[data-windows-titlebar] .<hash>_frame:before`, byte-identical
+		// in npm 0.2.0-rc.1's layout package and in the official DSH Desktop's bundle).
+		const stripRule = blocks.find((b) => isWashGated(b.selector) && onFrame(b.selector) && /::?[a-z-]*before/.test(b.selector));
+		if (!stripRule) {
+			problems.push('no wash-gated rule for the frame’s ::before — the caption row keeps painting the sidebar token across the top of the window');
+		} else {
+			const props = new Map(stripRule.decls.map((d) => [d.prop, d.value]));
+			if (props.get('background-color') !== 'transparent !important') {
+				problems.push(`the caption row's paint is not cleared or not armed (got ${props.get('background-color') === undefined ? 'nothing' : props.get('background-color')})`);
+			}
+			for (const d of stripRule.decls) {
+				if (/app-region$/.test(d.prop)) problems.push(`the caption rule touches ${d.prop} — that declaration is how the window is dragged`);
+			}
+			if (!isWashGated(stripRule.selector)) problems.push('the caption reset is not wash-gated');
+		}
+		const dragHits = blocks.filter((b) => b.decls.some((d) => /app-region$/.test(d.prop)));
+		if (dragHits.length) problems.push(`this sheet declares an app-region (${dragHits[0].selector.slice(0, 48)}) — no plugin rule may claim the drag geometry`);
 		push('wash-frame-flattened', problems.length === 0,
 			problems.length ? problems.join('; ')
-				: 'under a wash the frame fill is dropped and the host content corner is flattened through the host variable');
+				: 'under a wash the frame fill is dropped, the host content corner is flattened through the host variable, and the caption row’s own paint goes with it — without touching the drag region');
 	}
 
 	// ---- 7. the session-list foot fade cannot paint a band under a wash ------
