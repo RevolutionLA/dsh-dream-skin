@@ -38,8 +38,12 @@
  *                         (issue #96) — and the caption row the frame paints
  *                         through its `::before` must be cleared by a rule of its
  *                         own, because a pseudo-element inherits no declaration
- *                         from its owning element's block. Nothing in the sheet
- *                         may declare `-webkit-app-region`: the strip is how the
+ *                         from its owning element's block. That rule is graded by
+ *                         WHITELIST over every wash-gated pseudo block in the
+ *                         sheet (exactly one declaration, and it must be the
+ *                         `background` shorthand clearing the paint), not by a
+ *                         property blacklist. Nothing in the sheet may declare
+ *                         `-webkit-app-region`: the strip is how the
  *                         window is dragged, and dropping its paint must not drop
  *                         that (10.9.1)
  *   wash-fade-neutralised EVERY rule naming a `_fade` token, hash spelling
@@ -897,7 +901,12 @@ function auditCraft(source) {
 	{
 		const problems = [];
 		const isWashGated = (sel) => /data-dsh-dream-skin-wash/.test(sel);
-		const onFrame = (sel) => /:has\(\s*>\s*\[data-shell-overlay\]\s*\)/.test(sel);
+		// Adjudication J1 (third-party T3): "a :has() that names the shell's own stamp", not one
+		// exact spelling of `:has(> [data-shell-overlay])`. The strict pattern made this gate bet on
+		// our own selector staying unchanged — a rewrite that drops the child combinator or adds a
+		// second condition falls out of the candidate set, and the gate then grades a rule that no
+		// longer exists while the real one goes unexamined.
+		const onFrame = (sel) => /:has\([^)]*\[data-shell-overlay\]/.test(sel);
 		// The pseudo-element block is a DIFFERENT box with a different answer, so it must not
 		// be allowed to satisfy the element's checks (or be satisfied by them). Matching the
 		// anchor is not matching the target: `blocks.find` returns the first hit, and without
@@ -925,32 +934,36 @@ function auditCraft(source) {
 		// half needs a rule of its own; the host paints the sidebar token there across the
 		// whole window width (`[data-windows-titlebar] .<hash>_frame:before`, byte-identical
 		// in npm 0.2.0-rc.1's layout package and in the official DSH Desktop's bundle).
-		const stripRule = blocks.find((b) => isWashGated(b.selector) && onFrame(b.selector) && /::?[a-z-]*before/.test(b.selector));
-		if (!stripRule) {
+		//
+		// WHITELIST, applied to EVERY wash-gated pseudo-element block in the sheet — not a
+		// `blocks.find` on one anchor plus a blacklist of four property names. Adjudication J1
+		// (T1/T3/T6): the first version graded the FIRST block that matched, so a second
+		// wash-gated pseudo rule could carry anything at all, and the blacklist only banned the
+		// four names someone thought of. A `transform: translateY(-34px)` or `inset: -9999px`
+		// moves the caption box off the top of the window while every computed reading the engine
+		// gate takes (fill, image, content, app-region) stays green — the box is dragged away, not
+		// un-generated. Anything that is not exactly one `background` paint-clear is therefore out.
+		const pseudo = blocks.filter((b) => isWashGated(b.selector) && isPseudo(b.selector));
+		if (!pseudo.some((b) => onFrame(b.selector) && /::?[a-z-]*before/.test(b.selector))) {
 			problems.push('no wash-gated rule for the frame’s ::before — the caption row keeps painting the sidebar token across the top of the window');
-		} else {
-			const props = new Map(stripRule.decls.map((d) => [d.prop, d.value]));
-			if (props.get('background') !== 'transparent !important') {
-				problems.push(`the caption row's paint is not cleared or not armed (got ${props.get('background') === undefined ? 'nothing' : props.get('background')})`);
+		}
+		for (const b of pseudo) {
+			const where = b.selector.slice(0, 52);
+			if (b.decls.length !== 1) {
+				problems.push(`the wash-gated pseudo-element rule (${where}) declares ${b.decls.length} properties — this reset is exactly one, and only a count catches a property nobody blacklisted`);
+				continue;
+			}
+			const d = b.decls[0];
+			if (d.prop.toLowerCase() !== 'background') {
+				problems.push(`the wash-gated pseudo-element rule (${where}) declares ${d.prop} — only the paint may be touched; this one declaration owns background-color, background-image AND background-position, so no longhand is needed and nothing else is`);
+				continue;
 			}
 			// The SHORTHAND is the requirement, not a style preference: a `background-color`
 			// longhand leaves any `background-image` standing, and the flat colour this rule
 			// answers today is exactly the kind of declaration a future host upgrades to a
 			// gradient (issue #97 is that story already, on a different surface).
-			if (props.has('background-color') && !props.has('background')) {
-				problems.push('the caption reset is a background-color longhand — a gradient on that strip would survive it');
-			}
-			// The box, not just the colour. `-webkit-app-region` lives on the pseudo-element's
-			// BOX, and a box that is not generated has no drag region — yet its COMPUTED
-			// app-region still reads `drag` (measured in the engine: `content: none` here keeps
-			// reporting drag). So the property list is a denylist on purpose: any of these four
-			// in this rule can remove the box while every computed reading the gate takes stays
-			// green. Blue-team B1 found exactly this hole in the first version of this check.
-			for (const d of stripRule.decls) {
-				if (/app-region$/.test(d.prop)) problems.push(`the caption rule touches ${d.prop} — that declaration is how the window is dragged`);
-				if (/^(content|display|visibility|all)$/.test(d.prop)) {
-					problems.push(`the caption rule declares ${d.prop} — that can un-generate the box, and the computed -webkit-app-region keeps reading "drag" through it`);
-				}
+			if (d.value !== 'transparent !important' && d.value !== 'none !important') {
+				problems.push(`the caption row's paint is not cleared or not armed (got ${d.value}) — a wash retint is a different decision, and without the flag an inline stamp on the host side wins`);
 			}
 		}
 		const dragHits = blocks.filter((b) => b.decls.some((d) => /app-region$/.test(d.prop)));

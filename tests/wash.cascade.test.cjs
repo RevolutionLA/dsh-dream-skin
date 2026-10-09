@@ -256,6 +256,26 @@ test('issue #102: the CLI exits 3 when it could not run, and 3 is not 0', { skip
 	}
 });
 
+/**
+ * A corner page with no wash, and the same page washed (issue #96/#97/10.9.1). Shared by the two
+ * synthetic-verdict tests below, which are the CI half of the computed-style gate — on CI the
+ * engine half skips (393 pass / 11 skip), so these rows are what makes the verdict table
+ * falsifiable at all. They carry EVERY field the checks declare in `requires`: a row that lost one
+ * would now be reported as a broken checker, which is the point (J4).
+ */
+const UNWASHED = {
+	corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
+	stripFill: 'rgba(16, 16, 24, 0.75)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+};
+const WASHED = {
+	corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
+	stripFill: 'rgba(0, 0, 0, 0)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+};
+
 test('the verdict table claims every reading, and each claim is in a named issue group', () => {
 	// checkReadings is now the single source of the expected numbers (the CLI and both
 	// live tests grade it). That only helps if no check can fall between the two groups:
@@ -272,10 +292,15 @@ test('the verdict table claims every reading, and each claim is in a named issue
 	// The two fixtures sample different field names, so a group must never be run
 	// against the wrong page: checkReadings refuses an unknown group outright.
 	assert.match(checkReadings([{}, {}, {}], ['no-such-group'])[0], /unknown check group/);
-	assert.match(checkReadings([{}, {}, {}], ['desktop'])[0], /^desktop-underlay-painted:/,
-		'a desktop check run on readings that lack the field reports the mismatch instead of passing');
-	assert.match(checkReadings([{}, {}, {}], ['desktop'])[0], /readings \[\{\},\{\},\{\}\]\)/,
-		'the diagnostic names what was actually sampled, so a wrong-page run is readable rather than mysterious');
+	assert.match(checkReadings([{}, {}, {}], ['desktop'])[0], /^checker: desktop-underlay-painted/,
+		'a desktop check run on readings that lack the field reports a BROKEN CHECKER, not a verdict about the page');
+	assert.match(checkReadings([{}, {}, {}], ['desktop'])[0], /"surfaceBg"@plain/,
+		'and it names the field and the state, so a wrong-page run is readable rather than mysterious');
+	// The guard must not swallow the diagnostic for checks that DID sample their fields and then
+	// disagreed: the verdict failure still prints the readings it graded.
+	const row = { ...UNWASHED };
+	assert.match(checkReadings([row, row, row], ['corner'])[0], /readings \[/,
+		'a real verdict failure still names what was measured');
 });
 
 test('the desktop fixture refuses a page that could not fail', () => {
@@ -319,16 +344,7 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	// the PLAIN state is. A predicate written as `ok: (w) => …` really receives the plain
 	// sample (the call passes plain/wash/again positionally), and that bug is invisible if
 	// both fixtures are uniform. Split the two halves and the arg order is pinned.
-	const UNWASHED = {
-		corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
-		stripFill: 'rgba(16, 16, 24, 0.75)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
-		sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
-	};
-	const WASHED = {
-		corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
-		stripFill: 'rgba(0, 0, 0, 0)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
-		sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
-	};
+	// UNWASHED / WASHED are the module-level rows above (shared with the verdict-table test).
 	const HOST_GROUPS = ['corner', 'fade'];
 	const ids = (problems) => problems.map((p) => p.split(':')[0]).sort();
 
@@ -361,6 +377,14 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		if (flag === 'columnMoved') wash.sidebarColFill = 'rgba(0, 0, 0, 0)';
 		if (flag === 'columnNeverPainted') { plain.sidebarColFill = 'rgba(0, 0, 0, 0)'; wash.sidebarColFill = 'rgba(0, 0, 0, 0)'; }
 		if (flag === 'hostNeverPainted') { plain.stripFill = 'rgba(0, 0, 0, 0)'; again.stripFill = 'rgba(0, 0, 0, 0)'; }
+		// 10.9.1 J1 (adjudication, third-party T1/T6): a declaration that MOVES the caption box.
+		// The three rows below are the same mutation seen from three angles, and each of them
+		// leaves the paint, the image, the generated box and the computed app-region reading
+		// exactly as documented — which is why the drag promise needs a geometry reading and not
+		// only a property list.
+		if (flag === 'bandMoved') wash.stripTop = '-34px';
+		if (flag === 'bandTransformed') wash.stripTransform = 'matrix(1, 0, 0, 1, 0, -34)';
+		if (flag === 'bandUnshaped') { plain.stripHeight = '0px'; wash.stripHeight = '0px'; }
 		return [plain, wash, again];
 	};
 	for (const [flag, want] of [
@@ -368,12 +392,39 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		['imageSurvives', ['caption-image-cleared']],
 		['boxGone', ['caption-box-alive']],
 		['dragGone', ['caption-still-drags']],
+		['bandMoved', ['caption-band-anchored']],
+		['bandTransformed', ['caption-band-anchored']],
+		['bandUnshaped', ['caption-band-shaped']],
 		['columnMoved', ['sidebar-column-untouched']],
 		['columnNeverPainted', ['sidebar-column-paints']],
 		['hostNeverPainted', ['caption-paints']]
 	]) {
 		assert.deepEqual(ids(checkReadings(cornerTrio(flag), ['corner'])), want,
 			`${flag}: the caption claims must name their own failure mode, nothing else`);
+	}
+	// The geometry pair above reports ONE id each: the four paint/box/drag checks stay silent
+	// through a moved box. That is the whole reason they are not sufficient on their own, and it
+	// is written down here as a measured fact rather than as a paragraph in a document.
+	// J4 (third-party T2): `requires` is a guard, not documentation. A row that lost `stripTop`
+	// must not read as "geometry is fine" — `undefined === undefined` is a true statement about a
+	// page that samples nothing at all. The checker says so, and says it about itself.
+	const blind = cornerTrio('healthy').map((r) => { const c = { ...r }; delete c.stripTop; return c; });
+	const blindProblems = checkReadings(blind, ['corner']);
+	assert.equal(blindProblems.length, 2, `the two geometry checks complain and nothing else does, got: ${blindProblems.join(' | ')}`);
+	for (const p of blindProblems) {
+		assert.match(p, /^checker: /, 'a missing sampled field is a failure of the CHECKER, not a verdict about the page');
+		assert.match(p, /"stripTop"/, 'and it names the field it could not read');
+	}
+	// A check that declares no inputs is the same hole wearing a different hat, so the guard is
+	// graded on the guard: plant a check with an empty field list in the real table (WASH_CHECKS
+	// is the array the grader walks) and require it to be refused.
+	WASH_CHECKS.push({ id: 'no-fields', requires: [], group: 'corner', msg: 'planted check with an empty field list', ok: () => true });
+	try {
+		assert.match(checkReadings([UNWASHED, WASHED, UNWASHED], ['corner']).find((p) => p.startsWith('checker: no-fields')),
+			/^checker: no-fields/,
+			'a check with an undeclared field list is refused, so the guard cannot rot into "some checks are protected"');
+	} finally {
+		WASH_CHECKS.pop();
 	}
 	// `caption-image-cleared` is a guard against a FUTURE host shape, not a reading that can
 	// fail today: the host's caption row is a flat colour, so its computed background-image is
@@ -395,6 +446,54 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		'an empty group list selects zero checks, which must not read as a pass');
 	assert.match(checkReadings([UNWASHED, WASHED, UNWASHED], 'corner')[0], /NON-EMPTY ARRAY/,
 		'the legacy single-string form is rejected too — silently ignoring it would grade nothing');
+});
+
+// ── J4: the field list is graded against the fixture SOURCE, where CI can see it ──
+
+/**
+ * WHY THIS HALF IS A STRING GATE. The `checker:` guard above only fires when the engine actually
+ * runs — and on CI it does not (the shape there is 393 pass / 11 skip, no browser). A renamed or
+ * dropped sample field would therefore be invisible exactly where the guard is supposed to protect
+ * the next author. So the same promise is also read as text: every field a check declares must be
+ * produced by the `sample()` of the page that feeds that group. The desktop page keeps its
+ * sampling in a separate template constant (`DESKTOP_PAGE_SCRIPT`) that `desktopFixtureHtml`
+ * embeds, so the anchor is the text that OPENS the right scope, not the function a reader expects
+ * — and an anchor that points at the wrong page does not fail loudly, it grades nothing.
+ */
+const GROUP_SAMPLE_ANCHOR = {
+	corner: 'function fixtureHtml(parts) {',
+	fade: 'function fixtureHtml(parts) {',
+	desktop: 'const DESKTOP_PAGE_SCRIPT = `'
+};
+const CASCADE_SRC = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'wash-cascade.cjs'), 'utf8');
+
+/** The `sample(label)` body of one fixture builder, sliced out of the cascade source. */
+function sampleBody(anchor) {
+	const start = CASCADE_SRC.indexOf(anchor);
+	assert.ok(start >= 0, `the cascade source must still open that page with ${JSON.stringify(anchor)} — the field guard has nothing to read`);
+	const rest = CASCADE_SRC.slice(start);
+	const end = rest.search(/\n(?:\/\*\*|function |const |async function |module\.exports)/);
+	const body = end < 0 ? rest : rest.slice(0, end);
+	const at = body.indexOf('function sample(label) {');
+	assert.ok(at >= 0, `${anchor} must reach a sample(label) function — the guard reads the fields off it`);
+	return body.slice(at);
+}
+
+test('every check declares the fields it reads, and the fixture that feeds it still samples them', () => {
+	for (const g of WASH_GROUPS) {
+		assert.ok(GROUP_SAMPLE_ANCHOR[g], `group ${g} has no sampling anchor — the field guard would skip it in silence`);
+	}
+	const bodies = {};
+	for (const check of WASH_CHECKS) {
+		assert.ok(Array.isArray(check.requires) && check.requires.length > 0,
+			`${check.id} declares no inputs, so nothing can tell whether it is still reading a real field`);
+		bodies[check.group] = bodies[check.group] || sampleBody(GROUP_SAMPLE_ANCHOR[check.group]);
+		for (const field of check.requires) {
+			assert.ok(new RegExp(`(?:[\\s{,(.])${field}\\s*[:=]`).test(bodies[check.group]),
+				`${check.id} reads "${field}" but ${GROUP_SAMPLE_ANCHOR[check.group]} no longer produces it — `
+				+ 'the engine guard would catch this too, but only on a machine that has a browser');
+		}
+	}
 });
 
 // ── the desktop verdict: same discipline, per skin ────────────────────────

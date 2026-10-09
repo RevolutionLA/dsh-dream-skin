@@ -336,6 +336,15 @@ ${parts.chat}</style>
       stripImage: strip.backgroundImage,
       stripContent: strip.content,
       stripRegion: strip.webkitAppRegion || strip.getPropertyValue('-webkit-app-region').trim(),
+      // GEOMETRY, not just paint. The caption box is the drag surface, and a declaration that
+      // moves it (a transform, or an inset rewrite) leaves every reading above untouched: the fill
+      // is cleared, the box is still generated, content still reads "", and the COMPUTED
+      // -webkit-app-region still reads drag — while the strip the user can actually grab has been
+      // dragged off the top of the window (measured: both mutations produce exactly that
+      // signature). Adjudication J1 (T1/T6).
+      stripTop: strip.top,
+      stripHeight: strip.height,
+      stripTransform: strip.transform,
       sidebarColFill: getComputedStyle(sidebarCol).backgroundColor,
       refFill: getComputedStyle(ref).backgroundColor,
       fadeBg: fade ? getComputedStyle(fade).backgroundImage : null,
@@ -894,38 +903,48 @@ function cssAlpha(value) {
 const WASH_GROUPS = ['corner', 'fade', 'desktop'];
 
 const WASH_CHECKS = [
-	{ id: 'corner-host-own', group: 'corner', msg: 'plain: the host corner must stay its own 16px', ok: (plain) => plain.corner === '16px' },
-	{ id: 'corner-flattened', group: 'corner', msg: 'wash: issue #96 wants the content corner flattened', ok: (plain, wash) => wash.corner === '0px' },
-	{ id: 'corner-restored', group: 'corner', msg: 'washed-again: removing the wash must restore 16px', ok: (plain, wash, again) => again.corner === '16px' },
-	{ id: 'frame-fill-dropped', group: 'corner', msg: 'wash: the frame fill must be dropped', ok: (plain, wash) => wash.frameFill === 'rgba(0, 0, 0, 0)' },
-	{ id: 'frame-fill-kept', group: 'corner', msg: 'plain: without a wash the frame must keep its own fill', ok: (plain) => plain.frameFill !== 'rgba(0, 0, 0, 0)' },
-	{ id: 'caption-paints', group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
-	{ id: 'caption-cleared', group: 'corner', msg: 'wash: that pseudo-element paint must go with the frame’s own — it is the one chrome surface sitting across the whole window in the SIDEBAR colour, over a centre column that paints the canvas colour', ok: (plain, wash) => wash.stripFill === 'rgba(0, 0, 0, 0)' },
+	{ id: 'corner-host-own', requires: ['corner'], group: 'corner', msg: 'plain: the host corner must stay its own 16px', ok: (plain) => plain.corner === '16px' },
+	{ id: 'corner-flattened', requires: ['corner'], group: 'corner', msg: 'wash: issue #96 wants the content corner flattened', ok: (plain, wash) => wash.corner === '0px' },
+	{ id: 'corner-restored', requires: ['corner'], group: 'corner', msg: 'washed-again: removing the wash must restore 16px', ok: (plain, wash, again) => again.corner === '16px' },
+	{ id: 'frame-fill-dropped', requires: ['frameFill'], group: 'corner', msg: 'wash: the frame fill must be dropped', ok: (plain, wash) => wash.frameFill === 'rgba(0, 0, 0, 0)' },
+	{ id: 'frame-fill-kept', requires: ['frameFill'], group: 'corner', msg: 'plain: without a wash the frame must keep its own fill', ok: (plain) => plain.frameFill !== 'rgba(0, 0, 0, 0)' },
+	{ id: 'caption-paints', requires: ['stripFill', 'refFill'], group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
+	{ id: 'caption-cleared', requires: ['stripFill'], group: 'corner', msg: 'wash: that pseudo-element paint must go with the frame’s own — it is the one chrome surface sitting across the whole window in the SIDEBAR colour, over a centre column that paints the canvas colour', ok: (plain, wash) => wash.stripFill === 'rgba(0, 0, 0, 0)' },
 	// The image half is its OWN id: `background-color: transparent` clears a flat colour and
 	// nothing else, and the fade rule (issue #97) is the proof that a strip can be painted
 	// with a gradient. One id per failure mode, so a host upgrade that adds a gradient names
 	// itself instead of riding along on the colour claim.
-	{ id: 'caption-image-cleared', group: 'corner', msg: 'wash: no background-image may survive on the caption row either — the reset is a shorthand precisely for this', ok: (plain, wash) => wash.stripImage === 'none' },
-	{ id: 'caption-restored', group: 'corner', msg: 'washed-again: with no wallpaper the host caption row comes back exactly as it shipped', ok: (plain, wash, again) => again.stripFill === plain.stripFill },
-	{ id: 'caption-box-alive', group: 'corner', msg: 'both states: the pseudo-element must still GENERATE a box. The drag region lives on the box, and a box that is not generated still reports -webkit-app-region: drag (measured) — without this reading, "the drag survived" is a claim about a value on an element that is no longer painted', ok: (plain, wash) => plain.stripContent !== 'none' && wash.stripContent !== 'none' },
-	{ id: 'caption-still-drags', group: 'corner', msg: 'both states: clearing the paint must not clear -webkit-app-region — that strip is how the window is dragged, and a wallpaper may not cost the user the drag. EQUALITY, not "contains drag": the engine normalizes `none` to `no-drag`, which a substring test happily accepts (measured)', ok: (plain, wash) => plain.stripRegion === 'drag' && wash.stripRegion === 'drag' },
-	{ id: 'sidebar-column-paints', group: 'corner', msg: 'plain: the sidebar column must really paint the sidebar token, or the non-collateral claim under it is vacuous', ok: (plain) => plain.sidebarColFill === plain.refFill && cssAlpha(plain.sidebarColFill) > 0 },
-	{ id: 'sidebar-column-untouched', group: 'corner', msg: 'wash: the sidebar column keeps the paint the host gave it (this flattens the frame, not the column) — if this reading moves, the 侧边栏透明度 slider has silently changed meaning between shells', ok: (plain, wash) => wash.sidebarColFill === plain.sidebarColFill },
-	{ id: 'fade-paints', group: 'fade', msg: 'plain: the host fade must really paint, else the check below is vacuous', ok: (plain) => /linear-gradient/.test(plain.fadeBg || '') },
-	{ id: 'fade-neutralised', group: 'fade', msg: 'wash: issue #97 wants the foot-fade band neutralised', ok: (plain, wash) => wash.fadeBg === 'none' },
-	{ id: 'chat-mask-present', group: 'fade', msg: 'plain: the chat scroll mask must exist in the page', ok: (plain) => /linear-gradient/.test(plain.chatMask || '') },
-	{ id: 'chat-mask-untouched', group: 'fade', msg: 'wash: the chat scroll mask is collateral damage', ok: (plain, wash) => wash.chatMask === plain.chatMask },
-	{ id: 'desktop-underlay-painted', group: 'desktop', msg: 'plain: the shell must really paint the skin’s own layer-1 over the sidebar column, or every check below is vacuous', ok: (plain) => plain.surfaceBg === plain.layer1Css && cssAlpha(plain.surfaceBg) > 0 },
-	{ id: 'desktop-underlay-blocks', group: 'desktop', msg: 'plain: that underlay has to hide more than half of what is under it — the report is about a slider with no visible effect', ok: (plain) => cssAlpha(plain.surfaceBg) > 0.5 },
-	{ id: 'desktop-underlay-cleared', group: 'desktop', msg: 'wash: issue #99 wants the shell’s own paint gone from that column', ok: (plain, wash) => wash.surfaceBg === 'rgba(0, 0, 0, 0)' },
-	{ id: 'desktop-underlay-restored', group: 'desktop', msg: 'washed-again: the shell gets its paint back when the wallpaper goes', ok: (plain, wash, again) => again.surfaceBg === plain.surfaceBg },
-	{ id: 'desktop-no-wash-no-touch', group: 'desktop', msg: 'plain: without a wash this plugin must not repaint the shell at all', ok: (plain) => cssAlpha(plain.surfaceBg) > 0 },
-	{ id: 'desktop-wash-path-clear', group: 'desktop', msg: 'wash: NO opaque shell surface may remain from the shell’s own aside up to the page background, or the slider still has nothing to reveal', ok: (plain, wash) => wash.blockers === '' && wash.hit === 'upstream-sidebar' },
-	{ id: 'desktop-chain-walk-correct', group: 'desktop', msg: 'plain: the paint-order walk must agree with the aside’s own alpha — an opaque aside has to show up as a blocker, otherwise “the chain is clear” below proves nothing', ok: (plain) => cssAlpha(plain.surfaceBg) >= 0.999 ? plain.blockers.includes('dshDesktopSidebarSurface') : cssAlpha(plain.surfaceBg) > 0.5 },
-	{ id: 'desktop-token-path-alive', group: 'desktop', msg: 'the sidebar fill must come from our inherited token (not the shell’s shadow) and must not move when the paint goes', ok: (plain, wash) => plain.surfaceFill !== '' && plain.surfaceFill !== plain.layer1Css && wash.surfaceFill === plain.surfaceFill },
-	{ id: 'desktop-token-sweeps-slider', group: 'desktop', msg: `writing a sentinel --dsw-specific-sidebar-fill must change what the sidebar element COMPUTES, with and without a wash — the reporter's complaint is "the slider moves and no pixel does", and this is that sentence in computed values (the shell's shadow value would leave the reading frozen)`, ok: (plain, wash) => plain.sweepBg === DESKTOP_SWEEP && wash.sweepBg === DESKTOP_SWEEP
+	{ id: 'caption-image-cleared', requires: ['stripImage'], group: 'corner', msg: 'wash: no background-image may survive on the caption row either — the reset is a shorthand precisely for this', ok: (plain, wash) => wash.stripImage === 'none' },
+	{ id: 'caption-restored', requires: ['stripFill'], group: 'corner', msg: 'washed-again: with no wallpaper the host caption row comes back exactly as it shipped', ok: (plain, wash, again) => again.stripFill === plain.stripFill },
+	{ id: 'caption-box-alive', requires: ['stripContent'], group: 'corner', msg: 'both states: the pseudo-element must still GENERATE a box. The drag region lives on the box, and a box that is not generated still reports -webkit-app-region: drag (measured) — without this reading, "the drag survived" is a claim about a value on an element that is no longer painted', ok: (plain, wash) => plain.stripContent !== 'none' && wash.stripContent !== 'none' },
+	{ id: 'caption-still-drags', requires: ['stripRegion'], group: 'corner', msg: 'both states: clearing the paint must not clear -webkit-app-region — that strip is how the window is dragged, and a wallpaper may not cost the user the drag. EQUALITY, not "contains drag": the engine normalizes `none` to `no-drag`, which a substring test happily accepts (measured)', ok: (plain, wash) => plain.stripRegion === 'drag' && wash.stripRegion === 'drag' },
+	// The two readings above prove the box EXISTS and still says `drag`. Neither proves it is
+	// where the user's mouse is. Adjudication J1 (T1/T6): a `transform: translateY(-34px)` or an
+	// `inset` rewrite moves the whole caption band off the top of the window and leaves fill,
+	// image, content and app-region all reading exactly as documented — so the drag claim would
+	// have been a claim about a box that is no longer under the cursor. These two are the
+	// GEOMETRY half of the same promise, and they are what the whitelist in `craft-audit` cannot
+	// see from the other direction (a string gate reads our declarations; only the engine reads
+	// where the box ended up).
+	{ id: 'caption-band-shaped', requires: ['stripTop', 'stripHeight', 'stripTransform'], group: 'corner', msg: 'plain: the box being measured must be the caption band — pinned to the top of the window, with real height, and not shifted by a transform. Without this, "the drag region survived" could be true of a zero-area or off-screen artifact', ok: (plain) => plain.stripTop === '0px' && parseFloat(plain.stripHeight) > 0 && plain.stripTransform === 'none' },
+	{ id: 'caption-band-anchored', requires: ['stripTop', 'stripHeight', 'stripTransform'], group: 'corner', msg: 'wash: clearing the paint must not MOVE the box — the top strip is the drag surface, and a wallpaper may not cost the user the place where the window is grabbed', ok: (plain, wash) => wash.stripTop === plain.stripTop && wash.stripHeight === plain.stripHeight && wash.stripTransform === plain.stripTransform },
+	{ id: 'sidebar-column-paints', requires: ['sidebarColFill', 'refFill'], group: 'corner', msg: 'plain: the sidebar column must really paint the sidebar token, or the non-collateral claim under it is vacuous', ok: (plain) => plain.sidebarColFill === plain.refFill && cssAlpha(plain.sidebarColFill) > 0 },
+	{ id: 'sidebar-column-untouched', requires: ['sidebarColFill'], group: 'corner', msg: 'wash: the sidebar column keeps the paint the host gave it (this flattens the frame, not the column) — if this reading moves, the 侧边栏透明度 slider has silently changed meaning between shells', ok: (plain, wash) => wash.sidebarColFill === plain.sidebarColFill },
+	{ id: 'fade-paints', requires: ['fadeBg'], group: 'fade', msg: 'plain: the host fade must really paint, else the check below is vacuous', ok: (plain) => /linear-gradient/.test(plain.fadeBg || '') },
+	{ id: 'fade-neutralised', requires: ['fadeBg'], group: 'fade', msg: 'wash: issue #97 wants the foot-fade band neutralised', ok: (plain, wash) => wash.fadeBg === 'none' },
+	{ id: 'chat-mask-present', requires: ['chatMask'], group: 'fade', msg: 'plain: the chat scroll mask must exist in the page', ok: (plain) => /linear-gradient/.test(plain.chatMask || '') },
+	{ id: 'chat-mask-untouched', requires: ['chatMask'], group: 'fade', msg: 'wash: the chat scroll mask is collateral damage', ok: (plain, wash) => wash.chatMask === plain.chatMask },
+	{ id: 'desktop-underlay-painted', requires: ['surfaceBg', 'layer1Css'], group: 'desktop', msg: 'plain: the shell must really paint the skin’s own layer-1 over the sidebar column, or every check below is vacuous', ok: (plain) => plain.surfaceBg === plain.layer1Css && cssAlpha(plain.surfaceBg) > 0 },
+	{ id: 'desktop-underlay-blocks', requires: ['surfaceBg'], group: 'desktop', msg: 'plain: that underlay has to hide more than half of what is under it — the report is about a slider with no visible effect', ok: (plain) => cssAlpha(plain.surfaceBg) > 0.5 },
+	{ id: 'desktop-underlay-cleared', requires: ['surfaceBg'], group: 'desktop', msg: 'wash: issue #99 wants the shell’s own paint gone from that column', ok: (plain, wash) => wash.surfaceBg === 'rgba(0, 0, 0, 0)' },
+	{ id: 'desktop-underlay-restored', requires: ['surfaceBg'], group: 'desktop', msg: 'washed-again: the shell gets its paint back when the wallpaper goes', ok: (plain, wash, again) => again.surfaceBg === plain.surfaceBg },
+	{ id: 'desktop-no-wash-no-touch', requires: ['surfaceBg'], group: 'desktop', msg: 'plain: without a wash this plugin must not repaint the shell at all', ok: (plain) => cssAlpha(plain.surfaceBg) > 0 },
+	{ id: 'desktop-wash-path-clear', requires: ['blockers', 'hit'], group: 'desktop', msg: 'wash: NO opaque shell surface may remain from the shell’s own aside up to the page background, or the slider still has nothing to reveal', ok: (plain, wash) => wash.blockers === '' && wash.hit === 'upstream-sidebar' },
+	{ id: 'desktop-chain-walk-correct', requires: ['surfaceBg', 'blockers'], group: 'desktop', msg: 'plain: the paint-order walk must agree with the aside’s own alpha — an opaque aside has to show up as a blocker, otherwise “the chain is clear” below proves nothing', ok: (plain) => cssAlpha(plain.surfaceBg) >= 0.999 ? plain.blockers.includes('dshDesktopSidebarSurface') : cssAlpha(plain.surfaceBg) > 0.5 },
+	{ id: 'desktop-token-path-alive', requires: ['surfaceFill', 'layer1Css'], group: 'desktop', msg: 'the sidebar fill must come from our inherited token (not the shell’s shadow) and must not move when the paint goes', ok: (plain, wash) => plain.surfaceFill !== '' && plain.surfaceFill !== plain.layer1Css && wash.surfaceFill === plain.surfaceFill },
+	{ id: 'desktop-token-sweeps-slider', requires: ['sweepBg', 'sidebarBg', 'sweepAside', 'surfaceBg'], group: 'desktop', msg: `writing a sentinel --dsw-specific-sidebar-fill must change what the sidebar element COMPUTES, with and without a wash — the reporter's complaint is "the slider moves and no pixel does", and this is that sentence in computed values (the shell's shadow value would leave the reading frozen)`, ok: (plain, wash) => plain.sweepBg === DESKTOP_SWEEP && wash.sweepBg === DESKTOP_SWEEP
 		&& plain.sweepBg !== plain.sidebarBg && wash.sweepBg !== wash.sidebarBg && plain.sweepAside === plain.surfaceBg },
-	{ id: 'desktop-shell-chrome-kept', group: 'desktop', msg: 'the shell’s own border must survive the wash', ok: (plain, wash) => wash.borderRight === plain.borderRight && /1px solid/.test(plain.borderRight || '') },
+	{ id: 'desktop-shell-chrome-kept', requires: ['borderRight'], group: 'desktop', msg: 'the shell’s own border must survive the wash', ok: (plain, wash) => wash.borderRight === plain.borderRight && /1px solid/.test(plain.borderRight || '') },
 ];
 
 /**
@@ -952,8 +971,33 @@ function checkReadings(readings, groups) {
 	}
 	const wanted = groups;
 	const problems = [];
+	// Adjudication J4 (T2): a check whose sampled field has VANISHED does not fail. It compares
+	// `undefined` against `undefined` and passes — `wash.sidebarColFill === plain.sidebarColFill`
+	// is a true statement about a page that samples neither. That is issue #97's shape one more
+	// level up (a target that quietly stopped existing), and the fix is not more eyeballs: every
+	// check declares the fields it reads, and a field the fixture no longer produces is reported
+	// as a broken CHECKER, not as a verdict about the page. `tests/wash.cascade.test.cjs` runs the
+	// same promise against the fixture SOURCE as a string gate, because on CI the engine group is
+	// skipped and this guard would never fire.
+	const samples = [plain, wash, again];
+	const stateNames = ['plain', 'wash', 'washed-again'];
 	for (const check of WASH_CHECKS) {
 		if (!wanted.includes(check.group)) continue;
+		if (!Array.isArray(check.requires) || check.requires.length === 0) {
+			problems.push(`checker: ${check.id} declares no \`requires\` field list — a check with undeclared inputs can pass on a page nobody sampled`);
+			continue;
+		}
+		const absent = [];
+		for (const field of check.requires) {
+			samples.forEach((r, i) => {
+				if (!Object.prototype.hasOwnProperty.call(r, field)) absent.push(`"${field}"@${stateNames[i]}`);
+			});
+		}
+		if (absent.length) {
+			problems.push(`checker: ${check.id} reads ${absent.join(', ')} but the fixture does not produce it — the check would compare undefined against undefined and call that a pass. `
+				+ 'Either the sample field was renamed/removed (fix the fixture) or this check no longer needs it (drop it from `requires`).');
+			continue;
+		}
 		let held = false;
 		try {
 			held = check.ok(plain, wash, again);

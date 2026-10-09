@@ -3173,14 +3173,18 @@ test('sidebar fill leak: the Windows title-bar frame stops painting the chat are
 		'the element rule is its own block — a merged selector list would let one declaration read as covering both boxes');
 	const strip = css.match(/html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{]*div:has\(> \[data-shell-overlay\]\)::before\s*\{[^}]*\}/);
 	assert.ok(strip, 'the caption row gets its OWN wash-gated rule (a pseudo-element inherits no declaration from its owner’s block)');
-	assert.ok(/background:\s*transparent\s*!important/.test(strip[0]),
-		'the caption paint is dropped while a wash is live');
-	assert.ok(!/background-color:/.test(strip[0]),
-		'the reset is the SHORTHAND, not a background-color longhand — a longhand would leave a gradient standing on that strip');
-	assert.ok(!/\b(content|display|visibility)\s*:/.test(strip[0]),
-		'the rule must not un-generate the pseudo-element: the drag region lives on the box, and the computed app-region keeps reading "drag" through a box that is no longer painted');
-	assert.ok(!/app-region/.test(strip[0]),
-		'the rule touches the paint only — -webkit-app-region stays the host’s, or the window stops being draggable');
+	// COUNT, not a property blacklist (adjudication J1 / third-party T1, and the same shape the
+	// #99 gate already uses above): the promise is "this block carries the paint and nothing
+	// else". A list of four forbidden names only bans what somebody thought of — a
+	// `transform: translateY(-34px)` planted here moves the whole caption band off the top of the
+	// window while the fill stays cleared, the box stays generated and the computed app-region
+	// stays `drag`, so every substring assertion this test used to make would still pass. The
+	// SHORTHAND is inside the expected value on purpose: a `background-color` longhand would clear
+	// today's flat colour and leave a gradient standing (issue #97 is that story already).
+	const stripDecls = strip[0].slice(strip[0].indexOf('{') + 1, strip[0].lastIndexOf('}'))
+		.split(';').map((x) => x.trim()).filter(Boolean);
+	assert.deepEqual(stripDecls, ['background: transparent !important'],
+		'the caption rule is EXACTLY one declaration and that declaration is the paint clear — no box, no geometry, no drag region');
 	const ungatedStrip = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*\[data-shell-overlay\]\)::before/);
 	assert.equal(ungatedStrip, null, 'a wallpaper-less profile keeps the stock caption row');
 });
