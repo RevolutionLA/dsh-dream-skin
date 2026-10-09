@@ -284,6 +284,9 @@ dsh web   # restores the official appearance
 
 ---
 
+
+<details>
+<summary><b>How it works / Persistence notes / Developing, extending themes (click to expand)</b></summary>
 ## ⚙️ How it works
 
 DSH's theme system is token-based: the web shell ships `--dsw-*` design tokens, and `ThemeRuntime` lets third-party
@@ -352,6 +355,8 @@ seeds (`react`, `react/jsx-runtime`, …) and registered client bundles (`@deeps
 - **Validate**: `npm test` (VM smoke tests covering factory eval, `apply()`, and pack import/persistence).
 - **Repaint**: reference the `--dsw-alias-*` tokens (full contract in [`docs/themes-spec.md`](../../docs/themes-spec.md)).
 
+
+</details>
 ## 📌 Roadmap
 
 > **This table lists unfinished work only.** Anything already shipped lives in the Features section above and in [CHANGELOG.md](../../CHANGELOG.md) — keeping it in two places always drifts, and this project has already drifted once. This table translates the Roadmap of the Chinese `README.md`, which stays the source of truth.

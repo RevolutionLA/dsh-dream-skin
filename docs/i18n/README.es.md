@@ -289,6 +289,9 @@ dsh web   # restaura el aspecto oficial
 
 ---
 
+
+<details>
+<summary><b>Cómo funciona / Persistencia / Desarrollar y ampliar temas (clic para expandir)</b></summary>
 ## ⚙️ Cómo funciona
 
 El sistema de themes de DSH se basa en tokens: el web shell incluye tokens de diseño `--dsw-*`, y `ThemeRuntime` permite
@@ -361,6 +364,8 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
   packs).
 - **Repintar**: consulta los tokens `--dsw-alias-*` (contrato completo en [`docs/themes-spec.md`](../../docs/themes-spec.md)).
 
+
+</details>
 ## 📌 Hoja de ruta
 
 > **Esta tabla solo lista lo que NO está hecho.** Lo ya entregado vive en la sección Funciones de arriba y en [CHANGELOG.md](../../CHANGELOG.md) — mantener el mismo inventario en dos lugares siempre se desalinea, y este proyecto ya se desalineó una vez. Esta tabla traduce la hoja de ruta del `README.md` en chino, que sigue siendo la fuente autorizada.

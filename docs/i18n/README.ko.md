@@ -282,6 +282,9 @@ dsh web   # restores the official appearance
 
 ---
 
+
+<details>
+<summary><b>작동 방식 / 지속성 / 테마 개발·확장 (클릭하여 펼치기)</b></summary>
 ## ⚙️ 동작 방식
 
 DSH의 테마 시스템은 token 기반입니다: web shell이 `--dsw-*` 디자인 tokens를 제공하고, `ThemeRuntime`은 서드파티
@@ -352,6 +355,8 @@ skin이 밝은 쪽 상수를 집어 갔습니다. alias-token 오버라이드는
 - **검증**: `npm test` (factory eval, `apply()`, pack import/저장을 포함한 VM smoke 테스트).
 - **리페인트**: `--dsw-alias-*` tokens를 참조하세요 (전체 계약은 [`docs/themes-spec.md`](../../docs/themes-spec.md)에).
 
+
+</details>
 ## 📌 로드맵
 
 > **이 표는 끝내지 않은 항목만 담습니다.** 이미 제공한 기능은 위의「주요 기능」절과 [CHANGELOG.md](../../CHANGELOG.md)에 있습니다. 같은 내용을 두 곳에 두면 반드시 어긋나고, 이 프로젝트도 실제로 한 번 어긋났습니다. 이 표는 중국어판 `README.md`의 Roadmap을 번역한 것이며, 원본인 중국어판이 기준입니다.

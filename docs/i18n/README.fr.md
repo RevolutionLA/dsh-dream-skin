@@ -284,6 +284,9 @@ dsh web   # restores the official appearance
 
 ---
 
+
+<details>
+<summary><b>Fonctionnement / Persistance / Développer et étendre les thèmes (cliquer pour déplier)</b></summary>
 ## ⚙️ Comment ça marche
 
 Le système de thèmes de DSH est basé sur des tokens : la coque web embarque des design tokens `--dsw-*`, et `ThemeRuntime` permet aux plugins
@@ -351,6 +354,8 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 - **Valider** : `npm test` (tests de fumée VM couvrant l'évaluation de la factory, `apply()`, et l'import/persistance des packs).
 - **Repeindre** : référencez les tokens `--dsw-alias-*` (contrat complet dans [`docs/themes-spec.md`](../../docs/themes-spec.md)).
 
+
+</details>
 ## 📌 Feuille de route
 
 > **Ce tableau ne liste que l'inachevé.** Ce qui est déjà livré se trouve dans la section Fonctionnalités ci-dessus et dans [CHANGELOG.md](../../CHANGELOG.md) — dupliquer le même inventaire à deux endroits finit toujours par diverger, et ce projet a déjà divergé une fois. Ce tableau traduit la feuille de route du `README.md` chinois, qui reste la référence.

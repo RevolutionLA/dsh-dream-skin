@@ -278,6 +278,9 @@ dsh web   # restores the official appearance
 
 ---
 
+
+<details>
+<summary><b>Funktionsweise / Persistenz / Themes entwickeln & erweitern (zum Aufklappen)</b></summary>
 ## ⚙️ So funktioniert es
 
 DSHs Theme-System ist token-basiert: Die Web-Shell liefert `--dsw-*`-Design-Tokens, und `ThemeRuntime` erlaubt Plugins von
@@ -348,6 +351,8 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 - **Validieren**: `npm test` (VM-Smoke-Tests für Factory-Eval, `apply()` und Pack-Import/Persistenz).
 - **Neu einfärben**: Referenziere die `--dsw-alias-*`-Tokens (vollständiger Vertrag in [`docs/themes-spec.md`](../../docs/themes-spec.md)).
 
+
+</details>
 ## 📌 Roadmap
 
 > **Diese Tabelle nennt nur Unfertiges.** Was bereits ausgeliefert ist, steht oben bei „Funktionen" und im [CHANGELOG.md](../../CHANGELOG.md) — denselben Bestand an zwei Orten zu pflegen, driftet zwangsläufig, und dieses Projekt ist schon einmal gedriftet. Diese Tabelle ist die Übersetzung der Roadmap aus dem chinesischen `README.md`; maßgeblich bleibt das chinesische Original.

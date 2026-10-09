@@ -290,16 +290,15 @@ dsh web   # 重启后恢复官方外观
 
 | 项 | 值 |
 |------|-----|
-| DeepSeek Harness (`dsh`) | **同一构建兼容三代宿主**：`0.1.0-rc.6` ~ `0.1.x`（稳定版）与 `0.2.0-rc.1` / `0.2.x`（issue #62：0.2.0-rc.1 起宿主按 peer 范围**整包跳过**不兼容插件，故 peer 已放宽为 `>=0.1.0-rc.6 <0.3.0-0`）。运行时能力探测继续兜底 seed 换代（见下），不依赖 `engines.dsh`。**宿主升级后皮肤消失但插件显示已装？** 多半是 peer 窗口把整包跳过了——应急出路：`dsh plugin allow-version dsh-dream-skin@<版本> <宿主运行时版本>`（这是**用户自担风险的显式覆盖**，强行放行未经测试的组合，不是推荐做法），症状归因与完整步骤见 [docs/desktop-support.md](./docs/desktop-support.md) |
+| DeepSeek Harness (`dsh`) | **同一构建兼容三代宿主**：`0.1.0-rc.6` ~ `0.1.x`（稳定版）与 `0.2.0-rc.1` / `0.2.x`（peer 已放宽为 `>=0.1.0-rc.6 <0.3.0-0`，宿主换代由运行时能力探测兜底）。**宿主升级后皮肤消失但插件显示已装？** 多半是 peer 窗口把整包跳过了——应急出路：`dsh plugin allow-version dsh-dream-skin@<版本> <宿主运行时版本>`（**用户自担风险的显式覆盖**，不是推荐做法），详见 [docs/desktop-support.md](./docs/desktop-support.md) |
 | Node.js | `>=18` |
 | 浏览器 | 现代 Chromium / WebKit（依赖原生 CSS 变量与 `matchMedia`） |
-| 桌面端 | **第三方 DSH Desktop 壳**：已适配并实机复核（issue #50/#51/#55）。**官方 DSH Desktop**：证据只支持"**预期可加载**"，不支持"已支持"——依据是两条静态事实（Electron 同源前端；我们声明的 `dsh.client.platform = "web"` 与宿主自带的 21 个客户端包逐一致），而它的 profile 目录与安装命令**本机从未验证**，因此本文档**不给**可复制的桌面安装命令。<!-- desktop-claim: load-expected-unverified -->插件管理器里 `--profile` 的取值必须用宿主**自带**的模板名；某些第三方文档教的写法在本机宿主上不存在，照抄会装进一个空壳 profile（重启后什么都看不到），证据与判断依据见 **[docs/desktop-support.md](./docs/desktop-support.md)** 的「官方桌面版待验条目」。完整锚点依赖清单 / 安全边界 / 已验证-未验证清单同见该文档 |
+| 桌面端 | **第三方 DSH Desktop 壳**：已适配并实机复核（issue #50/#51/#55）。**官方 DSH Desktop**：证据只支持"**预期可加载**"，不支持"已支持"——profile 目录与安装命令**本机从未验证**，故本文档**不给**可复制的桌面安装命令。<!-- desktop-claim: load-expected-unverified -->`--profile` 取值必须用宿主**自带**的模板名，照抄第三方文档会装进空壳 profile；判断依据见 **[docs/desktop-support.md](./docs/desktop-support.md)** |
 
-> **兼容机制（v9.10.0 起）**：客户端 bundle 把**全部平台 seed** 放在受控 `try` 内按候选顺序探测——`react` / `react/jsx-runtime`，以及设置 store 的 master 名 `@deepseek-ai/dsh-client-store` → 稳定版名 `@deepseek-ai/dsh-client-runtime/client`。判定依据是「require 成功返回」，**不匹配宿主内部错误文案**。若某天宿主全部 seed 换代，插件会**降级为不注册任何 UI 的哑模块**并打一条 `console.warn`，而不会抛错——因此**不会**再出现 issue #43 那种整个 DSH Web 全屏 `Failed to load plugins`（宿主对 loader-entry 工厂不做隔离，一个工厂抛错即可拖垮整个 shell）。
->
-> **关于 `engines.dsh`**：曾尝试声明 `engines.dsh` 作为生态兼容信号，但因 semver 只在与自身 `major.minor.patch` 三元组相同的轨道上放行预发布版本，单一范围无法同时覆盖 `0.1.1-rc.x` 与 `0.1.2-rc.x`，会把本项目明确支持的版本判为「不兼容」，反而广播错误信号；而宿主目前也不读取该字段。故**不声明**，以上述运行时探测为准。
->
-> 所有 peer 平台包均声明为 `optional`（由宿主运行时供给，npm 上无需安装）；`dsh-client-store` 自 2026-08-30 起已在 npm 发布。**自 `0.2.0-rc.1` 起 peer 范围不再是装饰**：宿主在 boot 阶段用 `semver.satisfies(运行时版本, peer 范围, { includePrerelease: true })` 逐个校验 `@deepseek-ai/dsh*` peer，任一不满足即**整包跳过**（不注入路由、不启宿主接口，只在日志里留一行），所以 peer 范围现在就是本插件对外声明的兼容窗口，`package.json` 与 `package-lock.json` 由回归门强制保持一致。**但这条闸门只认名字带 `@deepseek-ai/dsh` 前缀的 peer**：`@deepseek-ai/cordis` 与 `react` 两条**不参与**宿主兼容判定（`evaluatePluginCompatibility()` 对非 `dsh*` 名字直接 `continue`）——它们由包管理器的 peer 解析单独把关，是**另一把尺**（默认 semver 语义，预发布版本只在同 `major.minor.patch` 轨道上放行）。两把尺的判据与实测对照表在 `tests/package.host_compat.test.cjs`。
+> **兼容机制**：插件把全部平台 seed 放在受控 `try` 内按候选顺序探测，宿主全部换代时降级为哑模块并打 `console.warn`，不会拖垮 DSH Web（issue #43 已根治）。`0.2.0-rc.1` 起宿主按 peer 范围在 boot 阶段**整包跳过**不兼容插件，peer 窗口即本插件的对外兼容窗口，由回归门强制与 manifest 一致。**但宿主闸门只认 `@deepseek-ai/dsh` 前缀的 peer**：`@deepseek-ai/cordis` 与 `react` **不参与**宿主兼容判定（由包管理器的 semver 解析单独把关）。判定细节与两把尺的对照表见 `tests/package.host_compat.test.cjs` 与 [docs/desktop-support.md](./docs/desktop-support.md)。
+
+<details>
+<summary><b>📜 逐版本更新记录（10.9.3 → 9.9.0，点开查看）</b></summary>
 
 **版本 10.9.3（2026-10-09）**：同一个红圈的**第二次改判**，以及"计算值相等"为什么不等于"看起来一样"。
 
@@ -444,7 +443,12 @@ dsh web   # 重启后恢复官方外观
 
 **版本 9.9.0（2026-09-09）**：显著加固了「宿主升级绝不报错」的保障（平台模块全量降级兜底）；高级壁纸「图片链接」新增可选的**定时自动更新**（按周期刷新，必应每日壁纸等自动滚动，支持关机重开后的补触发）；修复定时刷新 UI 与空输入误清壁纸等问题。详见 [CHANGELOG](CHANGELOG.md)。
 
+</details>
+
 ---
+
+<details>
+<summary><b>⚙️ 工作原理 / 💼 持久化说明 / 🛠️ 开发、扩展主题（点开查看）</b></summary>
 
 ## ⚙️ 工作原理
 
@@ -514,6 +518,8 @@ bundle（`@deepseek-ai/dsh-client-runtime/client`、…）。
   用无头 Chrome 截图即得 `docs/previews/*.png`，改皮肤 token 后重跑即可保持预览与真实 skin 同步。`docs/previews/manifest.json` 把每张图钉在三重指纹上（发货 token、卡片版式、图片字节与像素尺寸），`npm run previews --check`（不需要浏览器）在「只改配色、没重照图」时翻红并点名是哪套皮肤；找不到无头浏览器时 `npm run previews` 非零退出，不再把 0 产出当成功。这些 PNG **不随包发布**：2.26 MB 的 README 装饰不该由每个使用者下载，`npm pack` 从 2.5 MB 降到 263 kB，README 里的预览图改指 GitHub 绝对地址。
 - **跑校验**：`npm test`（VM 冒烟测试，覆盖 factory 求值、`apply` 挂载、主题包导入/持久化）。
 - **换配色**：参考 `--dsw-alias-*` 令牌（完整契约见 [`docs/themes-spec.md`](./docs/themes-spec.md)）。
+
+</details>
 
 ## 📌 Roadmap
 
