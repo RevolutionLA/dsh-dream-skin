@@ -3173,8 +3173,12 @@ test('sidebar fill leak: the Windows title-bar frame stops painting the chat are
 		'the element rule is its own block — a merged selector list would let one declaration read as covering both boxes');
 	const strip = css.match(/html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{]*div:has\(> \[data-shell-overlay\]\)::before\s*\{[^}]*\}/);
 	assert.ok(strip, 'the caption row gets its OWN wash-gated rule (a pseudo-element inherits no declaration from its owner’s block)');
-	assert.ok(/background-color:\s*transparent\s*!important/.test(strip[0]),
+	assert.ok(/background:\s*transparent\s*!important/.test(strip[0]),
 		'the caption paint is dropped while a wash is live');
+	assert.ok(!/background-color:/.test(strip[0]),
+		'the reset is the SHORTHAND, not a background-color longhand — a longhand would leave a gradient standing on that strip');
+	assert.ok(!/\b(content|display|visibility)\s*:/.test(strip[0]),
+		'the rule must not un-generate the pseudo-element: the drag region lives on the box, and the computed app-region keeps reading "drag" through a box that is no longer painted');
 	assert.ok(!/app-region/.test(strip[0]),
 		'the rule touches the paint only — -webkit-app-region stays the host’s, or the window stops being draggable');
 	const ungatedStrip = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*\[data-shell-overlay\]\)::before/);

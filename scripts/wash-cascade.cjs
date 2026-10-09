@@ -206,7 +206,13 @@ function hostFadeClasses(parts) {
 function hostLayoutClasses(parts) {
 	if (!parts.layout) throw new Error('no host layout CSS to read the AppFrame classes from — build the fixture through buildFixture()');
 	const pick = (suffix, what) => {
-		const hit = parts.layout.match(new RegExp('(?:^|[},])\\.([A-Za-z0-9_-]*)_' + suffix + '\\s*\\{'));
+		// The boundary class is `}` / `,` / START / whitespace: the host ships both
+		// `.<h>_frame{…}` and `[data-windows-titlebar] .<h>_frame{…}`, and either one proves
+		// the class exists. Requiring the unprefixed form alone (the first version) meant a
+		// host that ever moved the declaration behind its platform prefix would stop the
+		// build for no reason — a false red is still a red, and this gate has to be trusted
+		// when it speaks.
+		const hit = parts.layout.match(new RegExp('(?:^|[},\\s])\\.([A-Za-z0-9_-]*)_' + suffix + '\\s*\\{'));
 		if (!hit) {
 			throw new Error(`the host layout CSS carries no \`.<token>_${suffix} {\` rule — the fixture would have to INVENT the ${what} it claims to measure`);
 		}
@@ -327,6 +333,8 @@ ${parts.chat}</style>
       corner: getComputedStyle(col).borderTopLeftRadius,
       frameFill: getComputedStyle(frame).backgroundColor,
       stripFill: strip.backgroundColor,
+      stripImage: strip.backgroundImage,
+      stripContent: strip.content,
       stripRegion: strip.webkitAppRegion || strip.getPropertyValue('-webkit-app-region').trim(),
       sidebarColFill: getComputedStyle(sidebarCol).backgroundColor,
       refFill: getComputedStyle(ref).backgroundColor,
@@ -891,11 +899,18 @@ const WASH_CHECKS = [
 	{ id: 'corner-restored', group: 'corner', msg: 'washed-again: removing the wash must restore 16px', ok: (plain, wash, again) => again.corner === '16px' },
 	{ id: 'frame-fill-dropped', group: 'corner', msg: 'wash: the frame fill must be dropped', ok: (plain, wash) => wash.frameFill === 'rgba(0, 0, 0, 0)' },
 	{ id: 'frame-fill-kept', group: 'corner', msg: 'plain: without a wash the frame must keep its own fill', ok: (plain) => plain.frameFill !== 'rgba(0, 0, 0, 0)' },
-	{ id: 'caption-paints', group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the two checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
+	{ id: 'caption-paints', group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
 	{ id: 'caption-cleared', group: 'corner', msg: 'wash: that pseudo-element paint must go with the frame’s own — it is the one chrome surface sitting across the whole window in the SIDEBAR colour, over a centre column that paints the canvas colour', ok: (plain, wash) => wash.stripFill === 'rgba(0, 0, 0, 0)' },
+	// The image half is its OWN id: `background-color: transparent` clears a flat colour and
+	// nothing else, and the fade rule (issue #97) is the proof that a strip can be painted
+	// with a gradient. One id per failure mode, so a host upgrade that adds a gradient names
+	// itself instead of riding along on the colour claim.
+	{ id: 'caption-image-cleared', group: 'corner', msg: 'wash: no background-image may survive on the caption row either — the reset is a shorthand precisely for this', ok: (plain, wash) => wash.stripImage === 'none' },
 	{ id: 'caption-restored', group: 'corner', msg: 'washed-again: with no wallpaper the host caption row comes back exactly as it shipped', ok: (plain, wash, again) => again.stripFill === plain.stripFill },
+	{ id: 'caption-box-alive', group: 'corner', msg: 'both states: the pseudo-element must still GENERATE a box. The drag region lives on the box, and a box that is not generated still reports -webkit-app-region: drag (measured) — without this reading, "the drag survived" is a claim about a value on an element that is no longer painted', ok: (plain, wash) => plain.stripContent !== 'none' && wash.stripContent !== 'none' },
 	{ id: 'caption-still-drags', group: 'corner', msg: 'both states: clearing the paint must not clear -webkit-app-region — that strip is how the window is dragged, and a wallpaper may not cost the user the drag. EQUALITY, not "contains drag": the engine normalizes `none` to `no-drag`, which a substring test happily accepts (measured)', ok: (plain, wash) => plain.stripRegion === 'drag' && wash.stripRegion === 'drag' },
-	{ id: 'sidebar-column-untouched', group: 'corner', msg: 'wash: the sidebar column keeps the paint the host gave it (this flattens the frame, not the column) — if this reading moves, the 侧边栏透明度 slider has silently changed meaning between shells', ok: (plain, wash) => wash.sidebarColFill === plain.sidebarColFill && plain.sidebarColFill === plain.refFill },
+	{ id: 'sidebar-column-paints', group: 'corner', msg: 'plain: the sidebar column must really paint the sidebar token, or the non-collateral claim under it is vacuous', ok: (plain) => plain.sidebarColFill === plain.refFill && cssAlpha(plain.sidebarColFill) > 0 },
+	{ id: 'sidebar-column-untouched', group: 'corner', msg: 'wash: the sidebar column keeps the paint the host gave it (this flattens the frame, not the column) — if this reading moves, the 侧边栏透明度 slider has silently changed meaning between shells', ok: (plain, wash) => wash.sidebarColFill === plain.sidebarColFill },
 	{ id: 'fade-paints', group: 'fade', msg: 'plain: the host fade must really paint, else the check below is vacuous', ok: (plain) => /linear-gradient/.test(plain.fadeBg || '') },
 	{ id: 'fade-neutralised', group: 'fade', msg: 'wash: issue #97 wants the foot-fade band neutralised', ok: (plain, wash) => wash.fadeBg === 'none' },
 	{ id: 'chat-mask-present', group: 'fade', msg: 'plain: the chat scroll mask must exist in the page', ok: (plain) => /linear-gradient/.test(plain.chatMask || '') },

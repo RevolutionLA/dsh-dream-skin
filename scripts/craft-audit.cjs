@@ -930,13 +930,28 @@ function auditCraft(source) {
 			problems.push('no wash-gated rule for the frame’s ::before — the caption row keeps painting the sidebar token across the top of the window');
 		} else {
 			const props = new Map(stripRule.decls.map((d) => [d.prop, d.value]));
-			if (props.get('background-color') !== 'transparent !important') {
-				problems.push(`the caption row's paint is not cleared or not armed (got ${props.get('background-color') === undefined ? 'nothing' : props.get('background-color')})`);
+			if (props.get('background') !== 'transparent !important') {
+				problems.push(`the caption row's paint is not cleared or not armed (got ${props.get('background') === undefined ? 'nothing' : props.get('background')})`);
 			}
+			// The SHORTHAND is the requirement, not a style preference: a `background-color`
+			// longhand leaves any `background-image` standing, and the flat colour this rule
+			// answers today is exactly the kind of declaration a future host upgrades to a
+			// gradient (issue #97 is that story already, on a different surface).
+			if (props.has('background-color') && !props.has('background')) {
+				problems.push('the caption reset is a background-color longhand — a gradient on that strip would survive it');
+			}
+			// The box, not just the colour. `-webkit-app-region` lives on the pseudo-element's
+			// BOX, and a box that is not generated has no drag region — yet its COMPUTED
+			// app-region still reads `drag` (measured in the engine: `content: none` here keeps
+			// reporting drag). So the property list is a denylist on purpose: any of these four
+			// in this rule can remove the box while every computed reading the gate takes stays
+			// green. Blue-team B1 found exactly this hole in the first version of this check.
 			for (const d of stripRule.decls) {
 				if (/app-region$/.test(d.prop)) problems.push(`the caption rule touches ${d.prop} — that declaration is how the window is dragged`);
+				if (/^(content|display|visibility|all)$/.test(d.prop)) {
+					problems.push(`the caption rule declares ${d.prop} — that can un-generate the box, and the computed -webkit-app-region keeps reading "drag" through it`);
+				}
 			}
-			if (!isWashGated(stripRule.selector)) problems.push('the caption reset is not wash-gated');
 		}
 		const dragHits = blocks.filter((b) => b.decls.some((d) => /app-region$/.test(d.prop)));
 		if (dragHits.length) problems.push(`this sheet declares an app-region (${dragHits[0].selector.slice(0, 48)}) — no plugin rule may claim the drag geometry`);

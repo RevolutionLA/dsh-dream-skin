@@ -321,11 +321,13 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	// both fixtures are uniform. Split the two halves and the arg order is pinned.
 	const UNWASHED = {
 		corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
-		stripFill: 'rgba(16, 16, 24, 0.75)', stripRegion: 'drag', sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+		stripFill: 'rgba(16, 16, 24, 0.75)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+		sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
 	};
 	const WASHED = {
 		corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
-		stripFill: 'rgba(0, 0, 0, 0)', stripRegion: 'drag', sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+		stripFill: 'rgba(0, 0, 0, 0)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+		sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
 	};
 	const HOST_GROUPS = ['corner', 'fade'];
 	const ids = (problems) => problems.map((p) => p.split(':')[0]).sort();
@@ -353,20 +355,33 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	const cornerTrio = (flag) => {
 		const plain = { ...UNWASHED }, wash = { ...WASHED }, again = { ...UNWASHED };
 		if (flag === 'stripSurvives') wash.stripFill = plain.stripFill;
+		if (flag === 'imageSurvives') wash.stripImage = 'linear-gradient(rgba(0, 0, 0, 0), rgba(16, 16, 24, 0.75))';
+		if (flag === 'boxGone') wash.stripContent = 'none';
 		if (flag === 'dragGone') wash.stripRegion = 'no-drag';
 		if (flag === 'columnMoved') wash.sidebarColFill = 'rgba(0, 0, 0, 0)';
+		if (flag === 'columnNeverPainted') { plain.sidebarColFill = 'rgba(0, 0, 0, 0)'; wash.sidebarColFill = 'rgba(0, 0, 0, 0)'; }
 		if (flag === 'hostNeverPainted') { plain.stripFill = 'rgba(0, 0, 0, 0)'; again.stripFill = 'rgba(0, 0, 0, 0)'; }
 		return [plain, wash, again];
 	};
 	for (const [flag, want] of [
 		['stripSurvives', ['caption-cleared']],
+		['imageSurvives', ['caption-image-cleared']],
+		['boxGone', ['caption-box-alive']],
 		['dragGone', ['caption-still-drags']],
 		['columnMoved', ['sidebar-column-untouched']],
+		['columnNeverPainted', ['sidebar-column-paints']],
 		['hostNeverPainted', ['caption-paints']]
 	]) {
 		assert.deepEqual(ids(checkReadings(cornerTrio(flag), ['corner'])), want,
 			`${flag}: the caption claims must name their own failure mode, nothing else`);
 	}
+	// `caption-image-cleared` is a guard against a FUTURE host shape, not a reading that can
+	// fail today: the host's caption row is a flat colour, so its computed background-image is
+	// already `none` in the plain state. That is why its falsifiability lives in the synthetic
+	// row above rather than only in the engine — and why the reset is a shorthand in the first
+	// place. Saying "the engine would catch it" without this row would be a claim with no test.
+	assert.deepEqual(ids(checkReadings([UNWASHED, WASHED, UNWASHED], ['corner'])), [],
+		'the healthy corner trio reads no problems even with the two guards that cannot bite on today’s host');
 	assert.deepEqual(checkReadings([]), ['expected the three states plain/wash/washed-again, got 0'],
 		'a short sampling is a problem, not an empty pass');
 
@@ -695,9 +710,9 @@ test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, no
 	// has to be re-measured before anyone repeats it.
 	const parts = buildFixture();
 	const material = parts.material.replace(
-		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background-color: transparent)\s*!important/, '$1');
+		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background: transparent)\s*!important/, '$1');
 	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
-	assert.match(material, /::before[^{]*\{[^}]*background-color: transparent;/, 'the declaration is still there, only unflagged');
+	assert.match(material, /::before[^{]*\{[^}]*background: transparent;/, 'the declaration is still there, only unflagged');
 	const r = measure({ parts: { ...parts, material } });
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const wash = r.readings.find((x) => x.state === 'wash');
@@ -715,16 +730,30 @@ test('the AppFrame class names are DERIVED from the host CSS, and a re-roll stop
 	assert.deepEqual(hostLayoutClasses({ layout }),
 		{ frameClass: 'AAA_frame', centerColClass: 'AAA_centerCol', sidebarColClass: 'AAA_sidebarCol' },
 		'the three names come out of the CSS text as authored');
+	// Losing the frame means losing EVERY rule that names it — the plain one and the
+	// platform-prefixed one. Removing only one of the two must still build, because either
+	// form proves the class exists (that is the B7 fix, asserted on its own below).
+	const frameGone = layout
+		.replace(/\.AAA_frame\{[^}]*\}/g, '')
+		.replace(/\[data-windows-titlebar\] \.AAA_frame\{[^}]*\}/g, '');
+	assert.notEqual(frameGone, layout, 'the frame trim has to actually remove something');
+	assert.throws(() => hostLayoutClasses({ layout: frameGone }), /would have to INVENT/,
+		'losing the frame rule must stop the build instead of measuring a class nobody renders');
 	for (const [drop, name] of [
-		[/\.AAA_frame\{[^}]*\}/, 'frame'],
-		[/\.AAA_centerCol\{[^}]*\}/, 'center column'],
-		[/\.AAA_sidebarCol\{[^}]*\}/, 'sidebar column']
+		[/\.AAA_centerCol\{[^}]*\}/g, 'center column'],
+		[/\.AAA_sidebarCol\{[^}]*\}/g, 'sidebar column']
 	]) {
 		const trimmed = layout.replace(drop, '');
 		assert.notEqual(trimmed, layout, `the trim for ${name} has to actually remove something`);
 		assert.throws(() => hostLayoutClasses({ layout: trimmed }), /would have to INVENT/,
 			`losing the ${name} rule must stop the build instead of measuring a class nobody renders`);
 	}
+	// B7 (blue-team 10.9.1): a host that only ever writes the PLATFORM-PREFIXED form must
+	// still be readable. The first version required the class at a rule boundary and would
+	// have refused to build against such a host — a false red is still a red, and this gate
+	// has to be trusted when it speaks.
+	assert.equal(hostLayoutClasses({ layout: '[data-windows-titlebar] .AAA_frame{a:b}.AAA_centerCol{a:b}.AAA_sidebarCol{a:b}' }).frameClass,
+		'AAA_frame', 'the prefixed form alone is enough proof the class exists');
 	assert.throws(() => hostLayoutClasses({}), /no host layout CSS/);
 	// A re-rolled hash is the case the derivation EXISTS for: the names move, the fixture
 	// follows, and nothing is remembered. What must stop the build is the rule disappearing.
