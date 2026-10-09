@@ -1,0 +1,80 @@
+{
+	"_source": "scripts/font-extreme-sample.cjs — rerun with `node scripts/font-extreme-sample.cjs`",
+	"_date": "2026-10-09",
+	"_method": "headless engine computed styles; host --dsh-content-font-size set directly at 10/22 (host install untouched, rc.1)",
+	"_warn": "computed-style sampling, not pixel eyeballing; visual acceptability at 22px is still unobserved",
+	"readings": [
+		{
+			"skin": "abyss",
+			"fontPx": 10,
+			"bubble": "rgba(31, 33, 38, 0.92)",
+			"bubbleAlpha": 0.92,
+			"codeBg": "rgba(42, 44, 50, 0.92)",
+			"tertiary": "rgb(161, 164, 170)",
+			"tertiaryOnBubble": 6.45,
+			"tertiaryOnCode": 5.59,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "10px"
+		},
+		{
+			"skin": "midnight",
+			"fontPx": 10,
+			"bubble": "rgba(25, 25, 26, 0.92)",
+			"bubbleAlpha": 0.92,
+			"codeBg": "rgba(35, 36, 37, 0.92)",
+			"tertiary": "rgb(163, 164, 165)",
+			"tertiaryOnBubble": 7.04,
+			"tertiaryOnCode": 6.23,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "10px"
+		},
+		{
+			"skin": "ivory",
+			"fontPx": 10,
+			"bubble": "rgb(249, 245, 236)",
+			"bubbleAlpha": 1,
+			"codeBg": "rgba(255, 253, 246, 0.94)",
+			"tertiary": "rgb(94, 93, 90)",
+			"tertiaryOnBubble": 6.05,
+			"tertiaryOnCode": 6.47,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "10px"
+		},
+		{
+			"skin": "abyss",
+			"fontPx": 22,
+			"bubble": "rgba(31, 33, 38, 0.92)",
+			"bubbleAlpha": 0.92,
+			"codeBg": "rgba(42, 44, 50, 0.92)",
+			"tertiary": "rgb(161, 164, 170)",
+			"tertiaryOnBubble": 6.45,
+			"tertiaryOnCode": 5.59,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "22px"
+		},
+		{
+			"skin": "midnight",
+			"fontPx": 22,
+			"bubble": "rgba(25, 25, 26, 0.92)",
+			"bubbleAlpha": 0.92,
+			"codeBg": "rgba(35, 36, 37, 0.92)",
+			"tertiary": "rgb(163, 164, 165)",
+			"tertiaryOnBubble": 7.04,
+			"tertiaryOnCode": 6.23,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "22px"
+		},
+		{
+			"skin": "ivory",
+			"fontPx": 22,
+			"bubble": "rgb(249, 245, 236)",
+			"bubbleAlpha": 1,
+			"codeBg": "rgba(255, 253, 246, 0.94)",
+			"tertiary": "rgb(94, 93, 90)",
+			"tertiaryOnBubble": 6.05,
+			"tertiaryOnCode": 6.47,
+			"composerBeforeRules": "content: \"\"; position: absolute; inset: 0px; border-radius: inherit; background: color-mix(in srgb, var(--dsh-dream-skin-glass-tint, var(--dsh-dream-skin-composer-base, var(--dsw-alias-bg-base))) var(--dsh-dream-skin-composer-fill, 85%), transparent); backdrop-filter: blur(var(--dsh-dream-skin-glass-blur, 14px)) var(--dsh-dream-skin-glass-tone, saturate(1.6) brightness(1.08)); z-index: -1; pointer",
+			"textComputedPx": "22px"
+		}
+	]
+}

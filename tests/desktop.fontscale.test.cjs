@@ -88,9 +88,14 @@ const FALSE_COMPLETION = [
 /** The disclaimer the narrowed phrasing must carry. */
 const DISCLAIMER = "在宿主字号 10–22 区间内的默认值 14 px 下实测，极值未测";
 
-/** The dated bullet that has to survive in the unverified list. */
-const DATED_ENTRY = "会话字号极值：两条分开记，各零次实测";
-const DATE_RE = /记录日期 (\d{4}-\d{2}-\d{2})/;
+/** The dated bullet that has to survive in the unverified list. Phase 2
+ * (2026-10-09) added machine-read computed-style extremes at the font-size
+ * bounds (`scripts/data/font-extreme-samples.json`, taken in a real engine
+ * with the host install untouched), so the admission now splits: SAMPLED
+ * (computed styles) vs UNOBSERVED (live page / pixels). */
+const DATED_ENTRY = "会话字号极值：计算样式已采样，真机活页与像素观感未验";
+const DATE_RE = /采样日期 (\d{4}-\d{2}-\d{2})/;
+const SAMPLES_FILE = "scripts/data/font-extreme-samples.json";
 
 /** A doc that states the host range obliges the disclaimer. */
 const RANGE_MENTION = /10[-]22|10 (?:to|through) 22/;
@@ -456,12 +461,12 @@ test("mutation #93.8 — an unreadable or emptied document must not look like a 
 
 test("mutation #93.9 — an undated admission reddens the gate", () => {
 	const broken = base();
-	broken.doc = broken.doc.replace(/记录日期 \d{4}-\d{2}-\d{2}/, "记录日期待定");
+	broken.doc = broken.doc.replace(/采样日期 \d{4}-\d{2}-\d{2}/, "采样日期待定");
 	const { problems } = checkFontScale(broken);
 	assert.ok(problems.some((p) => p.includes("carries no date")), problems.join("\n"));
 	// Control: a different but still well-formed date keeps it green.
 	const control = base();
-	control.doc = control.doc.replace(/记录日期 \d{4}-\d{2}-\d{2}/, "记录日期 2026-11-01");
+	control.doc = control.doc.replace(/采样日期 \d{4}-\d{2}-\d{2}/, "采样日期 2026-11-01");
 	assert.deepStrictEqual(checkFontScale(control).problems, []);
 });
 
