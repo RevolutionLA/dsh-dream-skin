@@ -103,6 +103,16 @@ const HISTORICAL_REGIONS = [
 		from: "**版本 10.6.1（2026-10-06）**",
 		to: "\n## ⚙️ 工作原理",
 		what: "the dated per-release notes (README's compat section carries both kinds)"
+	},
+	{
+		// Issue #95-E follow-up: the 10.9.x delivery notes recount (as dated
+		// history) how the desktop profile command shape was corrected, quoting
+		// the window upper bound in passing. That is a snapshot of what was
+		// measured that day, not a live statement of the window.
+		file: "docs/desktop-support.md",
+		from: "**本文件此前给桌面用户写的命令是错的形状**",
+		to: "\n",
+		what: "the dated desktop-delivery note (historical narrative)"
 	}
 ];
 
@@ -269,4 +279,53 @@ test("#86: every gate peer is optional, so the window can only ever skip — nev
 	const optional = pkg.peerDependenciesMeta || {};
 	const required = gatePeers().filter(([name]) => !(optional[name] && optional[name].optional)).map(([n]) => n);
 	assert.deepEqual(required, [], `these host-gated peers are NOT optional: ${required.join(", ")}`);
+});
+
+// ── issue #95-E: the escape hatch must live where the user in trouble reads ──
+// `allow-version` used to exist only in docs/desktop-support.md; the READMEs
+// (the page a user actually opens when the skin vanishes) had zero mentions.
+// Now every README carries the four-part sentence — symptom / cause / escape /
+// risk framing — and this gate keeps it there.
+
+const ESCAPE_DOCS = [
+	"README.md",
+	"docs/i18n/README.de.md",
+	"docs/i18n/README.en.md",
+	"docs/i18n/README.es.md",
+	"docs/i18n/README.fr.md",
+	"docs/i18n/README.ja.md",
+	"docs/i18n/README.ko.md",
+	"docs/i18n/README.ru.md"
+];
+
+function escapeProblems(readFile = read) {
+	const problems = [];
+	for (const rel of ESCAPE_DOCS) {
+		const text = readFile(rel);
+		if (!/dsh plugin allow-version\s+dsh-dream-skin@/.test(text)) {
+			problems.push(`${rel}: lost the allow-version escape hatch — a user hitting the peer-window skip has no way out from the page they actually read`);
+		}
+		if (!/(自担风险|自己責任|eigenes Risiko|own risk|propio riesgo|propres risques|본인 책임|страх и риск)/.test(text)) {
+			problems.push(`${rel}: the escape hatch is no longer framed as an at-your-own-risk explicit override — it must never read as a recommended practice`);
+		}
+	}
+	return problems;
+}
+
+test("#95-E: every README states the allow-version escape with at-your-own-risk framing", () => {
+	assert.deepEqual(escapeProblems(), [], `the README escape hatch drifted:\n  ${escapeProblems().join("\n  ")}`);
+});
+
+test("#95-E mutation: deleting the README escape sentence reddens the gate", () => {
+	const problems = escapeProblems((rel) =>
+		rel === "README.md" ? read(rel).replace(/dsh plugin allow-version\s+dsh-dream-skin@<版本>/g, "dsh plugin update") : read(rel)
+	);
+	assert.ok(problems.some((p) => p.startsWith("README.md") && p.includes("allow-version escape hatch")), problems.join("\n"));
+});
+
+test("#95-E mutation: reframing the escape as the recommended practice reddens the gate", () => {
+	const problems = escapeProblems((rel) =>
+		rel === "README.md" ? read(rel).replace("用户自担风险的显式覆盖", "官方推荐做法") : read(rel)
+	);
+	assert.ok(problems.some((p) => p.startsWith("README.md") && p.includes("at-your-own-risk")), problems.join("\n"));
 });

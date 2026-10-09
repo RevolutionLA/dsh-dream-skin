@@ -126,18 +126,18 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 > 완전한 시스템**으로 만들었습니다 — 추구하는 것은 "더 화려함"이 아니라 "더 정확하고, 더 절제되고, 더 오래 봐도
 > 좋은", 반복적으로 다듬어진 유리 한 장입니다. **미학 + 조율 가능성이 우리의 해자(moat)입니다.**
 
-| 기능 | 당사 플러그인 | [dsh-catppuccin-theme](https://github.com/) (팔레트 이식) | [dsh-theme-mineradio](https://github.com/) (단일 미학 커스텀) | [dsh-wallpaper-engine](https://github.com/) (wallpaper 브릿지) |
+| 기능 | 당사 플러그인 | [dsh-catppuccin-theme](https://github.com/NoNameLeGo/dsh-catppuccin-theme) (팔레트 이식) | [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) (단일 미학 커스텀) | [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) (wallpaper 엔진 + 리퀴드 글래스 UI) |
 |------|:---:|:---:|:---:|:---:|
 | **오리지널 디자인 8종** (기존 팔레트 이식이 아닌, 오리지널 tokens + diffused glow) | ✅ | ❌ (Catppuccin 공식 팔레트 4종) | ❌ (샴페인 골드 미학 1종) | ❌ |
 | **새틴 글래스 / 리퀴드 글래스 이중 material** 원클릭 전환 | ✅ | 부분 (고정된 유리 질감) | ❌ | ❌ |
-| **입력창 / 팝업 독립 투명도 슬라이더** | ✅ | ❌ | ❌ | ❌ |
-| **설치 즉시 완성된 출고 설정** (재시작하면 바로 다듬어진 모습) | ✅ | ❌ | ✅ (그 자체로 완성품) | ❌ |
+| **입력창 / 팝업 독립 투명도 슬라이더** | ✅ | ❌ | ❌ | 부분 (설정 창 / 플로터 / 왼쪽 사이드바 / 타이틀바가 각각 독립적인 투명도·블러 보유; 입력 카드와 버블은 색상·fidelity를 독립 설정, 투명도는 전역 따름) |
+| **설치 즉시 완성된 출고 설정** (재시작하면 바로 다듬어진 모습) | ✅ | ❌ | ✅ (그 자체로 완성품) | 부분 (출고 글래스 기본값 + 글래스 프리셋 7종; 출고 wallpaper / skin 없음) |
 | 커스텀 wallpaper + 투명도/블러 | ✅ | ❌ | ❌ | ✅ (핵심 기능) |
-| **Wallpaper 2.0** (URL / gradient preset / skin별 추천 / auto-dim / Bing 일일 + 자동 갱신) | ✅ | ❌ | ❌ | 부분 (WE wallpaper 의존) |
-| **사용자별 Accent 오버라이드** (오버레이 레이어, skin은 그대로) | ✅ | ❌ | ❌ | ❌ |
-| **Theme pack 가져오기/내보내기 + 공유 링크** (JSON, 코드 없는 배포) | ✅ | ❌ | ❌ | ❌ |
+| **Wallpaper 2.0** (URL / gradient preset / skin별 추천 / auto-dim / Bing 일일 + 자동 갱신) | ✅ | ❌ | ❌ | 부분 (로컬 이미지 / 영상 업로드 + 자동 순환 전환 + 맞춤 모드; URL / gradient preset / Bing 일일 없음) |
+| **사용자별 Accent 오버라이드** (오버레이 레이어, skin은 그대로) | ✅ | ❌ | ❌ | 부분 (프리셋 6종 + 사용자 지정 테마 색이 버튼 / 스위치 / 링크 / 내비 선택 / 슬라이더 / 글래스 하이라이트 구동; "skin 오버레이" 개념 없음) |
+| **Theme pack 가져오기/내보내기 + 공유 링크** (JSON, 코드 없는 배포) | ✅ | ❌ | ❌ | 부분 (폰트 세트와 글래스 프리셋을 JSON으로 가져오기 / 내보내기 가능; 공유 링크 없음) |
 | 로컬 pack 라이브러리 + 즐겨찾기 + surprise-me | ✅ | ❌ | ❌ | ❌ |
-| **두 세대 호스트 호환 + 런타임 기능 감지** (호스트 세대 전환 시 자동으로 성능 저하, 오류 없음) | ✅ | 알 수 없음 | 알 수 없음 | ❌ (커널 업그레이드 필요) |
+| **두 세대 호스트 호환 + 런타임 기능 감지** (호스트 세대 전환 시 자동으로 성능 저하, 오류 없음) | ✅ | 알 수 없음 | 알 수 없음 | 부분 (단일 오픈 peer 범위가 0.1.5-rc.1+ 및 0.2.x 두 호스트 라인 커버; 호스트 형태 / 기능 감지와 부분 폴백 보유; 커널 하한 0.1.5-rc.1은 하드 요구) |
 | 검증 + 롤백 (파괴적인 변경 없음) | ✅ | 부분 | — | 부분 |
 
 > **한 줄 요약**: Catppuccin의 브랜드 컬러, mineradio의 분위기를 원하신다면? 이 플러그인의 theme pack 시스템으로
@@ -273,7 +273,7 @@ dsh web   # restores the official appearance
 
 | 항목 | 값 |
 |------|-------|
-| DeepSeek Harness (`dsh`) | **하나의 빌드로 두 세대의 호스트 모두 지원**: 안정版 `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) 및 DSH master (분할 후 모듈 테이블) |
+| DeepSeek Harness (`dsh`) | **하나의 빌드로 두 세대의 호스트 모두 지원**: 안정版 `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies가 `^0.1.0-rc.6`으로 고정됨) 및 DSH master (분할 후 모듈 테이블). **호스트 업그레이드 후 플러그인은 설치된 것으로 표시되는데 skin이 사라졌나요?** 대부분 peer 윈도우가 번들 전체를 건너뛰게 한 것입니다 — 비상 탈출구: `dsh plugin allow-version dsh-dream-skin@<버전> <호스트 런타임 버전>` (테스트되지 않은 조합을 강제로 통과시키는 **본인 책임의 명시적 재정의** — 권장 방법이 아님); 증상 진단과 전체 절차는 [docs/desktop-support.md](../desktop-support.md) 에서 |
 | Node.js | `>=18` |
 | 브라우저 | 최신 Chromium / WebKit (네이티브 CSS variables & `matchMedia`) |
 | 데스크톱 | **서드파티 DSH Desktop 셸:** 적용 완료, 실기 검증(issue #50/#51/#55). **공식 DSH Desktop:** 근거가 뒷받침하는 것은 "**로드될 것으로 예상**"이지 "지원"이 아닙니다 — 근거는 정적 사실 두 가지뿐입니다(동일 Electron 프런트엔드, 당사가 선언한 `dsh.client.platform = "web"`이 호스트가 함께 배포하는 21개 클라이언트 패키지와 일치). 그 프로필 디렉터리와 설치 명령은 **이 장비에서 한 번도 검증되지 않았으므로**, 이 문서는 **복사해서 쓸 수 있는 데스크톱 설치 명령을 제공하지 않습니다**. <!-- desktop-claim: load-expected-unverified -->추가할 때 `--profile` 값은 호스트가 **직접 제공하는** 템플릿 이름이어야 합니다. 일부 서드파티 문서가 알려주는 프로필 이름은 이 호스트에 없으며, 그대로 복사하면 빈 셸 프로필에 설치되어 다시 시작한 뒤 아무것도 보이지 않습니다. 근거는 **[docs/desktop-support.md](../desktop-support.md)** 의 "공식 데스크톱: 미검증 항목"을 참조하세요. 전체 앵커 의존 목록 / 보안 경계 / 검증-미검증 목록도 같은 문서 |

@@ -126,18 +126,18 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 > **véritable système réglable de matériaux et de couleurs** — l'ambition n'est pas « plus clinquant », mais « plus juste, plus sobre,
 > plus durable à l'œil », comme un verre longuement repensé. **Le goût + la réglabilité, c'est notre rempart.**
 
-| Capacité | Le nôtre | [dsh-catppuccin-theme](https://github.com/) (palette portée) | [dsh-theme-mineradio](https://github.com/) (esthétique unique) | [dsh-wallpaper-engine](https://github.com/) (pont wallpaper) |
+| Capacité | Le nôtre | [dsh-catppuccin-theme](https://github.com/NoNameLeGo/dsh-catppuccin-theme) (palette portée) | [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) (esthétique unique) | [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) (moteur de wallpapers + UI en verre liquide) |
 |------|:---:|:---:|:---:|:---:|
 | **8 designs originaux** (pas un portage de palette : tokens originaux + diffused glow) | ✅ | ❌ (4 palettes Catppuccin officielles) | ❌ (1 esthétique or champagne) | ❌ |
 | **Double matériau verre dépoli / verre liquide** en un clic | ✅ | partiel (rendu de verre figé) | ❌ | ❌ |
-| **Curseurs d'opacité indépendants pour la saisie / les popups** | ✅ | ❌ | ❌ | ❌ |
-| **Apparence prête à l'installation** (redémarrez et c'est déjà réglé) | ✅ | ❌ | ✅ (un produit fini en soi) | ❌ |
+| **Curseurs d'opacité indépendants pour la saisie / les popups** | ✅ | ❌ | ❌ | partiel (fenêtre de réglages / fenêtres flottantes / barre latérale gauche / barre de titre ont opacité et flou indépendants ; les cartes de saisie et les bulles se voient attribuer couleur et fidélité séparément, l'opacité suit le réglage global) |
+| **Apparence prête à l'installation** (redémarrez et c'est déjà réglé) | ✅ | ❌ | ✅ (un produit fini en soi) | partiel (réglages verre d'usine + 7 presets de verre ; pas de wallpaper / skins d'usine) |
 | Wallpaper personnalisé + opacité/flou | ✅ | ❌ | ❌ | ✅ (cœur du produit) |
-| **Wallpaper 2.0** (URL / presets de gradient / suggestion par skin / auto-assombrissement / photo du jour Bing + rafraîchissement programmé) | ✅ | ❌ | ❌ | partiel (dépend des wallpapers WE) |
-| **Accent par utilisateur** (couche de surcharge, le skin reste intact) | ✅ | ❌ | ❌ | ❌ |
-| **Import / export de packs de thèmes + liens de partage** (JSON, distribution sans code) | ✅ | ❌ | ❌ | ❌ |
+| **Wallpaper 2.0** (URL / presets de gradient / suggestion par skin / auto-assombrissement / photo du jour Bing + rafraîchissement programmé) | ✅ | ❌ | ❌ | partiel (téléversement local d'images / vidéos + rotation programmée + modes d'adaptation ; pas d'URL / presets de gradient / Bing quotidien) |
+| **Accent par utilisateur** (couche de surcharge, le skin reste intact) | ✅ | ❌ | ❌ | partiel (6 presets + couleur de thème personnalisée pilotant boutons / interrupteurs / liens / sélection de navigation / curseurs / reflet du verre ; pas de concept de « couche sur le skin ») |
+| **Import / export de packs de thèmes + liens de partage** (JSON, distribution sans code) | ✅ | ❌ | ❌ | partiel (jeux de polices et presets de verre exportables / importables en JSON ; pas de liens de partage) |
 | Bibliothèque locale de packs + favoris + surprise-moi | ✅ | ❌ | ❌ | ❌ |
-| **Compatibilité deux générations d'hôte + détection de capacités à l'exécution** (dégradation propre sans erreur quand l'hôte change) | ✅ | inconnu | inconnu | ❌ (nécessite d'abord une mise à niveau du noyau) |
+| **Compatibilité deux générations d'hôte + détection de capacités à l'exécution** (dégradation propre sans erreur quand l'hôte change) | ✅ | inconnu | inconnu | partiel (une seule plage peer ouverte couvre les lignes d'hôte 0.1.5-rc.1+ et 0.2.x ; détection de forme / capacités de l'hôte avec replis locaux ; le plancher du noyau 0.1.5-rc.1 est une exigence stricte) |
 | Validation + restauration (aucune modification destructive) | ✅ | partiel | — | partiel |
 
 > **En une phrase** : vous voulez la palette Catppuccin ou l'atmosphère mineradio ? Le système de packs de ce plugin sait les recréer
@@ -275,7 +275,7 @@ dsh web   # restores the official appearance
 
 | Élément | Valeur |
 |------|-------|
-| DeepSeek Harness (`dsh`) | **Un seul build pour deux générations d'hôte** : stable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies épinglées sur `^0.1.0-rc.6`) et DSH master (table de modules post-division) |
+| DeepSeek Harness (`dsh`) | **Un seul build pour deux générations d'hôte** : stable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies épinglées sur `^0.1.0-rc.6`) et DSH master (table de modules post-division). **Le skin a disparu après une mise à niveau de l'hôte alors que le plugin s'affiche comme installé ?** La fenêtre de peers a très probablement fait sauter tout le bundle — issue de secours : `dsh plugin allow-version dsh-dream-skin@<version> <version de runtime de l'hôte>` (une **dérogation explicite à vos propres risques** qui force une combinaison non testée — pas une pratique recommandée) ; diagnostic du symptôme et étapes complètes dans [docs/desktop-support.md](../desktop-support.md) |
 | Node.js | `>=18` |
 | Navigateur | Chromium / WebKit moderne (variables CSS natives & `matchMedia`) |
 | Bureau | **Shell DSH Desktop tiers :** adapté et vérifié sur matériel réel (issues #50/#51/#55). **DSH Desktop officiel :** les preuves soutiennent « **devrait charger** », pas « pris en charge » — elles reposent sur deux faits statiques (même front-end Electron ; le `dsh.client.platform = "web"` que nous déclarons correspond aux 21 paquets clients livrés par l'hôte). Son répertoire de profil et sa commande d'installation n'ont **jamais** été vérifiés sur cette machine, donc ce document ne donne **aucune** commande d'installation bureau à copier. <!-- desktop-claim: load-expected-unverified -->Lors de l'ajout, la valeur de `--profile` doit être un nom de modèle que l'hôte **fournit lui-même** ; le profil qu'enseignent certains documents tiers n'y existe pas, et le copier installe dans un profil vide (après redémarrage, on ne voit rien). Preuves dans **[docs/desktop-support.md](../desktop-support.md)** → « bureau officiel : points à vérifier ». Liste complète des ancres / périmètre de sécurité / matrice vérifié-non vérifié : ce même document |

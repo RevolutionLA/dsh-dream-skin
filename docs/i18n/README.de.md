@@ -121,18 +121,18 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 ## 🏆 Warum es einen Stern verdient (im Vergleich zu Alternativen)
 
-| Fähigkeit | Dieses Plugin | [dsh-catppuccin-theme](https://github.com/) (Farbpaletten-Port) | [dsh-theme-mineradio](https://github.com/) (Einzel-Ästhetik) | [dsh-wallpaper-engine](https://github.com/) (Wallpaper-Brücke) |
+| Fähigkeit | Dieses Plugin | [dsh-catppuccin-theme](https://github.com/NoNameLeGo/dsh-catppuccin-theme) (Farbpaletten-Port) | [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) (Einzel-Ästhetik) | [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) (Wallpaper-Engine + Liquid-Glass-UI) |
 |------|:---:|:---:|:---:|:---:|
 | **8 originale Designs** (kein Farbpaletten-Port, eigene Tokens + Diffused Glow) | ✅ | ❌ (4 offizielle Catppuccin-Paletten) | ❌ (1 Champagner-Gold-Ästhetik) | ❌ |
 | **Frosted Glass / Liquid Glass** per Klick umschalten | ✅ | teilweise (feste Glasoptik) | ❌ | ❌ |
-| **Separate Transparenzregler** für Eingabefeld / Dialoge | ✅ | ❌ | ❌ | ❌ |
-| **Fabrikfertige Vorkonfiguration** (nach Installation + Neustart direkt fertig eingestellt) | ✅ | ❌ | ✅ (ist selbst das fertige Produkt) | ❌ |
+| **Separate Transparenzregler** für Eingabefeld / Dialoge | ✅ | ❌ | ❌ | teilweise (Einstellungsfenster / Floaters / linke Seitenleiste / Titelleiste haben jeweils eigene Deckkraft & Unschärfe; Eingabekarten & Bubbles erhalten Farbe & Fidelity separat, Deckkraft folgt dem globalen Regler) |
+| **Fabrikfertige Vorkonfiguration** (nach Installation + Neustart direkt fertig eingestellt) | ✅ | ❌ | ✅ (ist selbst das fertige Produkt) | teilweise (fabrikseitige Glas-Defaults + 7 Glas-Presets; keine fabriksseitigen Wallpaper / Skins) |
 | Benutzerdefiniertes Wallpaper + Deckkraft/Unschärfe | ✅ | ❌ | ❌ | ✅ (Kernfunktion) |
-| **Wallpaper 2.0** (URL / Gradient-Presets / Vorschlag pro Skin / Auto-Abdunkeln / Bing täglich + zeitgesteuert) | ✅ | ❌ | ❌ | teilweise (abhängig vom WE-Wallpaper) |
-| **Accent pro Nutzer** (Overlay-Ebene, der Skin bleibt unangetastet) | ✅ | ❌ | ❌ | ❌ |
-| **Theme-Pack-Import/-Export + Freigabelink** (JSON, verteilbar ohne Code) | ✅ | ❌ | ❌ | ❌ |
+| **Wallpaper 2.0** (URL / Gradient-Presets / Vorschlag pro Skin / Auto-Abdunkeln / Bing täglich + zeitgesteuert) | ✅ | ❌ | ❌ | teilweise (lokale Bild-/Video-Uploads + zeitgesteuerter Wechsel + Anpassungsmodi; keine URL / Gradient-Presets / Bing täglich) |
+| **Accent pro Nutzer** (Overlay-Ebene, der Skin bleibt unangetastet) | ✅ | ❌ | ❌ | teilweise (6 Presets + eigene Akzentfarbe, steuert Buttons / Schalter / Links / Navigationsauswahl / Regler / Glas-Glanz; kein „Skin-Overlay"-Konzept) |
+| **Theme-Pack-Import/-Export + Freigabelink** (JSON, verteilbar ohne Code) | ✅ | ❌ | ❌ | teilweise (Fontsets & Glas-Presets als JSON importierbar / exportierbar; keine Freigabelinks) |
 | Lokale Pack-Bibliothek + Favoriten + Überrasch-mich | ✅ | ❌ | ❌ | ❌ |
-| **Kompatibel mit zwei Host-Generationen + Laufzeit-Fähigkeitserkennung** (Host-Wechsel degradiert automatisch statt zu crashen) | ✅ | unbekannt | unbekannt | ❌ (Kernel-Upgrade nötig) |
+| **Kompatibel mit zwei Host-Generationen + Laufzeit-Fähigkeitserkennung** (Host-Wechsel degradiert automatisch statt zu crashen) | ✅ | unbekannt | unbekannt | teilweise (ein einziger offener Peer-Bereich deckt beide Host-Linien 0.1.5-rc.1+ und 0.2.x ab; Host-Form-/Fähigkeitserkennung mit lokalen Fallbacks; Kernel-Untergrenze 0.1.5-rc.1 ist harte Anforderung) |
 | Validierung + Rollback (keine destruktiven Änderungen) | ✅ | teilweise | — | teilweise |
 
 > **In einem Satz**: Die Markentöne von Catppuccin oder die Atmosphäre von mineradio — das Theme-Pack-System dieses
@@ -269,7 +269,7 @@ dsh web   # restores the official appearance
 
 | Punkt | Wert |
 |------|-------|
-| DeepSeek Harness (`dsh`) | **Ein Build für zwei Host-Generationen**: stabil `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies gepinnt auf `^0.1.0-rc.6`) und DSH master (Modultabelle nach der Aufteilung) |
+| DeepSeek Harness (`dsh`) | **Ein Build für zwei Host-Generationen**: stabil `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies gepinnt auf `^0.1.0-rc.6`) und DSH master (Modultabelle nach der Aufteilung). **Skin nach einem Host-Upgrade verschwunden, obwohl das Plugin als installiert angezeigt wird?** Höchstwahrscheinlich hat das Peer-Fenster das ganze Bundle übersprungen — Notausgang: `dsh plugin allow-version dsh-dream-skin@<Version> <Host-Laufzeitversion>` (eine **explizite Übernahme auf eigenes Risiko**, die eine ungetestete Kombination erzwingt — keine empfohlene Praxis); Symptom-Einordnung und vollständige Schritte in [docs/desktop-support.md](../desktop-support.md) |
 | Node.js | `>=18` |
 | Browser | modernes Chromium / WebKit (native CSS-Variablen & `matchMedia`) |
 | Desktop | **Drittanbieter-DSH-Desktop-Shell:** angepasst und auf echter Hardware geprüft (Issues #50/#51/#55). **Offizieller DSH-Desktop:** die Belege stützen „**lädt voraussichtlich**", nicht „unterstützt" — sie beruhen auf zwei statischen Fakten (gleiches Electron-Frontend; das von uns deklarierte `dsh.client.platform = "web"` stimmt mit allen 21 Client-Paketen des Hosts überein). Sein Profil-Verzeichnis und der Installationsbefehl wurden auf dieser Maschine **nie** geprüft, daher gibt dieses Dokument **keinen** kopierbaren Desktop-Installationsbefehl. <!-- desktop-claim: load-expected-unverified -->Beim Hinzufügen muss der `--profile`-Wert ein Template-Name sein, den der Host **selbst** mitbringt; das Profil, das manche Drittanbieter-Dokumente lehren, existiert dort nicht — kopiert man es, landet man in einem leeren Shell-Profil (nach einem Neustart sieht man nichts). Belege in **[docs/desktop-support.md](../desktop-support.md)** → „Offizieller Desktop: offene Prüfpunkte". Vollständige Ankerliste / Sicherheitsgrenze / verifiziert-nicht-verifiziert-Matrix: dasselbe Dokument |

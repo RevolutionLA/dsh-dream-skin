@@ -168,6 +168,39 @@ function checkFontScale({ doc, fixture, bundle, docs }) {
 		problems.push(`the evidence doc does not state the ${rc2.default} px default`);
 	}
 
+	// ── issue #95-C: the per-version table must reconcile with the fixture ──
+	// The gate above only checks that the current range appears SOMEWHERE, which
+	// is why the review's C1/C2 mutations (a wrong range on the rc.1 / alpha.1
+	// table row) stayed green. Each table row quotes the host's own words, so
+	// each row is checked against the SAME version's fixture sentence — the
+	// stepper needle is derived, never retyped here.
+	for (const [version, data] of Object.entries(versions)) {
+		const needle = (norm(data.stepperSentence).match(/from \d+ (?:to|through) \d+ px/) || [])[0];
+		if (!needle) {
+			problems.push(`fixture version ${version} lost its "from N to M px" stepper phrase — the per-row check has nothing to reconcile against`);
+			continue;
+		}
+		const row = docN.split("\n").find((l) => l.includes(version) && l.trim().startsWith("|") && norm(l).includes("px"));
+		if (!row) {
+			problems.push(`the per-version table lost its ${version} row — the version attribution is how a reader tells the ranges apart`);
+		} else if (!norm(row).includes(needle)) {
+			problems.push(`the ${version} table row says "${(row.match(/from \d+ (?:to|through) \d+ px/) || ["(no range phrase)"])[0]}" but the frozen host README for ${version} says "${needle}"`);
+		}
+	}
+	// C3: a sentence that asserts the WIDENING must carry the current range.
+	// The generic range check passes as long as any occurrence of 10–22 exists,
+	// so one drifted occurrence used to hide among the others. Every widening
+	// sentence is checked — picking the first would let a later drift hide.
+	// A "widening sentence" names the font range with a px unit; bare digit-dash
+	// digit matches (release dates like 2026-10-09) are not sentences about px.
+	const widenedLines = docN.split("\n").filter((l) => /放宽|widened/.test(l) && /\d+[-–]\d+\s*px/.test(l));
+	for (const widenedLine of widenedLines) {
+		if (!widenedLine.includes(norm(latestRange))) {
+			problems.push(`a sentence announcing the widening no longer carries the current range ${latestRange} px`);
+			break;
+		}
+	}
+
 	// The host's own words, not a paraphrase: these decide which of our faces
 	// the setting reaches, and the carve-out is the reason half of the range
 	// cannot hurt us.

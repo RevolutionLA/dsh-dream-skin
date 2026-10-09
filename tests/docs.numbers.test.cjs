@@ -146,9 +146,9 @@ function liveSuiteCount(files = null, dir = null) {
 const CLAIM_SITES = [
 	{ label: 'README.md 皮肤段', file: 'README.md', marker: '可测质量门', needs: ['total', 'palette', 'craft'] },
 	{
-		label: 'README.md 10.9.1 版本块',
+		label: 'README.md 10.9.2 版本块',
 		file: 'README.md',
-		scope: { from: '**版本 10.9.1', until: '**版本 10.9.0' },
+		scope: { from: '**版本 10.9.2', until: '**版本 10.9.1' },
 		marker: '回归门',
 		needs: ['suite']
 	},
@@ -161,6 +161,17 @@ const CLAIM_SITES = [
 	{ label: 'README.ko.md', file: 'docs/i18n/README.ko.md', marker: '팔레트', needs: ['total', 'palette', 'craft'] },
 	{ label: 'README.ru.md', file: 'docs/i18n/README.ru.md', marker: 'палитра', needs: ['total', 'palette', 'craft'] },
 	{ label: 'CHANGELOG.md', file: 'CHANGELOG.md', marker: '项质量门', needs: ['total', 'palette', 'craft'] },
+	{
+		// Issue #95-A: the CURRENT headline block restates the audit counts again
+		// (the "226/226 / 217 / 346" family), and mutating them stayed green because
+		// only the `项质量门` line above was registered. Historical blocks stay out
+		// of scope on purpose — same boundary the header comment draws.
+		label: 'CHANGELOG.md 头版块',
+		file: 'CHANGELOG.md',
+		scope: { from: '## [10.9.2]', until: '## [10.9.1]' },
+		marker: '质量审计',
+		needs: ['total', 'palette', 'craft']
+	},
 	{ label: 'desktop-support.md 兼容表', file: 'docs/desktop-support.md', marker: '回归测试覆盖', needs: ['suite'] },
 	{ label: 'desktop-support.md 已验证清单', file: 'docs/desktop-support.md', marker: 'Node 18/20/22/24 CI', needs: ['suite'] }
 ];

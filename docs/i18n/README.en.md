@@ -126,18 +126,18 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 > **complete, tunable material & color system** — the goal isn't "flashier", it's "more precise, more restrained,
 > more durable to look at", like a pane of glass polished over and over. **Taste + tunability is our moat.**
 
-| Capability | Ours | [dsh-catppuccin-theme](https://github.com/) (palette port) | [dsh-theme-mineradio](https://github.com/) (single-aesthetic custom) | [dsh-wallpaper-engine](https://github.com/) (wallpaper bridge) |
+| Capability | Ours | [dsh-catppuccin-theme](https://github.com/NoNameLeGo/dsh-catppuccin-theme) (palette port) | [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) (single-aesthetic custom) | [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) (wallpaper engine + liquid glass UI) |
 |------|:---:|:---:|:---:|:---:|
 | **8 original designs** (not a palette port: original tokens + diffused glow) | ✅ | ❌ (4 official Catppuccin palettes) | ❌ (1 champagne-gold aesthetic) | ❌ |
 | **Frosted / Liquid glass dual-material** one-click switch | ✅ | partial (fixed glass feel) | ❌ | ❌ |
-| **Independent opacity sliders for input box / popups** | ✅ | ❌ | ❌ | ❌ |
-| **Ready-tuned factory config** (restart after install and it just looks right) | ✅ | ❌ | ✅ (itself a finished product) | ❌ |
+| **Independent opacity sliders for input box / popups** | ✅ | ❌ | ❌ | partial (settings window / floaters / left sidebar / titlebar each have independent opacity & blur; input cards & bubbles get independent color & fidelity, opacity follows the global slider) |
+| **Ready-tuned factory config** (restart after install and it just looks right) | ✅ | ❌ | ✅ (itself a finished product) | partial (factory glass defaults + 7 glass presets; no factory wallpaper / skins) |
 | Custom wallpaper + opacity/blur | ✅ | ❌ | ❌ | ✅ (core ability) |
-| **Wallpaper 2.0** (URL / gradient presets / per-skin suggestion / auto-dim / Bing daily + scheduled refresh) | ✅ | ❌ | ❌ | partial (depends on WE wallpapers) |
-| **Per-user Accent** (overlay layer, the skin untouched) | ✅ | ❌ | ❌ | ❌ |
-| **Theme-pack import/export + share links** (JSON, code-free distribution) | ✅ | ❌ | ❌ | ❌ |
+| **Wallpaper 2.0** (URL / gradient presets / per-skin suggestion / auto-dim / Bing daily + scheduled refresh) | ✅ | ❌ | ❌ | partial (local image / video upload + timed rotation + fit modes; no URL / gradient presets / Bing daily) |
+| **Per-user Accent** (overlay layer, the skin untouched) | ✅ | ❌ | ❌ | partial (6 presets + custom accent driving buttons / switches / links / nav selection / sliders / glass highlight; no "skin overlay" concept) |
+| **Theme-pack import/export + share links** (JSON, code-free distribution) | ✅ | ❌ | ❌ | partial (font sets & glass presets export / import JSON; no share links) |
 | Local pack library + favorites + surprise-me | ✅ | ❌ | ❌ | ❌ |
-| **Two host generations compatible + runtime capability detection** (degrades gracefully across host upgrades, no errors) | ✅ | unknown | unknown | ❌ (kernel upgrade required first) |
+| **Two host generations compatible + runtime capability detection** (degrades gracefully across host upgrades, no errors) | ✅ | unknown | unknown | partial (a single open peer range covers both the 0.1.5-rc.1+ and 0.2.x host lines; host-shape / capability detection with local fallbacks; the kernel floor 0.1.5-rc.1 is a hard requirement) |
 | Validation + rollback (no destructive changes) | ✅ | partial | — | partial |
 
 > **In one sentence**: want Catppuccin's brand colors or mineradio's vibe? This plugin's theme-pack system can build
@@ -275,7 +275,7 @@ dsh web   # restores the official appearance
 
 | Item | Value |
 |------|-------|
-| DeepSeek Harness (`dsh`) | **One build for two host generations**: stable `0.1.0-rc.6` / `0.1.1-rc.x` (peers pinned to `^0.1.0-rc.6`) and DSH master (post-split module table) |
+| DeepSeek Harness (`dsh`) | **One build for two host generations**: stable `0.1.0-rc.6` / `0.1.1-rc.x` (peers pinned to `^0.1.0-rc.6`) and DSH master (post-split module table). **Skin vanished after a host upgrade while the plugin still shows as installed?** The peer window most likely made the host skip the whole bundle — emergency escape: `dsh plugin allow-version dsh-dream-skin@<version> <host runtime version>` (an **explicit override at your own risk** that force-admits an untested combination, not a recommended practice); symptom triage and full steps in [docs/desktop-support.md](../desktop-support.md) |
 | Node.js | `>=18` |
 | Browser | modern Chromium / WebKit (native CSS variables & `matchMedia`) |
 | Desktop | **Third-party DSH Desktop shell:** adapted and verified on real hardware (issues #50/#51/#55). **Official DSH Desktop:** the evidence supports "**expected to load**", not "supported" — it rests on two static facts (same Electron front-end; the `dsh.client.platform = "web"` we declare matches all 21 client packages the host ships). Its profile directory and install command have **never** been verified on this machine, so this document gives **no** copy-pasteable desktop install command. <!-- desktop-claim: load-expected-unverified -->When adding the plugin, the `--profile` value must be a template name the host **itself** ships; the profile some third-party docs teach does not exist there, and copying it installs into an empty shell profile (you see nothing after a restart). Evidence in **[docs/desktop-support.md](../desktop-support.md)** → "official desktop: pending verification". Full anchor list / security boundary / verified-unverified matrix: same document |

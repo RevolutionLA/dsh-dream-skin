@@ -128,18 +128,18 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 > "más preciso, más sobrio, más durable a la vista", como un cristal pulido una y otra vez.
 > **El gusto + la ajustabilidad son nuestro foso defensivo.**
 
-| Capacidad | El nuestro | [dsh-catppuccin-theme](https://github.com/) (paleta portada) | [dsh-theme-mineradio](https://github.com/) (estética única) | [dsh-wallpaper-engine](https://github.com/) (puente de wallpapers) |
+| Capacidad | El nuestro | [dsh-catppuccin-theme](https://github.com/NoNameLeGo/dsh-catppuccin-theme) (paleta portada) | [dsh-theme-mineradio](https://github.com/dhicoc/dsh-theme-mineradio) (estética única) | [dsh-wallpaper-engine](https://github.com/elysia395/dsh-wallpaper-engine) (motor de wallpapers + UI de vidrio líquido) |
 |------|:---:|:---:|:---:|:---:|
 | **8 diseños originales** (no una paleta portada: tokens propios + diffused glow) | ✅ | ❌ (4 paletas oficiales de Catppuccin) | ❌ (1 estética champán-dorado) | ❌ |
 | **Doble material vidrio esmerilado / líquido** con un clic | ✅ | parcial (sensación de vidrio fija) | ❌ | ❌ |
-| **Deslizadores de opacidad independientes para el input / popups** | ✅ | ❌ | ❌ | ❌ |
-| **Configuración de fábrica lista al instalar** (reinicia tras instalar y ya se ve bien) | ✅ | ❌ | ✅ (en sí es un producto acabado) | ❌ |
+| **Deslizadores de opacidad independientes para el input / popups** | ✅ | ❌ | ❌ | parcial (ventana de ajustes / flotantes / barra lateral izquierda / barra de título tienen opacidad y desenfoque independientes; las tarjetas de input y las burbujas configuran color y fidelidad por separado, la opacidad sigue el control global) |
+| **Configuración de fábrica lista al instalar** (reinicia tras instalar y ya se ve bien) | ✅ | ❌ | ✅ (en sí es un producto acabado) | parcial (valores de fábrica de vidrio + 7 presets de vidrio; sin wallpaper / skins de fábrica) |
 | Wallpaper personalizado + opacidad/desenfoque | ✅ | ❌ | ❌ | ✅ (capacidad central) |
-| **Wallpaper 2.0** (URL / presets de gradiente / sugerencia por skin / atenuación automática / Bing diario + refresco programado) | ✅ | ❌ | ❌ | parcial (depende de wallpapers de WE) |
-| **Accent por usuario** (capa de superposición, la skin intacta) | ✅ | ❌ | ❌ | ❌ |
-| **Importar/exportar theme packs + enlaces para compartir** (JSON, distribución sin código) | ✅ | ❌ | ❌ | ❌ |
+| **Wallpaper 2.0** (URL / presets de gradiente / sugerencia por skin / atenuación automática / Bing diario + refresco programado) | ✅ | ❌ | ❌ | parcial (subida local de imágenes / vídeos + rotación programada + modos de ajuste; sin URL / presets de gradiente / Bing diario) |
+| **Accent por usuario** (capa de superposición, la skin intacta) | ✅ | ❌ | ❌ | parcial (6 presets + color de tema personalizado que impulsa botones / interruptores / enlaces / selección de navegación / deslizadores / brillo del vidrio; sin concepto de "capa sobre la skin") |
+| **Importar/exportar theme packs + enlaces para compartir** (JSON, distribución sin código) | ✅ | ❌ | ❌ | parcial (conjuntos de fuentes y presets de vidrio se exportan / importan en JSON; sin enlaces para compartir) |
 | Biblioteca local de packs + favoritos + sorpréndeme | ✅ | ❌ | ❌ | ❌ |
-| **Compatible con dos generaciones de host + detección de capacidades en tiempo de ejecución** (degrada con elegancia ante cambios de host, sin errores) | ✅ | desconocido | desconocido | ❌ (requiere actualizar el kernel primero) |
+| **Compatible con dos generaciones de host + detección de capacidades en tiempo de ejecución** (degrada con elegancia ante cambios de host, sin errores) | ✅ | desconocido | desconocido | parcial (un único rango peer abierto cubre las líneas de host 0.1.5-rc.1+ y 0.2.x; hay detección de forma / capacidades del host con alternativas locales; el límite inferior del kernel 0.1.5-rc.1 es un requisito estricto) |
 | Validación + rollback (sin cambios destructivos) | ✅ | parcial | — | parcial |
 
 > **En una frase**: ¿quieres los colores de marca de Catppuccin o el ambiente de mineradio? El sistema de theme packs
@@ -280,7 +280,7 @@ dsh web   # restaura el aspecto oficial
 
 | Elemento | Valor |
 |------|-------|
-| DeepSeek Harness (`dsh`) | **Una compilación para dos generaciones de host**: estable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies fijadas a `^0.1.0-rc.6`) y DSH master (tabla de módulos tras la división) |
+| DeepSeek Harness (`dsh`) | **Una compilación para dos generaciones de host**: estable `0.1.0-rc.6` / `0.1.1-rc.x` (peerDependencies fijadas a `^0.1.0-rc.6`) y DSH master (tabla de módulos tras la división). **¿La skin desapareció tras una actualización del host y el plugin sigue apareciendo como instalado?** Lo más probable es que la ventana de peers hiciera que el host saltara el bundle completo — salida de emergencia: `dsh plugin allow-version dsh-dream-skin@<versión> <versión de runtime del host>` (una **anulación explícita bajo tu propio riesgo** que fuerza una combinación sin probar — no es una práctica recomendada); diagnóstico del síntoma y pasos completos en [docs/desktop-support.md](../desktop-support.md) |
 | Node.js | `>=18` |
 | Navegador | Chromium / WebKit modernos (variables CSS nativas y `matchMedia`) |
 | Escritorio | **Shell DSH Desktop de terceros:** adaptada y verificada en hardware real (issues #50/#51/#55). **DSH Desktop oficial:** la evidencia respalda «**se espera que cargue**», no «compatible» — se apoya en dos hechos estáticos (mismo front-end Electron; el `dsh.client.platform = "web"` que declaramos coincide con los 21 paquetes cliente que trae el host). Su directorio de perfil y su comando de instalación **nunca** se verificaron en esta máquina, así que este documento **no** ofrece ningún comando de instalación de escritorio para copiar. <!-- desktop-claim: load-expected-unverified -->Al añadirlo, el valor de `--profile` debe ser un nombre de plantilla que el host **sí** trae; el perfil que enseñan algunos documentos de terceros no existe ahí, y copiarlo instala en un perfil vacío (tras reiniciar no se ve nada). Evidencia en **[docs/desktop-support.md](../desktop-support.md)** → «escritorio oficial: pendiente de verificación». Lista completa de anclajes / límite de seguridad / matriz verificado-no verificado: ese mismo documento |

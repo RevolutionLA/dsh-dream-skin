@@ -346,6 +346,11 @@ ${parts.chat}</style>
       stripHeight: strip.height,
       stripTransform: strip.transform,
       sidebarColFill: getComputedStyle(sidebarCol).backgroundColor,
+      // The surface the caption band sits above. The band's promise (10.9.2) is "look like the
+      // content column", so the comparison target has to be MEASURED, not typed into this file —
+      // a hand-copied colour here would keep "passing" after the skin, the slider or the token
+      // moved, which is the F14 family of error this gate has been corrected for twice.
+      centerColFill: getComputedStyle(col).backgroundColor,
       refFill: getComputedStyle(ref).backgroundColor,
       fadeBg: fade ? getComputedStyle(fade).backgroundImage : null,
       fadeMask: fade ? getComputedStyle(fade).maskImage : null,
@@ -909,7 +914,13 @@ const WASH_CHECKS = [
 	{ id: 'frame-fill-dropped', requires: ['frameFill'], group: 'corner', msg: 'wash: the frame fill must be dropped', ok: (plain, wash) => wash.frameFill === 'rgba(0, 0, 0, 0)' },
 	{ id: 'frame-fill-kept', requires: ['frameFill'], group: 'corner', msg: 'plain: without a wash the frame must keep its own fill', ok: (plain) => plain.frameFill !== 'rgba(0, 0, 0, 0)' },
 	{ id: 'caption-paints', requires: ['stripFill', 'refFill'], group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
-	{ id: 'caption-cleared', requires: ['stripFill'], group: 'corner', msg: 'wash: that pseudo-element paint must go with the frame’s own — it is the one chrome surface sitting across the whole window in the SIDEBAR colour, over a centre column that paints the canvas colour', ok: (plain, wash) => wash.stripFill === 'rgba(0, 0, 0, 0)' },
+	// 10.9.2: the promise about the caption band is not "transparent" — it is "the same surface as
+	// the content column it spans". 10.9.1 asserted transparency and shipped it; the report came
+	// back as a screenshot of a bright photo, because a band that matches nothing but the wallpaper
+	// is the complaint it was filed with. Asserting equality against a MEASURED neighbour survives
+	// the skin changing, the canvas slider moving, and this decision being revisited again.
+	{ id: 'caption-matches-content', requires: ['stripFill', 'centerColFill'], group: 'corner', msg: 'wash: the caption band must compute to exactly what the centre column computes — the host paints that strip in the SIDEBAR token across a window whose content column paints the CANVAS token, and 10.9.1’s answer (leave it bare) read as a light band over a bright wallpaper', ok: (plain, wash) => wash.stripFill === wash.centerColFill },
+	{ id: 'center-column-paints', requires: ['centerColFill'], group: 'corner', msg: 'plain: the centre column must really paint something, or the equality above is a comparison against nothing', ok: (plain) => cssAlpha(plain.centerColFill) > 0 },
 	// The image half is its OWN id: `background-color: transparent` clears a flat colour and
 	// nothing else, and the fade rule (issue #97) is the proof that a strip can be painted
 	// with a gradient. One id per failure mode, so a host upgrade that adds a gradient names

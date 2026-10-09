@@ -267,13 +267,13 @@ const UNWASHED = {
 	corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
 	stripFill: 'rgba(16, 16, 24, 0.75)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
 	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
-	sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgb(16, 16, 24)', refFill: 'rgba(16, 16, 24, 0.75)'
 };
 const WASHED = {
 	corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
-	stripFill: 'rgba(0, 0, 0, 0)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+	stripFill: 'rgb(16, 16, 24)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
 	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
-	sidebarColFill: 'rgba(16, 16, 24, 0.75)', refFill: 'rgba(16, 16, 24, 0.75)'
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgb(16, 16, 24)', refFill: 'rgba(16, 16, 24, 0.75)'
 };
 
 test('the verdict table claims every reading, and each claim is in a named issue group', () => {
@@ -349,7 +349,7 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	const ids = (problems) => problems.map((p) => p.split(':')[0]).sort();
 
 	assert.deepEqual(ids(checkReadings([UNWASHED, UNWASHED, UNWASHED], HOST_GROUPS)),
-		['caption-cleared', 'corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
+		['caption-matches-content', 'corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
 		'a wash that changes nothing must report exactly the four wash-side checks');
 
 	assert.deepEqual(ids(checkReadings([WASHED, WASHED, UNWASHED], HOST_GROUPS)),
@@ -371,6 +371,13 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	const cornerTrio = (flag) => {
 		const plain = { ...UNWASHED }, wash = { ...WASHED }, again = { ...UNWASHED };
 		if (flag === 'stripSurvives') wash.stripFill = plain.stripFill;
+		// 10.9.2: the shape 10.9.1 actually shipped — the band left bare while the content column
+		// paints. Every other caption claim (image cleared, box generated, drag intact, geometry
+		// unmoved, restore) still reads green, so this is the one id that carries the decision.
+		if (flag === 'bandBare') wash.stripFill = 'rgba(0, 0, 0, 0)';
+		// The anti-vacuity leg for the new equality: a page where the centre column paints nothing
+		// makes "the band matches the content column" true of a band that matches an empty page.
+		if (flag === 'centerNeverPaints') { plain.centerColFill = 'rgba(0, 0, 0, 0)'; wash.centerColFill = 'rgba(0, 0, 0, 0)'; wash.stripFill = 'rgba(0, 0, 0, 0)'; }
 		if (flag === 'imageSurvives') wash.stripImage = 'linear-gradient(rgba(0, 0, 0, 0), rgba(16, 16, 24, 0.75))';
 		if (flag === 'boxGone') wash.stripContent = 'none';
 		if (flag === 'dragGone') wash.stripRegion = 'no-drag';
@@ -388,7 +395,9 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		return [plain, wash, again];
 	};
 	for (const [flag, want] of [
-		['stripSurvives', ['caption-cleared']],
+		['stripSurvives', ['caption-matches-content']],
+		['bandBare', ['caption-matches-content']],
+		['centerNeverPaints', ['center-column-paints']],
 		['imageSurvives', ['caption-image-cleared']],
 		['boxGone', ['caption-box-alive']],
 		['dragGone', ['caption-still-drags']],
@@ -793,11 +802,31 @@ test('mutation: with the caption ::before rule gone the strip paints through the
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const readings = r.readings;
 	const ids = checkReadings(readings, ['corner']).map((p) => p.split(':')[0]);
-	assert.deepEqual(ids, ['caption-cleared'],
+	assert.deepEqual(ids, ['caption-matches-content'],
 		'the caption is the ONLY thing this mutation breaks: the corner, the frame fill and the sidebar column must all still read as fixed');
 	const wash = readings.find((x) => x.state === 'wash');
 	assert.equal(wash.stripFill, wash.refFill,
 		'without our rule the host caption row paints the sidebar token straight through the wash — that IS the band the report circles');
+});
+
+test('mutation: leaving the band bare (what 10.9.1 shipped) is now a named failure', { skip: RUN ? false : skipWhy }, () => {
+	// 10.9.2. The 10.9.1 answer was `background: transparent`, and it passed every gate in this
+	// repository — because the gate asserted transparency INSTEAD of asserting what the user
+	// asked for, which is "the top edge looks like the surface under it". Swap ONLY the value and
+	// require the one id that carries that decision to speak, so the next reversal has to be a
+	// decision made against a red gate rather than a silent edit past a green one.
+	const parts = buildFixture();
+	const material = parts.material.replace(/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*?)var\(--dsw-alias-bg-base\)/, '$1transparent');
+	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
+	assert.match(material, /::before[^{]*\{[^}]*background: transparent !important/);
+	const r = measure({ parts: { ...parts, material } });
+	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
+	const ids = checkReadings(r.readings, ['corner']).map((p) => p.split(':')[0]);
+	assert.deepEqual(ids, ['caption-matches-content'],
+		'a bare band breaks exactly the claim about what the band should look like — the box, the drag region, the geometry and the restore all still read fine, which is why they never could have carried this');
+	const wash = r.readings.find((x) => x.state === 'wash');
+	assert.equal(wash.stripFill, 'rgba(0, 0, 0, 0)', 'the band is bare…');
+	assert.notEqual(wash.centerColFill, 'rgba(0, 0, 0, 0)', '…and the surface under it is not, which is the whole complaint in two readings');
 });
 
 test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, not the mechanism', { skip: RUN ? false : skipWhy }, () => {
@@ -809,14 +838,15 @@ test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, no
 	// has to be re-measured before anyone repeats it.
 	const parts = buildFixture();
 	const material = parts.material.replace(
-		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background: transparent)\s*!important/, '$1');
+		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background: var\(--dsw-alias-bg-base\))\s*!important/, '$1');
 	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
-	assert.match(material, /::before[^{]*\{[^}]*background: transparent;/, 'the declaration is still there, only unflagged');
+	assert.match(material, /::before[^{]*\{[^}]*background: var\(--dsw-alias-bg-base\);/, 'the declaration is still there, only unflagged');
 	const r = measure({ parts: { ...parts, material } });
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const wash = r.readings.find((x) => x.state === 'wash');
-	assert.equal(wash.stripFill, 'rgba(0, 0, 0, 0)',
+	assert.equal(wash.stripFill, wash.centerColFill,
 		'the selector alone beats the host rule — which is why the flag guards a different case (an inline stamp), not this one');
+	assert.notEqual(wash.stripFill, wash.refFill, 'and it is really overriding the host: the band is not reading the sidebar token any more');
 });
 
 test('the AppFrame class names are DERIVED from the host CSS, and a re-roll stops the fixture', () => {

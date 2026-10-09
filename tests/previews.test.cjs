@@ -54,6 +54,26 @@ const sha256 = (b) => crypto.createHash("sha256").update(b).digest("hex");
 
 const manifest = () => JSON.parse(fs.readFileSync(MANIFEST, "utf8"));
 
+/**
+ * Issue #95-B: a preview reference is addressable when it is either
+ * (a) an absolute raw.githubusercontent.com URL, or (b) a relative `docs/previews/…`
+ * path AND the tarball actually ships `docs/previews` (i.e. it is in `files`).
+ * Everything else is a 404 on the npm page or in the repo layout — that is the
+ * hole the B1 mutation walked through: flipping a raw URL back to a relative
+ * path used to stay green because nothing re-derived the shipping premise.
+ */
+function previewRefProblems(text, pkg) {
+	const problems = [];
+	const ships = JSON.stringify(pkg.files || []).includes("docs/previews");
+	for (const m of text.matchAll(/(?:href|src)="([^"]*docs\/previews\/[^"]+)"/g)) {
+		const ref = m[1];
+		if (/^https?:\/\//.test(ref)) continue;
+		if (ships) continue;
+		problems.push(`"${ref}" is relative but the tarball does not ship docs/previews — npm renders it as a 404`);
+	}
+	return problems;
+}
+
 /** Every README that shows the eight preview cards. */
 function readmes() {
 	const out = [path.join(ROOT, "README.md")];
@@ -93,11 +113,16 @@ test("#83: the previews are advertised from GitHub, not shipped in the tarball",
 		const rel = path.relative(ROOT, file);
 		const text = fs.readFileSync(file, "utf8");
 
-		// A relative `docs/previews/...` src resolves to a 404 both on the npm
-		// page (nothing is shipped) and from `docs/i18n/` (wrong depth, the
-		// 0.4.8 bug). Absolute raw URLs are the only form that works in both.
-		const relative = text.match(/(href|src)="(?:\.\.\/\.\.\/)?docs\/previews\//g) || [];
-		assert.deepEqual(relative, [], `${rel} still references previews relatively: ${relative.join(", ")}`);
+		// Issue #95-B: a relative `docs/previews/...` src only works if the
+		// tarball actually ships it. Today `docs/previews` is out of `files`
+		// (and must stay out — see the assertion above), so every relative
+		// reference is a 404 both on the npm page and from `docs/i18n/`
+		// (wrong depth, the 0.4.8 bug). But the rule is conditional, not a
+		// blanket ban: if the images ever move back into `files`, relative
+		// references become addressable again. `previewRefProblems` below
+		// encodes that condition and its mutation test pins both directions.
+		const problems = previewRefProblems(text, pkg);
+		assert.deepEqual(problems, [], `${rel} has unaddressable preview references:\n${problems.join("\n")}`);
 
 		for (const id of skins) {
 			const url = `${README_RAW}/${id}.png`;
@@ -116,6 +141,31 @@ test("#83: the previews are advertised from GitHub, not shipped in the tarball",
 // ---------------------------------------------------------------------------
 // 2. Mutations
 // ---------------------------------------------------------------------------
+
+test("#95-B: a relative preview reference reddens while the tarball does not ship docs/previews, and stays green once it does", () => {
+	const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+	const relativeRef = 'src="docs/previews/abyss.png"';
+
+	// Direction 1 (the B1 mutation): previews are NOT in `files`, so a relative
+	// reference is a 404 on the npm page and must be rejected…
+	const shipped = { files: pkg.files };
+	assert.deepEqual(
+		previewRefProblems(relativeRef, shipped).length,
+		1,
+		"the un-shipped relative reference must be a problem"
+	);
+	// …and absolute URLs are always fine.
+	assert.deepEqual(
+		previewRefProblems(`src="${README_RAW}/abyss.png"`, shipped),
+		[]
+	);
+
+	// Direction 2 (the reverse case): if the images ever move back into `files`,
+	// the same relative reference becomes addressable — the gate must NOT be a
+	// blanket ban on relative paths.
+	const unshipped = { files: [...pkg.files, "docs/previews"] };
+	assert.deepEqual(previewRefProblems(relativeRef, unshipped), []);
+});
 
 test("mutation: re-rolling a palette colour without re-shooting reddens the previews", () => {
 	// The issue's acceptance criterion, in-process: ONLY a design-system colour

@@ -3179,12 +3179,15 @@ test('sidebar fill leak: the Windows title-bar frame stops painting the chat are
 	// `transform: translateY(-34px)` planted here moves the whole caption band off the top of the
 	// window while the fill stays cleared, the box stays generated and the computed app-region
 	// stays `drag`, so every substring assertion this test used to make would still pass. The
-	// SHORTHAND is inside the expected value on purpose: a `background-color` longhand would clear
-	// today's flat colour and leave a gradient standing (issue #97 is that story already).
+	// VALUE is on the list as of 10.9.2: the band follows the canvas token, which is what the
+	// centre column under it is painted with — a hardcoded colour here would be a fourth material
+	// on the chrome that no skin owns and no gate can trace. The SHORTHAND is in the expected
+	// value on purpose: a `background-color` longhand would leave a gradient standing (issue #97
+	// is that story already).
 	const stripDecls = strip[0].slice(strip[0].indexOf('{') + 1, strip[0].lastIndexOf('}'))
 		.split(';').map((x) => x.trim()).filter(Boolean);
-	assert.deepEqual(stripDecls, ['background: transparent !important'],
-		'the caption rule is EXACTLY one declaration and that declaration is the paint clear — no box, no geometry, no drag region');
+	assert.deepEqual(stripDecls, ['background: var(--dsw-alias-bg-base) !important'],
+		'the caption rule is EXACTLY one declaration and it is the canvas token with the flag — no box, no geometry, no drag, no invented colour');
 	const ungatedStrip = css.match(/html\[data-windows-titlebar\](?!\[data-dsh-dream-skin-wash\])[^{]*\[data-shell-overlay\]\)::before/);
 	assert.equal(ungatedStrip, null, 'a wallpaper-less profile keeps the stock caption row');
 });

@@ -962,15 +962,21 @@ function auditCraft(source) {
 			// longhand leaves any `background-image` standing, and the flat colour this rule
 			// answers today is exactly the kind of declaration a future host upgrades to a
 			// gradient (issue #97 is that story already, on a different surface).
-			if (d.value !== 'transparent !important' && d.value !== 'none !important') {
-				problems.push(`the caption row's paint is not cleared or not armed (got ${d.value}) — a wash retint is a different decision, and without the flag an inline stamp on the host side wins`);
+			// The value is on the list, not "any colour that looks right": `transparent` leaves the
+			// wallpaper in the strip, `var(--dsw-alias-bg-base)` makes the strip follow the content
+			// column it spans (10.9.2 — the report on the first form came back as a screenshot). Both
+			// are tokens this repository can point at; a hardcoded hex/rgb here would be a fourth
+			// material on the chrome that no skin owns and no gate can trace.
+			const PAINT_VALUES = ['transparent !important', 'none !important', 'var(--dsw-alias-bg-base) !important'];
+			if (!PAINT_VALUES.includes(d.value)) {
+				problems.push(`the caption row's paint is neither cleared nor following the canvas token, or is unarmed (got ${d.value}) — allowed: ${PAINT_VALUES.join(' / ')}`);
 			}
 		}
 		const dragHits = blocks.filter((b) => b.decls.some((d) => /app-region$/.test(d.prop)));
 		if (dragHits.length) problems.push(`this sheet declares an app-region (${dragHits[0].selector.slice(0, 48)}) — no plugin rule may claim the drag geometry`);
 		push('wash-frame-flattened', problems.length === 0,
 			problems.length ? problems.join('; ')
-				: 'under a wash the frame fill is dropped, the host content corner is flattened through the host variable, and the caption row’s own paint goes with it — without touching the drag region');
+				: 'under a wash the frame fill is dropped, the host content corner is flattened through the host variable, and the caption row’s own box is repainted with the canvas token — one declaration, and never the drag region');
 	}
 
 	// ---- 7. the session-list foot fade cannot paint a band under a wash ------

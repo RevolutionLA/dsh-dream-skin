@@ -60,6 +60,64 @@ const BANNED_FLAG = /--profile[\s=]+(?:desktop|browser|app)\b/i;
 /** Facts the evidence document must actually contain, not merely allude to. */
 const EVIDENCE = ["PROFILE_TEMPLATES", "DEFAULT_PROFILE_BUNDLES", "dsh-web-app", 'platform: "web"'];
 
+/**
+ * Issue #95-D: the stamp and the wording must not come apart. The review's D1
+ * mutation strengthened "expected to load" into "supported" while leaving the
+ * stamp untouched and stayed green — the gate only ever looked at the stamp.
+ * Per locale, the stamped claim line must (a) still SAY the unverified form,
+ * (b) still say the profile was never verified on this machine, and (c) not
+ * carry the completion term except as the thing being NEGATED (every current
+ * line quotes the completion word only to deny it, so the ban is
+ * negation-aware: an occurrence is a violation unless a negation sits within
+ * a few characters before it — or after it, in Japanese/Korean word order).
+ */
+const WORDING = {
+	"README.md": { expect: "预期可加载", verified: "从未验证", banned: [[/已支持/g, false]] },
+	"docs/i18n/README.en.md": { expect: "expected to load", verified: "been verified", banned: [[/supported/g, false]] },
+	"docs/i18n/README.de.md": { expect: "lädt voraussichtlich", verified: "geprüft", banned: [[/unterstützt/g, false]] },
+	"docs/i18n/README.es.md": { expect: "se espera que cargue", verified: "se verificaron", banned: [[/compatible/g, false]] },
+	"docs/i18n/README.fr.md": { expect: "devrait charger", verified: "vérifiés", banned: [[/pris en charge/g, false]] },
+	"docs/i18n/README.ja.md": { expect: "読み込む見込み", verified: "検証しておらず", banned: [[/対応済み/g, true]] },
+	"docs/i18n/README.ko.md": { expect: "로드될 것으로 예상", verified: "검증되지 않았", banned: [[/지원/g, true]] },
+	"docs/i18n/README.ru.md": { expect: "ожидается загрузка", verified: "не проверялись", banned: [[/поддерживается/g, false]] }
+};
+
+/** A completion term is tolerated only in the scope of a nearby negation. */
+const NEG_BEFORE = /(?:不|未|非|не|not|nicht|no|pas|ne)\s*[^a-z]{0,4}$/i;
+
+function wordingProblems(rel, text) {
+	const cfg = WORDING[rel];
+	if (!cfg) return [];
+	const problems = [];
+	const line = text.split("\n").find((l) => l.includes(CLAIM));
+	if (!line) return problems;
+	if (!line.includes(cfg.expect)) {
+		problems.push(`${rel}: the stamped claim line no longer says "${cfg.expect}" — the stamp and the wording have come apart`);
+	}
+	if (!line.includes(cfg.verified)) {
+		problems.push(`${rel}: the stamped claim line no longer says the profile was never verified ("${cfg.verified}")`);
+	}
+	// The banned terms are only scanned in the OFFICIAL-desktop clause — from
+	// the expect phrase onward. The third-party shell clause legitimately says
+	// "verified"/"対応済み" (that claim IS measured), so scanning the whole line
+	// would flag facts, not drift.
+	const expectAt = line.indexOf(cfg.expect);
+	if (expectAt < 0) return problems;
+	const scope = line.slice(expectAt);
+	for (const [term, negAfter] of cfg.banned) {
+		for (const m of scope.matchAll(term)) {
+			const before = scope.slice(Math.max(0, m.index - 12), m.index);
+			const after = scope.slice(m.index + m[0].length, m.index + m[0].length + 12);
+			const negated = negAfter ? /ではありません|ではない|아닙|않|不|未/.test(after) : NEG_BEFORE.test(before);
+			if (!negated) {
+				problems.push(`${rel}: the stamped claim line uses the completion term "${m[0]}" as an assertion, not as a negation — the stamp says load-expected-unverified`);
+				break;
+			}
+		}
+	}
+	return problems;
+}
+
 const readReal = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 
 /** The gate. Pure: `read` is a parameter, which is what makes the mutations real. */
@@ -71,6 +129,7 @@ function checkDesktopClaims(read = readReal) {
 	const stamps = new Map();
 	for (const rel of CLAIM_DOCS) {
 		const text = read(rel);
+		problems.push(...wordingProblems(rel, text));
 		const found = [...text.matchAll(/<!--\s*desktop-claim:\s*([a-z-]+)\s*-->/g)].map((m) => m[1]);
 		if (found.length === 0) {
 			problems.push(`${rel}: states the desktop compatibility claim with no \`desktop-claim\` stamp — the claim is not machine-readable`);
@@ -201,6 +260,34 @@ test("mutation #87.4: a warning with no evidence behind it reddens the gate", ()
 	);
 	const noWarning = checkDesktopClaims((rel) => (rel === EVIDENCE_DOC ? readReal(rel).replace(/--profile[\s=]+desktop/gi, "a profile") : readReal(rel)));
 	assert.ok(noWarning.some((p) => p.includes("name the profile flag")), "a warning that no longer names the flag is not actionable");
+});
+
+test("mutation #87.5 (issue #95-D1): strengthening the wording while KEEPING the stamp reddens the gate", () => {
+	// The exact hole the review measured: "预期可加载" -> "已支持", stamp untouched.
+	// The wording gate must catch it even though the stamp still reads
+	// load-expected-unverified.
+	const problems = checkDesktopClaims((rel) =>
+		rel === "README.md" ? readReal(rel).replace("证据只支持\"**预期可加载**\"", "证据支持\"**已支持**\"") : readReal(rel)
+	);
+	assert.ok(
+		problems.some((p) => p.startsWith("README.md") && (p.includes("no longer says") || p.includes("completion term"))),
+		`the D1 mutation must redden the wording gate, got: ${JSON.stringify(problems)}`
+	);
+});
+
+test("mutation #87.6 (issue #95-D reverse): swapping the stamp for a stronger one reddens the gate too", () => {
+	// The other direction: a stronger stamp must not buy a pass for wording that
+	// is still (or now) written as completion. Bump the stamp AND assert the
+	// completion term — the claim value itself must still be rejected by name.
+	const problems = checkDesktopClaims((rel) =>
+		rel === "README.md"
+			? readReal(rel).replace(CLAIM, "<!-- desktop-claim: supported-verified -->")
+			: readReal(rel)
+	);
+	assert.ok(
+		problems.some((p) => p.includes('desktop claim "supported-verified"')),
+		`a strengthened stamp must be rejected by name, got: ${JSON.stringify(problems)}`
+	);
 });
 
 module.exports = { checkDesktopClaims, CLAIM, CLAIM_DOCS, EVIDENCE_DOC, BANNED_FLAG };
