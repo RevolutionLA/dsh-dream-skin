@@ -295,19 +295,40 @@ function fixtureHtml(parts) {
 	const inJsChat = JSON.stringify('.' + chatClass);
 	const inJsCenter = JSON.stringify('.' + parts.centerColClass);
 	const inJsSidebar = JSON.stringify('.' + parts.sidebarColClass);
+	// TWO fixture choices here are load-bearing for the 10.9.3 judgement, and both were wrong
+	// before it. (1) The canvas token is TRANSLUCENT: the real one is whatever the 弹窗透明度
+	// slider publishes (measured 0.4 on the desktop profile), and an opaque token composites to
+	// itself at any layer count, which would make "the band equals the column" true by accident —
+	// a gate that cannot fail is the thing this repository keeps being corrected for. (2) BODY
+	// paints the token: on the served page the stack under the columns starts at body, and the
+	// strip sits in the frame's padding where the columns' own roots cannot reach, so body is the
+	// one layer both stacks share. Without it the fixture's column was two deep while reality is
+	// three, and the counts below would have been measuring a page nobody renders.
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<style>:root{--dsw-alias-bg-base:#101018;--dsw-specific-sidebar-fill:rgba(16,16,24,.75);--dsw-alias-bg-layer-2:rgba(22,22,28,.92);--dsh-session-list-edge-inset:8px;--dsh-windows-titlebar-height:34px}</style>
+<style>:root{--dsw-alias-bg-base:rgba(16,16,24,.4);--dsw-specific-sidebar-fill:rgba(16,16,24,.75);--dsw-alias-bg-layer-2:rgba(22,22,28,.92);--dsh-session-list-edge-inset:8px;--dsh-windows-titlebar-height:34px}
+body{background:var(--dsw-alias-bg-base)}</style>
 <style>${parts.layout}
 ${parts.fade}
 ${parts.chat}</style>
-<style id="fixture-chrome">#sidebar-fill-ref{position:fixed;left:-9999px;top:0;width:1px;height:1px;background:var(--dsw-specific-sidebar-fill)}</style>
+<style id="fixture-chrome">#sidebar-fill-ref{position:fixed;left:-9999px;top:0;width:1px;height:1px;background:var(--dsw-specific-sidebar-fill)}
+/* THE LAYER THIS FIXTURE USED TO BE MISSING. Measured on the page the official shell
+   serves (2026-10-09, desktop profile, nebula): the visible surface of the centre column is
+   body + .centerCol + the app root INSIDE the column, three layers of the same canvas token,
+   cumulative alpha 0.784 — while the caption strip is body + its own paint, two layers, 0.640.
+   Without this element the fixture asserted "strip equals column" against a column that was
+   one layer shallower than reality, which is how 10.9.2 passed every gate and still shipped a
+   light band. Modelled as a fixture class, not a host hash: the layer is what matters, and its
+   name is the host's to rename. */
+.fixture-app-root{background:var(--dsw-alias-bg-base)}</style>
 <style id="plugin-material">${parts.material}</style>
 </head><body>
 <div class="${parts.frameClass}" data-shell-frame>
-  <div class="${parts.sidebarColClass}">sidebar column</div>
+  <div class="${parts.sidebarColClass}"><div class="fixture-app-root">sidebar column</div></div>
   <div class="${parts.centerColClass}">
-    <span class="${fadeClass}">fade</span>
-    <div class="${chatClass}">chat scroll mask</div>
+    <div class="fixture-app-root">
+      <span class="${fadeClass}">fade</span>
+      <div class="${chatClass}">chat scroll mask</div>
+    </div>
   </div>
   <div data-shell-overlay>titlebar</div>
 </div>
@@ -322,12 +343,103 @@ ${parts.chat}</style>
   var chat = document.querySelector(${inJsChat});
   var WASH = 'data-dsh-dream-skin-wash';
   var out = [];
+  // ── the layer reader ──────────────────────────────────────────────────────
+  // What the user compares at the top edge is the COMPOSITED colour, and a page builds that
+  // out of every painting layer between the element and the wallpaper. getComputedStyle(el)
+  // .backgroundColor — which is all this gate used to compare — sees ONE declaration, so a
+  // strip that paints the same token once next to a column that paints it three times read
+  // "equal" (measured 2026-10-09: 0.640 vs 0.784 cumulative alpha, and a light band on
+  // screen). So: walk, collect every layer, composite over a fixed base.
+  function parseColor(c) {
+    var m = String(c).match(/rgba?\\(([\\d.]+),\\s*([\\d.]+),\\s*([\\d.]+)(?:,\\s*([\\d.]+))?\\)/);
+    if (!m) return null;
+    return { rgb: [+m[1], +m[2], +m[3]], a: m[4] === undefined ? 1 : +m[4] };
+  }
+  function splitTopLevel(s) {
+    var parts = [], depth = 0, cur = '';
+    for (var i = 0; i < s.length; i++) {
+      var ch = s[i];
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      if (ch === ',' && depth === 0) { parts.push(cur); cur = ''; continue; }
+      cur += ch;
+    }
+    if (cur.trim()) parts.push(cur);
+    return parts;
+  }
+  // Every layer that paints this box: its own colour, then one per background-image layer.
+  // A gradient counts ONLY when all its stops are the same colour — anything else is a band,
+  // and a band cannot be composited by arithmetic, so the reading says "bad" and the check
+  // reports itself broken rather than guessing.
+  function layersOfBox(cs) {
+    var list = [];
+    var own = parseColor(cs.backgroundColor);
+    if (own && own.a > 0) list.push(own);
+    var img = cs.backgroundImage;
+    if (img && img !== 'none') {
+      splitTopLevel(img).forEach(function (layer) {
+        var g = layer.match(/linear-gradient\\(([\\s\\S]*)\\)\\s*$/);
+        if (!g) { list.push({ bad: true }); return; }
+        var stops = splitTopLevel(g[1]).map(parseColor).filter(Boolean);
+        if (!stops.length) { list.push({ bad: true }); return; }
+        var same = stops.every(function (s) {
+          return s.a === stops[0].a && s.rgb[0] === stops[0].rgb[0] && s.rgb[1] === stops[0].rgb[1] && s.rgb[2] === stops[0].rgb[2];
+        });
+        if (!same) { list.push({ bad: true }); return; }
+        if (stops[0].a > 0) list.push(stops[0]);
+      });
+    }
+    return list;
+  }
+  function stackOf(el, pseudo) {
+    var list = [];
+    if (pseudo) {
+      // The pseudo-element box paints ON TOP of its originating element's own background, so
+      // that background is part of the stack a user sees. Skipping it (as the first draft did)
+      // made the plain-state band read one layer deep when the page actually paints three.
+      list = list.concat(layersOfBox(getComputedStyle(el, pseudo)));
+    }
+    var cur = el;
+    var guard = 0;
+    while (cur && guard++ < 30) {
+      list = list.concat(layersOfBox(getComputedStyle(cur)));
+      cur = cur.parentElement;
+    }
+    return list;
+  }
+  // Composited over white, so the reading is a colour a human can compare, not an exponent.
+  function composite(list) {
+    if (!list.length || list.some(function (l) { return l.bad; })) return null;
+    var r = 255, g = 255, b = 255;
+    list.forEach(function (l) {
+      r = l.rgb[0] * l.a + r * (1 - l.a);
+      g = l.rgb[1] * l.a + g * (1 - l.a);
+      b = l.rgb[2] * l.a + b * (1 - l.a);
+    });
+    return 'rgb(' + Math.round(r) + ', ' + Math.round(g) + ', ' + Math.round(b) + ')';
+  }
   function sample(label) {
     // The caption row is a PSEUDO-ELEMENT of the frame, not the frame: a separate box with
     // its own paint, and a background-color set on the element does not reach it. Reading
     // getComputedStyle(frame) — all this page used to sample — therefore says nothing about
     // the strip across the top of the window.
     var strip = getComputedStyle(frame, '::before');
+    var bandList = stackOf(frame, '::before');
+    var contentList = stackOf(col.querySelector('.fixture-app-root') || col, null);
+    // Every background-image layer on the strip must be OUR token, not a leftover host paint:
+    // the reset is a shorthand precisely so a host gradient cannot survive under it, and this
+    // is the reading that proves it did not (10.9.3 adds a gradient of its own, so "image is
+    // none" is no longer the promise — "every image layer is the canvas token" is).
+    var canvas = parseColor(getComputedStyle(col).backgroundColor);
+    var imageLayers = strip.backgroundImage && strip.backgroundImage !== 'none' ? splitTopLevel(strip.backgroundImage) : [];
+    var imageOnToken = imageLayers.every(function (layer) {
+      var g = layer.match(/linear-gradient\\(([\\s\\S]*)\\)\\s*$/);
+      if (!g || !canvas) return false;
+      return splitTopLevel(g[1]).every(function (stop) {
+        var c = parseColor(stop);
+        return !!c && c.a === canvas.a && c.rgb.join(',') === canvas.rgb.join(',');
+      });
+    });
     out.push({
       state: label,
       corner: getComputedStyle(col).borderTopLeftRadius,
@@ -351,6 +463,15 @@ ${parts.chat}</style>
       // a hand-copied colour here would keep "passing" after the skin, the slider or the token
       // moved, which is the F14 family of error this gate has been corrected for twice.
       centerColFill: getComputedStyle(col).backgroundColor,
+      // WHAT THE PIXELS ACTUALLY DO. Own declarations were the 10.9.2 comparison and it was
+      // satisfied while the band read light, because the column paints the token more times than
+      // the strip does. These are the composited results over a fixed base, plus how many layers
+      // each stack has — the count is what turns "equal" from a coincidence into a claim.
+      bandComposite: composite(bandList),
+      contentComposite: composite(contentList),
+      bandLayers: bandList.length,
+      contentLayers: contentList.length,
+      stripImageOnToken: imageOnToken,
       refFill: getComputedStyle(ref).backgroundColor,
       fadeBg: fade ? getComputedStyle(fade).backgroundImage : null,
       fadeMask: fade ? getComputedStyle(fade).maskImage : null,
@@ -916,16 +1037,32 @@ const WASH_CHECKS = [
 	{ id: 'caption-paints', requires: ['stripFill', 'refFill'], group: 'corner', msg: 'plain: the caption row must really paint the sidebar token through the frame’s ::before, or the checks under it are vacuous', ok: (plain) => plain.stripFill === plain.refFill && cssAlpha(plain.stripFill) > 0 },
 	// 10.9.2: the promise about the caption band is not "transparent" — it is "the same surface as
 	// the content column it spans". 10.9.1 asserted transparency and shipped it; the report came
-	// back as a screenshot of a bright photo, because a band that matches nothing but the wallpaper
-	// is the complaint it was filed with. Asserting equality against a MEASURED neighbour survives
-	// the skin changing, the canvas slider moving, and this decision being revisited again.
-	{ id: 'caption-matches-content', requires: ['stripFill', 'centerColFill'], group: 'corner', msg: 'wash: the caption band must compute to exactly what the centre column computes — the host paints that strip in the SIDEBAR token across a window whose content column paints the CANVAS token, and 10.9.1’s answer (leave it bare) read as a light band over a bright wallpaper', ok: (plain, wash) => wash.stripFill === wash.centerColFill },
+	// back as a screenshot of a bright photo.
+	// 10.9.3: the FIRST version of that promise compared `stripFill` with `centerColFill` — two
+	// OWN declarations — and it was true while the band was still light, because the column paints
+	// the same token three times (body + column + the app root inside it, cumulative alpha 0.784)
+	// and the strip paints it twice (0.640). Declarations are not pixels. This check composites
+	// each stack over a fixed base and compares the RESULT, so a layer count that drifts on either
+	// side reddens it, which is the only way this promise can be graded without a human looking.
+	{ id: 'caption-composites-like-content', requires: ['bandComposite', 'contentComposite'], group: 'corner', msg: 'wash: the caption band must COMPOSITE to what the centre column composites — the host paints that strip in the SIDEBAR token across a window whose content column paints the CANVAS token three times over the body, so matching the column means matching the stacked result, not the declaration', ok: (plain, wash) => wash.bandComposite === wash.contentComposite },
+	// The equality above is only as honest as the page it measures: a fixture whose column had
+	// forgotten its inner app root would pass with a one-layer strip. This pins the depth to what
+	// was measured on the shell's own page on 2026-10-09 (body + column + app root = 3 layers).
+	{ id: 'caption-stack-is-column-deep', requires: ['contentLayers'], group: 'corner', msg: 'wash: the centre column must really be painted THREE deep (body + column + app root), as measured on the served page — a shallower fixture would make the composite equality above a comparison against a page nobody renders', ok: (plain, wash) => wash.contentLayers >= 3 },
+	// And the equality needs something to be equal ABOUT. With an opaque token every stack
+	// composites to the token itself, so one layer and four would agree and this whole check would
+	// be decoration. The real slider publishes a translucent canvas token (measured 0.4), so the
+	// fixture must too — pinned here because "make the fixture opaque again" is a one-character
+	// change that would silently disarm the judgement above.
+	{ id: 'caption-comparison-is-alpha-sensitive', requires: ['centerColFill'], group: 'corner', msg: 'wash: the canvas token in the page must stay TRANSLUCENT, or compositing cannot distinguish one layer from three and the equality above stops measuring anything (that the column paints AT ALL is `center-column-paints`, which keeps its own failure mode)', ok: (plain, wash) => cssAlpha(wash.centerColFill) < 0.999 },
 	{ id: 'center-column-paints', requires: ['centerColFill'], group: 'corner', msg: 'plain: the centre column must really paint something, or the equality above is a comparison against nothing', ok: (plain) => cssAlpha(plain.centerColFill) > 0 },
 	// The image half is its OWN id: `background-color: transparent` clears a flat colour and
 	// nothing else, and the fade rule (issue #97) is the proof that a strip can be painted
 	// with a gradient. One id per failure mode, so a host upgrade that adds a gradient names
-	// itself instead of riding along on the colour claim.
-	{ id: 'caption-image-cleared', requires: ['stripImage'], group: 'corner', msg: 'wash: no background-image may survive on the caption row either — the reset is a shorthand precisely for this', ok: (plain, wash) => wash.stripImage === 'none' },
+	// itself instead of riding along on the colour claim. 10.9.3 gives the strip a gradient of
+	// its OWN (the second token layer), so the promise is no longer "no image" — it is "every
+	// image layer here is the canvas token", which is what still catches a host band surviving.
+	{ id: 'caption-image-is-our-token', requires: ['stripImageOnToken'], group: 'corner', msg: 'wash: every background-image layer on the caption row must be the canvas token — our own second layer, not a gradient the host left standing under the shorthand', ok: (plain, wash) => wash.stripImageOnToken === true },
 	{ id: 'caption-restored', requires: ['stripFill'], group: 'corner', msg: 'washed-again: with no wallpaper the host caption row comes back exactly as it shipped', ok: (plain, wash, again) => again.stripFill === plain.stripFill },
 	{ id: 'caption-box-alive', requires: ['stripContent'], group: 'corner', msg: 'both states: the pseudo-element must still GENERATE a box. The drag region lives on the box, and a box that is not generated still reports -webkit-app-region: drag (measured) — without this reading, "the drag survived" is a claim about a value on an element that is no longer painted', ok: (plain, wash) => plain.stripContent !== 'none' && wash.stripContent !== 'none' },
 	{ id: 'caption-still-drags', requires: ['stripRegion'], group: 'corner', msg: 'both states: clearing the paint must not clear -webkit-app-region — that strip is how the window is dragged, and a wallpaper may not cost the user the drag. EQUALITY, not "contains drag": the engine normalizes `none` to `no-drag`, which a substring test happily accepts (measured)', ok: (plain, wash) => plain.stripRegion === 'drag' && wash.stripRegion === 'drag' },

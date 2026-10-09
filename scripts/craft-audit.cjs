@@ -962,12 +962,27 @@ function auditCraft(source) {
 			// longhand leaves any `background-image` standing, and the flat colour this rule
 			// answers today is exactly the kind of declaration a future host upgrades to a
 			// gradient (issue #97 is that story already, on a different surface).
-			// The value is on the list, not "any colour that looks right": `transparent` leaves the
-			// wallpaper in the strip, `var(--dsw-alias-bg-base)` makes the strip follow the content
-			// column it spans (10.9.2 — the report on the first form came back as a screenshot). Both
-			// are tokens this repository can point at; a hardcoded hex/rgb here would be a fourth
-			// material on the chrome that no skin owns and no gate can trace.
-			const PAINT_VALUES = ['transparent !important', 'none !important', 'var(--dsw-alias-bg-base) !important'];
+			// The value is on the list, not "any colour that looks right": the `transparent` / `none`
+			// pair leaves the wallpaper in the strip, and the token forms make the strip follow the
+			// content column it spans. A hardcoded hex/rgb here would be a fourth material on the
+			// chrome that no skin owns and no gate can trace.
+			//
+			// TWO forms of the token are allowed, and that is deliberate. ONE layer was 10.9.2's answer
+			// and it shipped a band that still read light — the columns paint the canvas token three
+			// times (body + column + the app root inside it) while the strip can only stack what it is
+			// told to, so "same declaration as the column" is not "same pixel" (measured 2026-10-09:
+			// 0.640 vs 0.784 cumulative alpha). The two-layer form is the one that matches. This gate
+			// still accepts the single-layer form on purpose: craft grades the SHAPE (one declaration,
+			// the `background` shorthand, a token rather than an invented colour), and the engine decides
+			// whether the result looks like the surface under it. Moving the layer-count decision in
+			// here would put the same value in two gates, and 10.9.2 is the record of what happens when
+			// a shape gate carries a decision it cannot verify.
+			const PAINT_VALUES = [
+				'transparent !important',
+				'none !important',
+				'var(--dsw-alias-bg-base) !important',
+				'linear-gradient(var(--dsw-alias-bg-base), var(--dsw-alias-bg-base)) var(--dsw-alias-bg-base) !important'
+			];
 			if (!PAINT_VALUES.includes(d.value)) {
 				problems.push(`the caption row's paint is neither cleared nor following the canvas token, or is unarmed (got ${d.value}) — allowed: ${PAINT_VALUES.join(' / ')}`);
 			}

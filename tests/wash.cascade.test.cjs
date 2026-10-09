@@ -257,23 +257,56 @@ test('issue #102: the CLI exits 3 when it could not run, and 3 is not 0', { skip
 });
 
 /**
+ * Alpha-composite N layers of `rgb(...)` over white. This is the arithmetic the browser does,
+ * RE-DERIVED here from an independent implementation so that neither the synthetic rows below nor
+ * the live cross-check depends on a colour somebody typed in — the same reason the fixture stopped
+ * hand-copying host class names in 10.9.1 (F14 family). If the engine's `composite()` and this
+ * function ever disagree, the live test says so out loud.
+ */
+function compositeOverWhite(layers, rgb, a) {
+	let r = 255, g = 255, b = 255;
+	for (let i = 0; i < layers; i += 1) {
+		r = rgb[0] * a + r * (1 - a);
+		g = rgb[1] * a + g * (1 - a);
+		b = rgb[2] * a + b * (1 - a);
+	}
+	return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
+/** The fixture's canvas token, read from the same source the page reads it from. */
+const FIXTURE_TOKEN = [16, 16, 24];
+const FIXTURE_ALPHA = 0.4;
+
+/**
  * A corner page with no wash, and the same page washed (issue #96/#97/10.9.1). Shared by the two
  * synthetic-verdict tests below, which are the CI half of the computed-style gate — on CI the
- * engine half skips (393 pass / 11 skip), so these rows are what makes the verdict table
- * falsifiable at all. They carry EVERY field the checks declare in `requires`: a row that lost one
- * would now be reported as a broken checker, which is the point (J4).
+ * engine half skips, so these rows are what makes the verdict table falsifiable at all. They carry
+ * EVERY field the checks declare in `requires`: a row that lost one would now be reported as a
+ * broken checker, which is the point (J4).
+ *
+ * The composites are DERIVED from the layer counts above (see `compositeOverWhite`), and the live
+ * test re-measures the same numbers in a real engine — a transcription that drifted from the
+ * fixture would be caught there, not here.
  */
 const UNWASHED = {
 	corner: '16px', frameFill: 'rgba(16, 16, 24, 0.75)', fadeBg: 'linear-gradient(a, b)', chatMask: 'linear-gradient(c)',
 	stripFill: 'rgba(16, 16, 24, 0.75)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
 	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
-	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgb(16, 16, 24)', refFill: 'rgba(16, 16, 24, 0.75)'
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgba(16, 16, 24, 0.4)', refFill: 'rgba(16, 16, 24, 0.75)',
+	bandComposite: 'rgb(25, 25, 33)', contentComposite: 'rgb(29, 29, 36)', bandLayers: 3, contentLayers: 4,
+	stripImageOnToken: true
 };
 const WASHED = {
 	corner: '0px', frameFill: 'rgba(0, 0, 0, 0)', fadeBg: 'none', chatMask: 'linear-gradient(c)',
-	stripFill: 'rgb(16, 16, 24)', stripImage: 'none', stripContent: '""', stripRegion: 'drag',
+	stripFill: 'rgba(16, 16, 24, 0.4)', stripImage: 'linear-gradient(rgba(16, 16, 24, 0.4), rgba(16, 16, 24, 0.4))',
+	stripContent: '""', stripRegion: 'drag',
 	stripTop: '0px', stripHeight: '34px', stripTransform: 'none',
-	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgb(16, 16, 24)', refFill: 'rgba(16, 16, 24, 0.75)'
+	sidebarColFill: 'rgba(16, 16, 24, 0.75)', centerColFill: 'rgba(16, 16, 24, 0.4)', refFill: 'rgba(16, 16, 24, 0.75)',
+	// The promise of 10.9.3 in two numbers: band and column composite to the SAME colour out of
+	// the SAME number of layers. Both are derived, neither is typed in as a target.
+	bandComposite: compositeOverWhite(3, FIXTURE_TOKEN, FIXTURE_ALPHA),
+	contentComposite: compositeOverWhite(3, FIXTURE_TOKEN, FIXTURE_ALPHA),
+	bandLayers: 3, contentLayers: 3,
+	stripImageOnToken: true
 };
 
 test('the verdict table claims every reading, and each claim is in a named issue group', () => {
@@ -349,7 +382,7 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	const ids = (problems) => problems.map((p) => p.split(':')[0]).sort();
 
 	assert.deepEqual(ids(checkReadings([UNWASHED, UNWASHED, UNWASHED], HOST_GROUPS)),
-		['caption-matches-content', 'corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
+		['caption-composites-like-content', 'corner-flattened', 'fade-neutralised', 'frame-fill-dropped'],
 		'a wash that changes nothing must report exactly the four wash-side checks');
 
 	assert.deepEqual(ids(checkReadings([WASHED, WASHED, UNWASHED], HOST_GROUPS)),
@@ -370,15 +403,49 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	// mutation, not by reading the check.
 	const cornerTrio = (flag) => {
 		const plain = { ...UNWASHED }, wash = { ...WASHED }, again = { ...UNWASHED };
-		if (flag === 'stripSurvives') wash.stripFill = plain.stripFill;
-		// 10.9.2: the shape 10.9.1 actually shipped — the band left bare while the content column
-		// paints. Every other caption claim (image cleared, box generated, drag intact, geometry
-		// unmoved, restore) still reads green, so this is the one id that carries the decision.
-		if (flag === 'bandBare') wash.stripFill = 'rgba(0, 0, 0, 0)';
-		// The anti-vacuity leg for the new equality: a page where the centre column paints nothing
+		// The host's own paint surviving the wash: the band goes back to the sidebar token, so the
+		// composite moves and the image is the host's flat colour again (no layer of ours).
+		if (flag === 'stripSurvives') {
+			wash.stripFill = plain.stripFill; wash.stripImage = 'none';
+			wash.bandComposite = compositeOverWhite(2, [16, 16, 24], 0.75); wash.bandLayers = 2;
+		}
+		// 10.9.1's answer: the band left bare. Every other caption claim (box generated, drag
+		// intact, geometry unmoved, restore) still reads green — this is the one id that carries
+		// the decision, and it is the id 10.9.1's own gate could not have produced.
+		if (flag === 'bandBare') {
+			wash.stripFill = 'rgba(0, 0, 0, 0)'; wash.stripImage = 'none';
+			wash.bandComposite = compositeOverWhite(1, FIXTURE_TOKEN, FIXTURE_ALPHA); wash.bandLayers = 1;
+		}
+		// 10.9.2's answer: the strip paints the token ONCE. Its own computed colour is then
+		// byte-identical to the column's own computed colour — the assertion 10.9.2 graded — while
+		// the composited band is a layer short. This row is the whole bug, kept as a case.
+		if (flag === 'bandOneLayer') {
+			wash.stripFill = wash.centerColFill; wash.stripImage = 'none';
+			wash.bandComposite = compositeOverWhite(2, FIXTURE_TOKEN, FIXTURE_ALPHA); wash.bandLayers = 2;
+		}
+		// The anti-vacuity leg for the equality: a page where the centre column paints nothing
 		// makes "the band matches the content column" true of a band that matches an empty page.
 		if (flag === 'centerNeverPaints') { plain.centerColFill = 'rgba(0, 0, 0, 0)'; wash.centerColFill = 'rgba(0, 0, 0, 0)'; wash.stripFill = 'rgba(0, 0, 0, 0)'; }
-		if (flag === 'imageSurvives') wash.stripImage = 'linear-gradient(rgba(0, 0, 0, 0), rgba(16, 16, 24, 0.75))';
+		// A host gradient left standing under our shorthand. The composite is held at the healthy
+		// value on purpose: this row grades the CHECKER TABLE (one id per failure mode), and the
+		// live mutation below is where a real gradient moves both numbers at once.
+		if (flag === 'imageSurvives') {
+			wash.stripImage = 'linear-gradient(rgba(0, 0, 0, 0), rgba(16, 16, 24, 0.75))';
+			wash.stripImageOnToken = false;
+		}
+		// The fixture losing a layer is how a shallow page starts passing: both sides thinned, so
+		// the equality is still true and only the depth claim can say anything about it.
+		if (flag === 'stackShallowed') {
+			wash.bandLayers = 2; wash.contentLayers = 2;
+			wash.bandComposite = compositeOverWhite(2, FIXTURE_TOKEN, FIXTURE_ALPHA);
+			wash.contentComposite = wash.bandComposite;
+		}
+		// An opaque token makes every stack composite to the token itself at any depth — the
+		// equality would stop being able to fail. One of the two ways this gate goes vacuous.
+		if (flag === 'tokenOpaque') {
+			plain.centerColFill = 'rgb(16, 16, 24)'; wash.centerColFill = 'rgb(16, 16, 24)';
+			wash.bandComposite = 'rgb(16, 16, 24)'; wash.contentComposite = 'rgb(16, 16, 24)';
+		}
 		if (flag === 'boxGone') wash.stripContent = 'none';
 		if (flag === 'dragGone') wash.stripRegion = 'no-drag';
 		if (flag === 'columnMoved') wash.sidebarColFill = 'rgba(0, 0, 0, 0)';
@@ -395,10 +462,13 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		return [plain, wash, again];
 	};
 	for (const [flag, want] of [
-		['stripSurvives', ['caption-matches-content']],
-		['bandBare', ['caption-matches-content']],
+		['stripSurvives', ['caption-composites-like-content']],
+		['bandBare', ['caption-composites-like-content']],
+		['bandOneLayer', ['caption-composites-like-content']],
 		['centerNeverPaints', ['center-column-paints']],
-		['imageSurvives', ['caption-image-cleared']],
+		['imageSurvives', ['caption-image-is-our-token']],
+		['stackShallowed', ['caption-stack-is-column-deep']],
+		['tokenOpaque', ['caption-comparison-is-alpha-sensitive']],
 		['boxGone', ['caption-box-alive']],
 		['dragGone', ['caption-still-drags']],
 		['bandMoved', ['caption-band-anchored']],
@@ -411,6 +481,15 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 		assert.deepEqual(ids(checkReadings(cornerTrio(flag), ['corner'])), want,
 			`${flag}: the caption claims must name their own failure mode, nothing else`);
 	}
+	// 10.9.2 shipped `bandOneLayer` past every gate in this repository, so the row above is
+	// doubled: the claim 10.9.2 actually graded was "the band's OWN background equals the column's
+	// OWN background", and that sentence is TRUE of the broken page. Asserting it here keeps the
+	// reason for the rewrite in the test rather than in a paragraph.
+	const oneLayer = cornerTrio('bandOneLayer');
+	assert.equal(oneLayer[1].stripFill, oneLayer[1].centerColFill,
+		'the 10.9.2-era equality really is satisfied by the shape that failed on the user’s screen');
+	assert.notEqual(oneLayer[1].bandComposite, oneLayer[1].contentComposite,
+		'…and the composite is what tells them apart');
 	// The geometry pair above reports ONE id each: the four paint/box/drag checks stay silent
 	// through a moved box. That is the whole reason they are not sufficient on their own, and it
 	// is written down here as a measured fact rather than as a paragraph in a document.
@@ -435,11 +514,11 @@ test('checkReadings is falsifiable, and reads the state each check means', () =>
 	} finally {
 		WASH_CHECKS.pop();
 	}
-	// `caption-image-cleared` is a guard against a FUTURE host shape, not a reading that can
-	// fail today: the host's caption row is a flat colour, so its computed background-image is
-	// already `none` in the plain state. That is why its falsifiability lives in the synthetic
-	// row above rather than only in the engine — and why the reset is a shorthand in the first
-	// place. Saying "the engine would catch it" without this row would be a claim with no test.
+	// `caption-image-is-our-token` is a guard against a FUTURE host shape, not a reading that can
+	// fail today: the host's caption row is a flat colour, so the only image layer on it is ours.
+	// That is why its falsifiability lives in the synthetic row above rather than only in the
+	// engine — and why the reset is a shorthand in the first place. Saying "the engine would catch
+	// it" without this row would be a claim with no test.
 	assert.deepEqual(ids(checkReadings([UNWASHED, WASHED, UNWASHED], ['corner'])), [],
 		'the healthy corner trio reads no problems even with the two guards that cannot bite on today’s host');
 	assert.deepEqual(checkReadings([]), ['expected the three states plain/wash/washed-again, got 0'],
@@ -802,31 +881,57 @@ test('mutation: with the caption ::before rule gone the strip paints through the
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const readings = r.readings;
 	const ids = checkReadings(readings, ['corner']).map((p) => p.split(':')[0]);
-	assert.deepEqual(ids, ['caption-matches-content'],
+	assert.deepEqual(ids, ['caption-composites-like-content'],
 		'the caption is the ONLY thing this mutation breaks: the corner, the frame fill and the sidebar column must all still read as fixed');
 	const wash = readings.find((x) => x.state === 'wash');
 	assert.equal(wash.stripFill, wash.refFill,
 		'without our rule the host caption row paints the sidebar token straight through the wash — that IS the band the report circles');
+	assert.notEqual(wash.bandComposite, wash.contentComposite, 'and the composite is the reading that says so');
 });
 
-test('mutation: leaving the band bare (what 10.9.1 shipped) is now a named failure', { skip: RUN ? false : skipWhy }, () => {
-	// 10.9.2. The 10.9.1 answer was `background: transparent`, and it passed every gate in this
-	// repository — because the gate asserted transparency INSTEAD of asserting what the user
-	// asked for, which is "the top edge looks like the surface under it". Swap ONLY the value and
-	// require the one id that carries that decision to speak, so the next reversal has to be a
-	// decision made against a red gate rather than a silent edit past a green one.
+const BAND_RULE_VALUE = 'background: linear-gradient(var(--dsw-alias-bg-base), var(--dsw-alias-bg-base)) var(--dsw-alias-bg-base) !important';
+
+test('mutation: leaving the band bare (what 10.9.1 shipped) is a named failure', { skip: RUN ? false : skipWhy }, () => {
+	// 10.9.1's answer was `background: transparent`, and it passed every gate in this repository
+	// — because the gate asserted transparency INSTEAD of asserting what the user asked for,
+	// which is "the top edge looks like the surface under it".
 	const parts = buildFixture();
-	const material = parts.material.replace(/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*?)var\(--dsw-alias-bg-base\)/, '$1transparent');
+	const material = parts.material.replace(BAND_RULE_VALUE, 'background: transparent !important');
 	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
 	assert.match(material, /::before[^{]*\{[^}]*background: transparent !important/);
 	const r = measure({ parts: { ...parts, material } });
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const ids = checkReadings(r.readings, ['corner']).map((p) => p.split(':')[0]);
-	assert.deepEqual(ids, ['caption-matches-content'],
+	assert.deepEqual(ids, ['caption-composites-like-content'],
 		'a bare band breaks exactly the claim about what the band should look like — the box, the drag region, the geometry and the restore all still read fine, which is why they never could have carried this');
 	const wash = r.readings.find((x) => x.state === 'wash');
 	assert.equal(wash.stripFill, 'rgba(0, 0, 0, 0)', 'the band is bare…');
 	assert.notEqual(wash.centerColFill, 'rgba(0, 0, 0, 0)', '…and the surface under it is not, which is the whole complaint in two readings');
+});
+
+test('mutation: painting the token ONCE (what 10.9.2 shipped) is a named failure too', { skip: RUN ? false : skipWhy }, () => {
+	// The second reversal's own tombstone, and the more important of the two. 10.9.2 answered
+	// "make the strip paint the same token the content column paints" and shipped it past 412
+	// tests, because the check graded `stripFill === centerColFill` — two OWN declarations, which
+	// really are equal — while the column stacks that token three times and the strip twice.
+	// This row runs the 10.9.2 sheet through the 10.9.3 engine and requires the composite claim to
+	// speak, then asserts on the same readings that the 10.9.2 claim would have PASSED. Anything
+	// that keeps this green without the composite id firing has put the layer count back where it
+	// was not measurable.
+	const parts = buildFixture();
+	const material = parts.material.replace(BAND_RULE_VALUE, 'background: var(--dsw-alias-bg-base) !important');
+	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
+	const r = measure({ parts: { ...parts, material } });
+	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
+	const ids = checkReadings(r.readings, ['corner']).map((p) => p.split(':')[0]);
+	assert.deepEqual(ids, ['caption-composites-like-content'],
+		'one layer short breaks the composite claim and NOTHING on the engine side — the box, the drag region, the geometry, the image and the restore all still read fine. Measured across the other gates in an isolated copy (2026-10-09): craft-audit ACCEPTS this sheet (its whitelist carries the one-layer form on purpose — layer count is not a shape question), and the smoke pin reddens, but for the wrong reason (it compares the exact declaration, so it fires on any edit, not on a missing layer). This row is the only gate in the repository that fails because the band is one layer short.');
+	const wash = r.readings.find((x) => x.state === 'wash');
+	assert.equal(wash.stripFill, wash.centerColFill,
+		'the equality 10.9.2 graded is TRUE of this broken page — that is the whole lesson, kept as an assertion');
+	assert.notEqual(wash.bandComposite, wash.contentComposite,
+		'…and the composited result is what differs, by exactly the missing layer');
+	assert.equal(wash.bandLayers, wash.contentLayers - 1, 'named as a count, so the failure is a fact about the page rather than a colour coincidence');
 });
 
 test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, not the mechanism', { skip: RUN ? false : skipWhy }, () => {
@@ -837,15 +942,14 @@ test('the caption rule wins by SELECTOR; !important is the inline-stamp belt, no
 	// reddens, the specificity claim in lib/client.js is wrong and the comment above the rule
 	// has to be re-measured before anyone repeats it.
 	const parts = buildFixture();
-	const material = parts.material.replace(
-		/(html\[data-windows-titlebar\]\[data-dsh-dream-skin-wash\][^{}]*::before[^{]*\{[^}]*background: var\(--dsw-alias-bg-base\))\s*!important/, '$1');
+	const material = parts.material.replace(BAND_RULE_VALUE, BAND_RULE_VALUE.replace(' !important', ''));
 	assert.notEqual(material, parts.material, 'the mutation must change the sheet');
-	assert.match(material, /::before[^{]*\{[^}]*background: var\(--dsw-alias-bg-base\);/, 'the declaration is still there, only unflagged');
+	assert.match(material, /::before[^{]*\{[^}]*linear-gradient\(var\(--dsw-alias-bg-base\), var\(--dsw-alias-bg-base\)\) var\(--dsw-alias-bg-base\);/, 'the declaration is still there, only unflagged');
 	const r = measure({ parts: { ...parts, material } });
 	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
 	const wash = r.readings.find((x) => x.state === 'wash');
-	assert.equal(wash.stripFill, wash.centerColFill,
-		'the selector alone beats the host rule — which is why the flag guards a different case (an inline stamp), not this one');
+	assert.equal(wash.bandComposite, wash.contentComposite,
+		'the selector alone beats the host rule, layer for layer — which is why the flag guards a different case (an inline stamp), not this one');
 	assert.notEqual(wash.stripFill, wash.refFill, 'and it is really overriding the host: the band is not reading the sidebar token any more');
 });
 
