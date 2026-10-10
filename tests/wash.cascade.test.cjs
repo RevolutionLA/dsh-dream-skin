@@ -31,12 +31,13 @@ const os = require('os');
 const path = require('path');
 
 const {
-	measure, measureDesktop, buildFixture, buildDesktopFixture, stripDeclaration,
+	measure, measureDesktop, buildFixture, buildDesktopFixture, stripDeclaration, fixtureHtml,
 	checkReadings, checkDesktopReadings, cssAlpha, skinTokens, WASH_CHECKS, WASH_GROUPS,
 	DESKTOP_SKINS, DESKTOP_SWEEP, DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, browserAttempts,
 	probeBrowser, gradeStage, runChrome, environmentError,
 	measureCoexist, buildCoexistFixture, checkCoexistReadings, COEXIST_CHECKS,
-	hostFadeClasses, hostLayoutClasses, pluginFadeRule, SKIN_CENTER_PKG
+	hostFadeClasses, hostLayoutClasses, pluginFadeRule, SKIN_CENTER_PKG,
+	cornerTokens, cssColor, CORNER_SKIN, CORNER_ALPHA
 } = require('../scripts/wash-cascade.cjs');
 
 // Issue #102: "a browser binary exists" is NOT "an engine can be run here". The review
@@ -993,6 +994,98 @@ test('the AppFrame class names are DERIVED from the host CSS, and a re-roll stop
 	assert.deepEqual(hostLayoutClasses({ layout: layout.split('AAA_').join('BBB_panel_') }),
 		{ frameClass: 'BBB_panel_frame', centerColClass: 'BBB_panel_centerCol', sidebarColClass: 'BBB_panel_sidebarCol' },
 		'a fresh hash on the same families re-derives cleanly — that is the point of reading them out of the CSS');
+});
+
+// ── the corner fixture's colors come from the bundle (10.10.0, F14 one group later) ──
+
+/**
+ * A SECOND MECHANISM for pulling one token out of the bundle, deliberately not `skinTokens()`.
+ *
+ * To be exact about what that buys (blue team B-06): it is NOT an independent SOURCE — both readers
+ * parse the same `lib/client.js` text, so a fabricated block that lies to one lies to the other, and
+ * the only thing standing between a fake `nebula` and a green suite is the literal nail below. What
+ * the different mechanism does catch is parser drift: an indentation or key-order change that makes
+ * `skinTokens()` silently miss is exactly the failure this shape surfaces as a disagreement.
+ *
+ * The slice is bounded at the NEXT `id: "`, not at a fixed length. A fixed window overflowed nebula's
+ * block by ~1,900 characters (measured), so a token absent from nebula could have been reported from
+ * the skin that follows it — the reader would have looked independent and been reading the wrong skin.
+ */
+function bundleToken(skinId, key) {
+	const at = BUNDLE.indexOf('id: "' + skinId + '"');
+	if (at < 0) throw new Error(`no ${skinId} block in the bundle`);
+	const next = BUNDLE.indexOf('id: "', at + 1);
+	const block = BUNDLE.slice(at, next < 0 ? BUNDLE.length : next);
+	const m = block.match(new RegExp('"' + key + '": "([^"]+)"'));
+	return m ? m[1] : null;
+}
+
+test('the corner fixture reads its colors out of the shipped bundle, and refuses to invent them', () => {
+	// The desktop group learned this in 10.8.1 (F14: the fixture asserted `rgba(30,27,44,0.96)`,
+	// a value this repository invented, so "the shell really paints an underlay" was the gate
+	// reading back its own handwriting). The corner group was the last page still typing its
+	// :root colors — and because EVERY check in that group is relational (this equals that), a
+	// skin repainting either token would have left the gate measuring colours no skin ships while
+	// all of them stayed green.
+	const hex = bundleToken(CORNER_SKIN, '--dsw-alias-bg-base');
+	const sidebarHex = bundleToken(CORNER_SKIN, '--dsw-specific-sidebar-fill');
+	// The nail: a skin change is allowed, but it has to be a DECISION. If this goes red, the
+	// fixture's composited readings quoted in docs/desktop-support.md move with it.
+	assert.equal(hex, '#131116', `${CORNER_SKIN}'s canvas token changed — update the nail and every doc that quotes the fixture's numbers`);
+	assert.equal(sidebarHex, '#110f14', `${CORNER_SKIN}'s sidebar token changed — same drill`);
+	const t = cornerTokens(BUNDLE);
+	const rgb = [0, 2, 4].map((i) => parseInt(hex.slice(1 + i, 3 + i), 16));
+	const srgb = [0, 2, 4].map((i) => parseInt(sidebarHex.slice(1 + i, 3 + i), 16));
+	assert.equal(t['--dsw-alias-bg-base'], `rgba(${rgb.join(', ')}, ${CORNER_ALPHA['--dsw-alias-bg-base']})`,
+		'the canvas token is the bundle colour at the declared slider alpha');
+	assert.equal(t['--dsw-specific-sidebar-fill'], `rgba(${srgb.join(', ')}, ${CORNER_ALPHA['--dsw-specific-sidebar-fill']})`,
+		'the sidebar token is the bundle colour at the declared slider alpha');
+	assert.notEqual(t['--dsw-alias-bg-base'], t['--dsw-specific-sidebar-fill'],
+		'these are TWO different materials on the real page — the typed fixture had them as one colour, which is how a relational gate can pass while measuring nothing');
+	// layer-2 keeps its authored alpha; the slider alphas are only for the two tokens the wash moves.
+	assert.equal(t['--dsw-alias-bg-layer-2'], 'rgba(45, 43, 49, 0.92)', 'layer-2 comes through as the skin ships it');
+	// A value this file cannot parse has to stop the build. Falling back to the old typed colour
+	// would be the exact failure mode: the gate keeps reading a page nobody renders.
+	for (const [key, bad] of [
+		['--dsw-alias-bg-base', 'var(--whatever)'],
+		['--dsw-specific-sidebar-fill', '']
+	]) {
+		const source = BUNDLE.replace(`"${key}": "${key === '--dsw-alias-bg-base' ? hex : sidebarHex}"`, `"${key}": "${bad}"`);
+		assert.notEqual(source, BUNDLE, `the ${key} swap has to actually change the text`);
+		assert.throws(() => cornerTokens(source), /invent/i,
+			`an unreadable ${key} must refuse the build instead of becoming a guess`);
+	}
+	// The fixture refuses a page whose tokens were never read, the same way it refuses classes
+	// that were not derived — a thin fixture is worse than no fixture.
+	const parts = buildFixture();
+	assert.throws(() => fixtureHtml({ ...parts, corner: undefined }), /were not read from the shipped bundle/);
+});
+
+test('mutation: the corner page really paints with the bundle tokens, so a skin change moves the readings', { skip: RUN ? false : skipWhy }, () => {
+	// The claim above is about a function; this one is about the page. Rewrite nebula's canvas
+	// token in a COPY of the bundle, rebuild the fixture from that copy, and the engine must read
+	// the new colour off the centre column. If the fixture were still typing its own :root value,
+	// this reading would not move — and every relational check would still be green.
+	const hex = bundleToken(CORNER_SKIN, '--dsw-alias-bg-base');
+	const source = BUNDLE.replace(`"--dsw-alias-bg-base": "${hex}"`, '"--dsw-alias-bg-base": "#010203"');
+	assert.notEqual(source, BUNDLE, 'the swap has to actually change the bundle text');
+	const r = measure({ parts: buildFixture({ source }) });
+	assert.ok(!r.error, `the mutated probe failed: ${r.error}`);
+	const wash = r.readings.find((x) => x.state === 'wash');
+	const plain = r.readings.find((x) => x.state === 'plain');
+	assert.equal(wash.centerColFill, 'rgba(1, 2, 3, 0.4)',
+		'the column paints the bundle colour at the declared slider alpha — nothing here is typed');
+	assert.equal(wash.stripFill, 'rgba(1, 2, 3, 0.4)',
+		'under the wash the band follows the CANVAS token, so a repainted skin moves the band and the column together');
+	assert.equal(plain.stripFill, 'rgba(17, 15, 20, 0.75)',
+		'with no wash the band goes back to the SIDEBAR token — the two materials stay distinguishable, which is what makes the equality above a claim about a relation and not about one colour');
+	// The composite claim survives a skin change because it compares two measured stacks, not a
+	// colour this file chose. That is the property the whole 10.9.3 re-shape was for.
+	assert.equal(wash.bandComposite, wash.contentComposite,
+		'a repainted skin must not break the band — if this goes red the equality depends on a colour, not on a relation');
+	const base = measure();
+	const baseWash = base.readings.find((x) => x.state === 'wash');
+	assert.notEqual(baseWash.centerColFill, wash.centerColFill, 'the two pages really differ, or nothing was measured');
 });
 
 // ── issue #105: two plugins, one face ─────────────────────────────────────

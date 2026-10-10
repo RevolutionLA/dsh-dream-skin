@@ -52,3 +52,128 @@ jobs:
           node-version: 22
       - name: Typecheck the .d.ts declarations
         run: npx -y -p typescript@5.6.3 tsc -p tsconfig.json
+
+  # ── Roadmap M — the computed-style gate runs here, with a real engine ─────────────
+  # Every other job in this file grades CSS as TEXT (`npm test` runs in a plain Node VM,
+  # and the four `tests/wash.cascade.test.cjs` engine cases skip on CI because the runner
+  # has neither a browser nor a host install). `npm run wash:check` does drive Chrome and
+  # reads computed values in three states, but until this job the only witness was the
+  # maintainer's own laptop.
+  #
+  # So this job provisions BOTH inputs the gate reads — an engine and the host packages
+  # whose CSS the fixture is built from — into throwaway directories, and runs it under
+  # DSH_WASH_STRICT=1: a missing piece is then exit 4 naming which piece is missing, not
+  # exit 3 shrugging. Strict never re-labels a disagreement (that stays exit 1), and off CI
+  # nothing changes: developers without a browser still get a skip with a reason.
+  # Docs: docs/computed-style-gate-in-ci.md
+  wash-gate:
+    name: Computed-style gate (real engine + real host CSS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DSH_WASH_STRICT: '1'
+      # The coexistence stage reads a THIRD-PARTY plugin. 0.4.4 is the version whose
+      # scoped() prefix list the fixture recomposes (three `html[…]` scopes); 0.4.5 dropped
+      # one, and the fixture refuses to invent a rule it cannot read — the pin is the work
+      # item, not the version bump. `npm pack` + tar: the gate reads one file, so the
+      # plugin's own 500-package dep tree is not needed (and not executed).
+      DSH_SKIN_CENTER_VERSION: '0.4.4'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Provision a headless browser
+        run: |
+          set -euo pipefail
+          # The Ubuntu runner image ships Google Chrome with every shared library it needs,
+          # and `scripts/wash-cascade.cjs` already looks at /usr/bin/google-chrome. Prefer
+          # that over a download: no network, no missing-lib class of failure.
+          for c in /usr/bin/google-chrome /usr/bin/google-chrome-stable /usr/bin/chromium /usr/bin/chromium-browser; do
+            if [ -x "$c" ]; then
+              echo "Using the runner image browser: $c"
+              echo "CHROME_PATH=$c" >> "$GITHUB_ENV"
+              "$c" --version
+              exit 0
+            fi
+          done
+          echo "No browser in the image — installing one with @puppeteer/browsers"
+          BIN=$(npx -y @puppeteer/browsers install chrome@stable --path "$RUNNER_TEMP/browsers" | tail -1 | awk '{print $NF}')
+          test -x "$BIN"
+          echo "CHROME_PATH=$BIN" >> "$GITHUB_ENV"
+          "$BIN" --version
+
+      - name: Provision the DSH host packages the fixture reads CSS from
+        run: |
+          set -euo pipefail
+          # Read the pin out of the census rather than typing it twice: the corpus, the
+          # docs and this gate are supposed to be talking about the same host, and a
+          # workflow that installs a different one than the census measured would quietly
+          # grade a host nobody documented.
+          HOST_VER=$(node -p "require('./scripts/data/host-token-census.json').host.dshVersion")
+          echo "Host version under test: $HOST_VER (scripts/data/host-token-census.json → host.dshVersion)"
+          mkdir -p "$RUNNER_TEMP/dsh-host"
+          cd "$RUNNER_TEMP/dsh-host"
+          npm init -y > /dev/null
+          npm install --no-audit --no-fund --no-package-lock --ignore-scripts \
+            "@deepseek-ai/dsh-client-ui-layout@$HOST_VER" \
+            "@deepseek-ai/dsh-client-ui-workspace@$HOST_VER" \
+            "@deepseek-ai/dsh-client-ui-chat@$HOST_VER" \
+            "@deepseek-ai/dsh-client-ui-sidebar@$HOST_VER"
+          ROOT="$RUNNER_TEMP/dsh-host/node_modules/@deepseek-ai"
+          for p in dsh-client-ui-layout dsh-client-ui-workspace dsh-client-ui-chat dsh-client-ui-sidebar; do
+            if [ ! -f "$ROOT/$p/lib/client.js" ]; then
+              echo "::error::$ROOT/$p/lib/client.js is not there after installing $p@$HOST_VER"
+              exit 1
+            fi
+          done
+          echo "DSH_HOST_ROOT=$ROOT" >> "$GITHUB_ENV"
+
+      - name: Provision the co-signing plugin (coexistence stage)
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/dsh-skin-center"
+          mkdir -p "$DIR"
+          cd "$DIR"
+          TGZ=$(npm pack "@linxin666/dsh-client-ui-skin-center@$DSH_SKIN_CENTER_VERSION" --silent | tail -1)
+          tar -xzf "$TGZ" --strip-components=1
+          test -f lib/client.js
+          echo "DSH_SKIN_CENTER=$DIR/lib/client.js" >> "$GITHUB_ENV"
+
+      - name: Computed-style gate (strict — a skip here is a broken pipeline, not a verdict)
+        run: |
+          set -euo pipefail
+          # 2>&1 so the log holds both streams: skips print on stdout, problems on stderr,
+          # and the step below has to be able to tell them apart from ONE file.
+          node scripts/wash-cascade.cjs 2>&1 | tee "$RUNNER_TEMP/wash-gate.log"
+
+      - name: Belt and braces — the strict run must not have skipped anything
+        # Exit codes already redden a strict failure, but that depends on the script
+        # honoring DSH_WASH_STRICT forever. This step re-reads the OUTPUT, so a future
+        # refactor that drops the strict branch (or prints a skip and exits 0 anyway) cannot
+        # turn this job back into a no-op without tripping here.
+        run: |
+          set -euo pipefail
+          LOG="$RUNNER_TEMP/wash-gate.log"
+          if grep -q 'SKIPPED (environment)' "$LOG"; then
+            echo "::error::DSH_WASH_STRICT=1 but the gate skipped a stage — the CI step measured nothing."
+            grep -n 'SKIPPED (environment)' "$LOG"
+            exit 1
+          fi
+          # Each stage publishes its own field names into the readings; one per fixture is
+          # the cheapest proof that all three pages really ran, as opposed to one page
+          # running three times and the other two skipping quietly.
+          for field in '"corner"' '"surfaceBg"' '"probeBg"'; do
+            if ! grep -q "$field" "$LOG"; then
+              echo "::error::no reading row contains $field — the stage that samples it never ran."
+              exit 1
+            fi
+          done
+          if ! grep -q 'wash cascade OK' "$LOG"; then
+            echo "::error::the gate never printed its OK verdict."
+            exit 1
+          fi
+          echo "Engine measured $(grep -c '^{' "$LOG") reading rows across host / desktop / coexist."

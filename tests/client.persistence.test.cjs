@@ -418,7 +418,14 @@ test('B-6: a host that answers {ok:false} still fires the deferred factory seed 
 	const sent0 = h.sent.sets;
 	const e = h.factory(makeRequire());
 	e.apply(makeApplyContext(h));
-	await sleep(400);
+	// The fixed sleep(400) is replaced by a convergence poll on the observable that IS the
+	// wait's purpose: the deferred factory seed landing on the ok:false exit (kind='image'
+	// and a non-null wallpaper). If that exit ever stops seeding, this times out naming the
+	// label instead of silently reading a too-early (or too-late) moment.
+	await waitFor(() => ({
+		done: h.getItem('dsh-dream-skin:wallpaper-kind') === 'image' && h.getItem(WP_KEY) != null,
+		observed: { kind: h.getItem('dsh-dream-skin:wallpaper-kind'), wpSeeded: h.getItem(WP_KEY) != null, getCalls }
+	}), { label: 'B-6 deferred factory wallpaper seed lands on the {ok:false} exit' });
 	assert.equal(getCalls, 1, 'the probe really answered {ok:false} once');
 	assert.equal(h.getItem('dsh-dream-skin:wallpaper-kind'), 'image', 'kind seeded on the ok:false exit');
 	assert.ok(h.getItem(WP_KEY) != null, 'deferred factory wallpaper seeded on the ok:false exit');
@@ -434,6 +441,13 @@ test('B-6: a host that answers {ok:false} still fires the deferred factory seed 
  * a patched triple can only ever test the ALGORITHM, never the CONSTANTS.
  */
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * The convergence poll lives in `fixtures/converge.cjs` (blue-team B-05): this file and
+ * `client.smoke.test.cjs` each carried an identical copy, so the timeout contract could drift
+ * between two test files that think they share one.
+ */
+const { waitFor } = require('./fixtures/converge.cjs');
 
 function cyrb53(str) {
 	let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
@@ -490,6 +504,12 @@ test('T-02 A: a user-cleared wallpaper (host null) wins over the provisional leg
 	const e = h.factory(makeRequire());
 	e.apply(makeApplyContext(h));
 	// Past the 200ms debounce: any leaked provisional push would have landed.
+	// HONEST CLOCK, not convergence debt: BOTH assertions are absences ("stays cleared",
+	// "never pushed") — there is no observable that flips when the wait is over, because the
+	// correct outcome is that NOTHING lands. A poll for "unchanged" converges on the first
+	// sample and proves nothing, and polling for probe-settle would still leave the 200ms
+	// debounced leak free to land AFTER the read (see the settleDrift boundary in
+	// client.smoke.test.cjs: "no amount of polling can prove a 'not yet'").
 	await sleep(350);
 	assert.ok(h.getItem(WP_KEY) == null, 'the cleared wallpaper stays cleared (issue #51 semantics)');
 	assert.ok(!h.sent.sets.some((p) => p[WP_KEY] === factoryImage), 'pre-settle swap is factory-sealed and never pushed');
@@ -728,4 +748,24 @@ test('#79: mutation — disabling the post-settle half leaves the marker out of 
 		'the unmutated half still repairs the stored value, so the case is about the push, not the swap');
 	assert.ok(!h.sent.sets.some((p) => p['dsh-dream-skin:wallpaper-follows-skin'] === '1'),
 		'with the second pass disabled the marker must NOT reach the host file — this is the assertion the guard exists for');
+});
+
+test('waitFor converges instantly when true, and fails LOUDLY when the observable never changes', async () => {
+	// The "a check that can never fail is not a check" rule, applied to the helper itself
+	// (same negative the smoke file demands for settleDrift, issue #104 precedent): if a
+	// timeout could read as a pass, every converted site here would silently regress to
+	// "asserted nothing". The rejection must name the label and carry the last observed value.
+	const t0 = Date.now();
+	const won = await waitFor(() => ({ done: true, observed: 'seeded' }), { label: 'already-true' });
+	assert.equal(won, 'seeded', 'a converged reading is returned, not re-derived');
+	assert.ok(Date.now() - t0 < 200, `an already-true predicate must not wait out the budget (took ${Date.now() - t0}ms)`);
+	let caught;
+	try {
+		await waitFor(() => ({ done: false, observed: { getCalls: 0, wpSeeded: false } }),
+			{ timeoutMs: 60, stepMs: 10, label: 'deferred-seed-never-lands' });
+	} catch (e) { caught = e; }
+	assert.ok(caught instanceof Error, 'a predicate that never flips must make the helper THROW, never return');
+	assert.match(caught.message, /deferred-seed-never-lands/, 'the rejection message NAMES the label — the failing site is findable by its reason');
+	assert.match(caught.message, /never converged/, 'and calls the failure what it is: non-convergence, not a timing detail');
+	assert.match(caught.message, /getCalls/, 'and carries the last observed value, so it is diagnosable without re-running');
 });

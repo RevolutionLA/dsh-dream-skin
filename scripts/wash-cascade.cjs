@@ -40,6 +40,14 @@ const { extractSheets } = require('./craft-audit.cjs');
 const { findChrome, CHROME_CANDIDATES } = require('./generate-skin-mockups.cjs');
 
 const REPO = path.join(__dirname, '..');
+/**
+ * Where the host CSS is read from. `DSH_HOST_ROOT` is the CI override (Roadmap M): the
+ * workflow installs `@deepseek-ai/dsh-client-ui-{layout,workspace,chat,sidebar}` into a
+ * throwaway directory and points this at that directory's `@deepseek-ai` scope folder.
+ * Unset, it stays the maintainer's global npm install, so local behaviour does not change.
+ * Pointing it somewhere empty is an ENVIRONMENT skip (see `hostInstallPresent`), never a
+ * thin fixture — and under `DSH_WASH_STRICT=1` it is exit 4 naming the host install.
+ */
 const DEFAULT_HOST_ROOT = process.env.DSH_HOST_ROOT
 	|| path.join(process.env.APPDATA || '', 'npm', 'node_modules', '@deepseek-ai', 'dsh', 'node_modules', '@deepseek-ai');
 
@@ -48,11 +56,28 @@ const DEFAULT_HOST_ROOT = process.env.DSH_HOST_ROOT
  * "the check ran and disagrees". Tagged, not string-matched, so a future wording
  * change cannot quietly turn a red into a skip — and a skip is reported as a skip,
  * never as a pass (this gate's standing rule).
+ *
+ * `piece` (Roadmap M, the CI gate) names WHICH environment input is absent —
+ * `browser` / `host install` / a plugin id — so strict mode can fail with a sentence
+ * the reader can act on ("install Chrome", "npm i the three host packages") instead of
+ * a generic "could not run". An error with no `piece` is still an environment skip; it
+ * just says less when strict mode has to name it.
  */
-function environmentError(message) {
+function environmentError(message, piece) {
 	const err = new Error(message);
 	err.environment = true;
+	if (piece) err.piece = piece;
 	return err;
+}
+
+/**
+ * Roadmap M — is `DSH_WASH_STRICT` on? Parsed explicitly so that `0`, `""`, `false` and
+ * unset all mean OFF: a CI variable that turned "0" into strict mode would be a red nobody
+ * asked for, and a gate that goes red for the wrong reason is as untrustworthy as one that
+ * goes green for the wrong reason.
+ */
+function strictRequested(env) {
+	return /^(1|true|yes|on)$/i.test(String((env || process.env).DSH_WASH_STRICT || '').trim());
 }
 
 /**
@@ -72,8 +97,14 @@ function environmentError(message) {
 const SKIN_CENTER_PKG = '@linxin666/dsh-client-ui-skin-center';
 
 function skinCenterPaths(env) {
-	if (env && env.DSH_SKIN_CENTER) return [env.DSH_SKIN_CENTER];
-	const home = process.env.HOME || process.env.USERPROFILE || '';
+	// `env || process.env` — Roadmap M. The CLI calls `measureCoexist()` with no opts, so
+	// without this default `DSH_SKIN_CENTER` was honored by the tests (they pass an env
+	// object) and IGNORED by the only caller that CI can reach: the gate read the maintainer's
+	// profile copy and a runner with no profile would have skipped for the wrong reason. An
+	// explicit env object still wins, so a test that points at a fixture is unaffected.
+	const e = env || process.env;
+	if (e.DSH_SKIN_CENTER) return [e.DSH_SKIN_CENTER];
+	const home = e.HOME || e.USERPROFILE || '';
 	return ['web', 'desktop']
 		.map((p) => path.join(home, '.dsh', 'profiles', p, 'node_modules', SKIN_CENTER_PKG, 'lib', 'client.js'));
 }
@@ -86,7 +117,7 @@ function pluginFadeRule(env) {
 		try { if (fs.statSync(p).isFile()) { file = p; break; } } catch {}
 	}
 	if (!file) {
-		throw environmentError(`${SKIN_CENTER_PKG} is not installed here (looked in ${paths.join(', ')}) — the coexistence half cannot be measured on this machine, and that is NOT evidence that nobody else addresses _fade`);
+		throw environmentError(`${SKIN_CENTER_PKG} is not installed here (looked in ${paths.join(', ')}) — the coexistence half cannot be measured on this machine, and that is NOT evidence that nobody else addresses _fade`, `plugin ${SKIN_CENTER_PKG}`);
 	}
 	const text = fs.readFileSync(file, 'utf8');
 	const av = text.match(/ACTIVE_VISUAL_SELECTOR\s*=\s*\[([\s\S]{0,600}?)\]\s*\.join\(\s*",\s*"\s*\)/);
@@ -239,6 +270,59 @@ function hostInstallPresent(root) {
 	}
 }
 
+/**
+ * Parse `#rgb` / `#rrggbb` / `rgb()` / `rgba()` into `{rgb, a}`, or null when the value is
+ * anything else (a gradient, a keyword, a nested var()). Refusing is the point: the fixture
+ * would otherwise carry `var(--x)` into a `:root` declaration and read back a colour that
+ * nothing authored.
+ */
+function cssColor(value) {
+	const s = String(value || '').trim();
+	const hex = s.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+	if (hex) {
+		const h = hex[1].length === 3 ? hex[1].split('').map((c) => c + c).join('') : hex[1];
+		return { rgb: [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)), a: 1 };
+	}
+	const fn = s.match(/^rgba?\(([^)]+)\)$/i);
+	if (!fn) return null;
+	const parts = fn[1].split(/[,/]/).map((x) => x.trim()).filter(Boolean);
+	if (parts.length < 3 || parts.length > 4) return null;
+	const rgb = parts.slice(0, 3).map((x) => Number(x));
+	if (rgb.some((n) => !Number.isFinite(n))) return null;
+	return { rgb, a: parts.length === 4 ? Number(parts[3]) : 1 };
+}
+
+/** The skin the caption-band decision was made on (the reporter's own skin, 2026-10-09). */
+const CORNER_SKIN = 'nebula';
+/**
+ * The two slider positions that page was measured at: canvas 0.4, sidebar 0.75.
+ * Alphas stay a MODELLED input on purpose — on the live page they are published by the wash
+ * from the user's sliders, and reading them here would mean executing the bundle. What must
+ * NEVER be typed is the RGB: that is the skin's, and the skin changes.
+ */
+const CORNER_ALPHA = { '--dsw-alias-bg-base': 0.4, '--dsw-specific-sidebar-fill': 0.75 };
+
+/**
+ * The corner fixture's colors, read out of the SHIPPED bundle (issue #93-era debt F14).
+ * The desktop group already does this through `skinTokens()`; the corner group was the last
+ * place in this file still grading colors somebody typed into a test — which means a skin
+ * repainting its canvas or sidebar token would leave the fixture measuring a page nobody
+ * ships, while every relational check stayed green.
+ */
+function cornerTokens(source) {
+	const tokens = skinTokens(source, CORNER_SKIN);
+	const out = {};
+	for (const key of ['--dsw-alias-bg-base', '--dsw-specific-sidebar-fill', '--dsw-alias-bg-layer-2']) {
+		const color = cssColor(tokens[key]);
+		if (!color) {
+			throw new Error(`skin ${CORNER_SKIN} ships no readable ${key} in the bundle — the corner fixture would have to INVENT the colour it claims to measure`);
+		}
+		const alpha = key in CORNER_ALPHA ? CORNER_ALPHA[key] : color.a;
+		out[key] = `rgba(${color.rgb.join(', ')}, ${alpha})`;
+	}
+	return out;
+}
+
 /** Assemble the three inputs. Missing inputs are errors, never thin fixtures. */
 function buildFixture(opts = {}) {
 	const root = opts.root || DEFAULT_HOST_ROOT;
@@ -246,7 +330,7 @@ function buildFixture(opts = {}) {
 	const sheets = extractSheets(source);
 	const material = sheets.find((s) => /material/.test(s.id));
 	if (!material) throw new Error('the material sheet is not in the bundle — the probe has nothing to measure');
-	const parts = { material: material.css, hostRoot: root };
+	const parts = { material: material.css, hostRoot: root, corner: opts.corner || cornerTokens(source) };
 	for (const spec of HOST_PACKAGES) {
 		// Issue #102 + blue-team B4: three states, three different doors.
 		//   no host install at all            -> environment skip
@@ -255,7 +339,7 @@ function buildFixture(opts = {}) {
 		if (!fs.existsSync(path.join(root, spec.pkg, 'lib', 'client.js'))) {
 			if (!hostInstallPresent(root)) {
 				throw environmentError(`host ${spec.key} CSS (${spec.pkg}) unreadable — no DSH host install at ${root}: `
-					+ `the fixture would lose "${spec.why}" and the check could no longer fail`);
+					+ `the fixture would lose "${spec.why}" and the check could no longer fail`, 'host install');
 			}
 			throw new Error(`host ${spec.key} CSS (${spec.pkg}) is GONE from ${root} while the rest of the install is there — `
 				+ `that is a rename or a removal, not a missing host; the fixture would lose "${spec.why}" and the check could no longer fail`);
@@ -289,13 +373,16 @@ function fixtureHtml(parts) {
 	if (!parts.frameClass || !parts.centerColClass || !parts.sidebarColClass) {
 		throw new Error('the host AppFrame classes were not derived from the host CSS — build the fixture through buildFixture()');
 	}
+	if (!parts.corner) {
+		throw new Error('the corner fixture tokens were not read from the shipped bundle — build the fixture through buildFixture()');
+	}
 	const fadeClass = parts.fadeClass;
 	const chatClass = parts.chatClass;
 	const inJs = JSON.stringify('.' + fadeClass);
 	const inJsChat = JSON.stringify('.' + chatClass);
 	const inJsCenter = JSON.stringify('.' + parts.centerColClass);
 	const inJsSidebar = JSON.stringify('.' + parts.sidebarColClass);
-	// TWO fixture choices here are load-bearing for the 10.9.3 judgement, and both were wrong
+	// THREE fixture choices here are load-bearing for the 10.9.3 judgement, and all were wrong
 	// before it. (1) The canvas token is TRANSLUCENT: the real one is whatever the 弹窗透明度
 	// slider publishes (measured 0.4 on the desktop profile), and an opaque token composites to
 	// itself at any layer count, which would make "the band equals the column" true by accident —
@@ -303,9 +390,13 @@ function fixtureHtml(parts) {
 	// paints the token: on the served page the stack under the columns starts at body, and the
 	// strip sits in the frame's padding where the columns' own roots cannot reach, so body is the
 	// one layer both stacks share. Without it the fixture's column was two deep while reality is
-	// three, and the counts below would have been measuring a page nobody renders.
+	// three, and the counts below would have been measuring a page nobody renders. (3) The RGB
+	// comes from the SHIPPED bundle (`cornerTokens`), not from this file — until 10.10.0 the two
+	// tokens here were typed (`rgba(16,16,24,…)`), so a skin repainting its canvas or sidebar
+	// fill would have left this page measuring colours no skin ships while every relational check
+	// stayed green. That is F14's shape, one group later than the fix.
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<style>:root{--dsw-alias-bg-base:rgba(16,16,24,.4);--dsw-specific-sidebar-fill:rgba(16,16,24,.75);--dsw-alias-bg-layer-2:rgba(22,22,28,.92);--dsh-session-list-edge-inset:8px;--dsh-windows-titlebar-height:34px}
+<style>:root{--dsw-alias-bg-base:${parts.corner['--dsw-alias-bg-base']};--dsw-specific-sidebar-fill:${parts.corner['--dsw-specific-sidebar-fill']};--dsw-alias-bg-layer-2:${parts.corner['--dsw-alias-bg-layer-2']};--dsh-session-list-edge-inset:8px;--dsh-windows-titlebar-height:34px}
 body{background:var(--dsw-alias-bg-base)}</style>
 <style>${parts.layout}
 ${parts.fade}
@@ -506,11 +597,20 @@ ${parts.chat}</style>
  *     alone cannot attribute the win.
  */
 function coexistFixtureHtml(parts, plugin) {
+	// Debt ① was not finished when only `fixtureHtml` learned to read its colours out of the shipped
+	// bundle: this page kept two typed rgba values, which is the same自证式探针 shape (the gate
+	// measures a colour no skin ships, and a skin repaint cannot make it red). The coexist verdicts
+	// are relational, so nothing here depended on the colours being REAL — but "relational" is exactly
+	// how the corner group stayed green while measuring nothing, so the refusal is repeated here.
+	if (!parts.corner) {
+		throw new Error('the coexist fixture tokens were not read from the shipped bundle — build the fixture through buildFixture()');
+	}
+	const corner = parts.corner;
 	const probe = JSON.stringify('#fade-probe');
 	const real = JSON.stringify('#fade-real');
 	const chat = JSON.stringify('#chat-mask');
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<style>:root{--dsw-alias-bg-base:#101018;--dsw-specific-sidebar-fill:rgba(16,16,24,.75);--dsh-session-list-edge-inset:8px}</style>
+<style>:root{--dsw-alias-bg-base:${corner['--dsw-alias-bg-base']};--dsw-specific-sidebar-fill:${corner['--dsw-specific-sidebar-fill']};--dsh-session-list-edge-inset:8px}</style>
 <style>${parts.fade}
 ${parts.chat}</style>
 <style id="plugin-material">${parts.material}</style>
@@ -650,6 +750,11 @@ function runChrome(html, env) {
 			fs.writeFileSync(file, html);
 			const dom = execFileSync(exe, [
 				'--headless=new', '--disable-gpu', '--no-sandbox', '--allow-file-access-from-files',
+				// Roadmap M (CI): a shared-memory-starved container kills the renderer the moment
+				// the page asks for one, and the gate would report "every candidate failed to
+				// launch" on a runner that has Chrome. Inert on Windows/macOS, where /dev/shm is
+				// not a fixed 64 MB tmpfs.
+				'--disable-dev-shm-usage',
 				'--no-first-run', '--no-default-browser-check', '--user-data-dir=' + profile,
 				'--virtual-time-budget=2000', '--dump-dom', 'file:///' + file.replace(/\\/g, '/')
 			], { encoding: 'utf8', maxBuffer: 32e6, timeout: 90000 });
@@ -834,7 +939,7 @@ function buildDesktopFixture(opts = {}) {
 		const looked = `(looked in dsh-client-ui-sidebar / -layout under ${root})`;
 		const tail = 'the fixture would lose "does the slider path still reach the sidebar", and the desktop check could no longer fail';
 		if (!hostInstallPresent(root)) {
-			throw environmentError(`installed host has no declaration reading --dsw-specific-sidebar-fill ${looked} — ${tail}`);
+			throw environmentError(`installed host has no declaration reading --dsw-specific-sidebar-fill ${looked} — ${tail}`, 'host install');
 		}
 		throw new Error(`the installed host stopped reading --dsw-specific-sidebar-fill ${looked} — that is a rename or a removal, not a missing host; ${tail}`);
 	}
@@ -1162,10 +1267,11 @@ module.exports = {
 	measure, measureDesktop, measureCoexist, buildFixture, buildDesktopFixture, buildCoexistFixture,
 	fixtureHtml, desktopFixtureHtml, coexistFixtureHtml,
 	checkDesktopReadings, checkCoexistReadings, COEXIST_CHECKS, cssAlpha, skinTokens, DESKTOP_SKINS,
+	cornerTokens, cssColor, CORNER_SKIN, CORNER_ALPHA,
 	DESKTOP_SWEEP, browserAttempts, stripDeclaration, checkReadings, WASH_CHECKS, WASH_GROUPS,
 	hostCss, hostSidebarConsumer, hostFadeClasses, hostLayoutClasses, pluginFadeRule, SKIN_CENTER_PKG,
 	DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, HOST_PACKAGES, DEFAULT_HOST_ROOT,
-	probeBrowser, gradeStage, environmentError, runChrome
+	probeBrowser, gradeStage, environmentError, runChrome, cliOutcome, strictRequested
 };
 
 /**
@@ -1178,22 +1284,114 @@ module.exports = {
  * `skip` is never folded into `ok`, and it is printed as a skip, so a laptop without a
  * usable browser reads as "this gate did not check anything here" instead of either a
  * green or a false alarm about the cascade.
+ *
+ * Roadmap M adds two fields to a skip — `piece` (WHICH environment input is absent) and
+ * `reason` (the sentence naming it) — because strict mode has to fail with an actionable
+ * name instead of a count. They are additive: the three-state `kind` and the printed line
+ * are exactly what issue #102 defined, and nothing here turns an environment skip into a
+ * verdict about the page.
  */
 function gradeStage(label, groups, run) {
 	let r;
 	try {
 		r = run();
 	} catch (e) {
-		if (e.environment) return { kind: 'skip', lines: [`${label}: SKIPPED (environment) — ${e.message}`] };
-		return { kind: 'fail', lines: [`${label}: the fixture refused to build — ${e.message}`] };
+		if (e.environment) {
+			return {
+				kind: 'skip',
+				label,
+				piece: e.piece || 'environment',
+				reason: e.message,
+				lines: [`${label}: SKIPPED (environment) — ${e.message}`]
+			};
+		}
+		return { kind: 'fail', label, lines: [`${label}: the fixture refused to build — ${e.message}`] };
 	}
-	if (!r.ran) return { kind: 'skip', lines: [`${label}: SKIPPED (environment) — ${r.why} — a skip is not a pass`] };
-	if (r.error) return { kind: 'fail', lines: [`${label}: ${r.error}\n${(r.dom || '').slice(0, 300)}`] };
+	if (!r.ran) {
+		return {
+			kind: 'skip',
+			label,
+			piece: 'browser',
+			reason: r.why,
+			lines: [`${label}: SKIPPED (environment) — ${r.why} — a skip is not a pass`]
+		};
+	}
+	if (r.error) return { kind: 'fail', label, lines: [`${label}: ${r.error}\n${(r.dom || '').slice(0, 300)}`] };
 	for (const x of r.readings) console.log(JSON.stringify(x));
 	const problems = label === 'desktop' ? checkDesktopReadings(r.readings)
 		: label === 'coexist' ? checkCoexistReadings(r.readings)
 			: checkReadings(r.readings, groups);
-	return { kind: problems.length ? 'fail' : 'ok', lines: problems.map((p) => `${label}: ${p}`) };
+	return { kind: problems.length ? 'fail' : 'ok', label, lines: problems.map((p) => `${label}: ${p}`) };
+}
+
+/**
+ * Roadmap M — the CLI's verdict, as a function a test can call.
+ *
+ * Three exit codes stay exactly as issue #102 defined them, and a fourth is added ONLY for
+ * strict mode:
+ *   0 ran and agrees · 1 ran and disagrees · 3 could not run (skip, reported as a skip)
+ *   4 strict mode was asked for and the environment refused (a missing browser / host /
+ *     plugin, each named on its own line).
+ * 4 rather than 1 matters: "the machine had no Chrome" and "the cascade broke" are different
+ * facts, and folding them into one code is the mistake #102 exists to prevent. Strict mode
+ * does not reinterpret the fact — it declines to accept it, because CI provisioned the piece
+ * and promised a measurement, so a skip there is a broken pipeline, not a verdict.
+ *
+ * `lines` are tagged with the stream they belong on, so the printing rule ("skips to stdout,
+ * problems to stderr") lives in ONE place and a test can read the same list the terminal does.
+ */
+function cliOutcome(stages, opts = {}) {
+	const strict = opts.strict === undefined ? strictRequested(opts.env) : Boolean(opts.strict);
+	const fails = stages.filter((s) => s.kind === 'fail');
+	const skips = stages.filter((s) => s.kind === 'skip');
+	const lines = [];
+	for (const s of stages) for (const line of s.lines) lines.push({ stream: s.kind === 'skip' ? 'log' : 'error', text: line });
+	const outcome = { strict, missing: [], exitCode: 0, summary: '', lines };
+	if (fails.length > 0) {
+		outcome.exitCode = 1;
+		outcome.summary = 'wash cascade: FAILED — the engine ran and disagreed (every problem above is named by fixture + check id).';
+		return outcome;
+	}
+	if (strict && skips.length > 0) {
+		// Name each missing piece ONCE, with the stages it blocked and the reason the gate gave.
+		const byPiece = new Map();
+		for (const s of skips) {
+			const piece = s.piece || 'environment';
+			if (!byPiece.has(piece)) byPiece.set(piece, { stages: [], reason: s.reason || (s.lines[0] || '') });
+			const bucket = byPiece.get(piece);
+			bucket.stages.push(s.label || '?');
+		}
+		// A missing browser hides behind a missing host: `buildFixture()` throws before the
+		// engine is ever asked, so a runner with neither piece would report "host install" and
+		// leave the reader to guess about Chrome. The CLI only pays for this probe once, and
+		// only on a strict run that already skipped — a machine that measured everything never
+		// spawns it.
+		const probe = opts.browserProbe;
+		if (probe && !probe.ran && !byPiece.has('browser')) {
+			byPiece.set('browser', { stages: ['(precondition)'], reason: probe.why || 'no headless browser could be spawned here' });
+		}
+		for (const [piece, bucket] of byPiece) {
+			outcome.missing.push(piece);
+			lines.push({
+				stream: 'error',
+				text: `wash cascade: MISSING ${piece} — required by the ${bucket.stages.join(' + ')} stage(s) — ${bucket.reason}`
+			});
+		}
+		outcome.exitCode = 4;
+		outcome.summary = `wash cascade: STRICT MODE (DSH_WASH_STRICT) — refusing ${skips.length}/${stages.length} environment `
+			+ `skip(s): ${outcome.missing.join(', ')} missing here. Nothing was measured on that half, and this run promised it `
+			+ 'would; exit 4 — not 0 (no verdict) and not 1 (the engine never got to disagree).';
+		return outcome;
+	}
+	if (skips.length > 0) {
+		outcome.exitCode = 3;
+		outcome.summary = `wash cascade: NOT RUN on ${skips.length}/${stages.length} stage(s) — no verdict was read there.`;
+		return outcome;
+	}
+	outcome.summary = 'wash cascade OK — host: corner 16px -> 0px -> 16px, fade gradient -> none -> gradient, chat mask untouched; '
+		+ 'desktop: shell paint opaque -> transparent -> opaque on both skins, with nothing opaque left in the way under a wash; '
+		+ 'coexist: band gone under either lane, and the inline probe says whose declaration is the stronger one.';
+	return outcome;
 }
 
 if (require.main === module) {
@@ -1206,20 +1404,14 @@ if (require.main === module) {
 		gradeStage('desktop', ['desktop'], () => measureDesktop()),
 		gradeStage('coexist', ['coexist'], () => measureCoexist())
 	];
-	const fails = stages.filter((s) => s.kind === 'fail');
-	const skips = stages.filter((s) => s.kind === 'skip');
-	for (const s of stages) for (const line of s.lines) console[s.kind === 'skip' ? 'log' : 'error'](line);
-	if (fails.length > 0) {
-		console.error('wash cascade: FAILED — the engine ran and disagreed (every problem above is named by fixture + check id).');
-		process.exitCode = 1;
-	} else if (skips.length > 0) {
-		// Exit 3, not 0: "could not check" must be tellable apart from "checked and clean"
-		// AND apart from "checked and wrong" (the same rule the drift probe publishes under).
-		console.error(`wash cascade: NOT RUN on ${skips.length}/${stages.length} stage(s) — no verdict was read there.`);
-		process.exitCode = 3;
-	} else {
-		console.log('wash cascade OK — host: corner 16px -> 0px -> 16px, fade gradient -> none -> gradient, chat mask untouched; desktop: shell paint opaque -> transparent -> opaque on both skins, with nothing opaque left in the way under a wash; coexist: band gone under either lane, and the inline probe says whose declaration is the stronger one.');
-	}
+	const strict = strictRequested(process.env);
+	// Only a strict run that ALREADY skipped pays for the extra probe: on CI the answer to
+	// "what is missing" has to be complete, while off CI nothing about the three states moves.
+	const browserProbe = strict && stages.some((s) => s.kind === 'skip') ? probeBrowser(process.env) : null;
+	const outcome = cliOutcome(stages, { strict, browserProbe });
+	for (const l of outcome.lines) console[l.stream](l.text);
+	console[outcome.exitCode === 0 ? 'log' : 'error'](outcome.summary);
+	process.exitCode = outcome.exitCode;
 }
 
 

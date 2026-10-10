@@ -96,7 +96,10 @@ const rgbaOf = (css, alpha) => {
 	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', '[0, 20, 50, 90]');
+// The fast ladder as DATA so a case that counts its rounds reads the number instead of
+// restating a literal (see the `diagnostics` case polling "one new checkedAt per round").
+const FAST_LADDER_MS = [0, 20, 50, 90];
+const FAST_DRIFT_CODE = CODE.replace('[0, 300, 1000, 3000]', `[${FAST_LADDER_MS.join(', ')}]`);
 if (FAST_DRIFT_CODE === CODE) throw new Error('DRIFT_RETRY_DELAYS_MS ladder moved — update FAST_DRIFT_CODE patch in smoke tests');
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -132,6 +135,13 @@ async function settleDrift(win, { timeoutMs = 4000, stepMs = 20, until } = {}) {
 		await sleep(stepMs);
 	}
 }
+
+/**
+ * The convergence poll lives in `fixtures/converge.cjs` (blue-team B-05). It used to be copied here
+ * and into `client.persistence.test.cjs` with an identical body, which meant a fix to the timeout
+ * contract in one file left the other asserting the old one.
+ */
+const { waitFor } = require('./fixtures/converge.cjs');
 
 // --- Structural CSS matcher (T1, adversarial review 10.5.0) -----------------
 // WHY THIS EXISTS: the readability-fill assertions used to check that the sheet
@@ -844,11 +854,25 @@ test('diagnostics: window.__DSH_DREAM_SKIN_STATUS__ is the machine-readable drif
 	assert.ok(status.checkedAt > 0 && status.publishedAt > 0, 'timestamps present');
 	// Run the whole checkpoint ladder to its end, then re-read: the FINAL
 	// round of an undecidable DOM stays pending forever — that is the point.
-	// 400ms lands ~240ms past the FAST ladder's last round (≈160ms), so a
-	// `conclusive = final` (liveness-gate drop) mutation WOULD have published
-	// a 8-group drifted verdict here — the honest pending below is what the
-	// sentinel gate buys, not an untested race.
-	await sleep(400);
+	// The fixed 400ms clock (≈240ms past the FAST ladder's last round) is replaced by a
+	// convergence poll on a REAL observable of ladder completion: every runRound() publish
+	// stamps a NEW `checkedAt`, while merge-only publishStatus() calls inherit the previous
+	// one (publishStatus merges, never retracts) — so counting DISTINCT checkedAt values
+	// proves "the final round has published" before the read below, with no wall-clock
+	// margin to lose on a loaded runner. A `conclusive = final` (liveness-gate drop)
+	// mutation WOULD have published an 8-group drifted verdict in that final round — the
+	// honest pending below is what the sentinel gate buys, not an untested race.
+	let latestStatus = h.window.__DSH_DREAM_SKIN_STATUS__;
+	const roundPubs = new Set([latestStatus.checkedAt]); // round 1 ran synchronously in apply() (delay 0)
+	Object.defineProperty(h.window, '__DSH_DREAM_SKIN_STATUS__', {
+		configurable: true,
+		get: () => latestStatus,
+		set: (v) => { latestStatus = v; roundPubs.add(v.checkedAt); }
+	});
+	await waitFor(() => ({
+		done: roundPubs.size >= FAST_LADDER_MS.length,
+		observed: { publishedRounds: roundPubs.size, expected: FAST_LADDER_MS.length }
+	}), { label: 'the FAST drift ladder published EVERY round (one distinct checkedAt per round)' });
 	const settled = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.equal(settled.anchors.pending, true, 'after all rounds the empty DOM is still honestly pending');
 	assert.deepEqual(settled.anchors.drifted, [], 'still no drift verdict after the ladder completes');
@@ -4833,6 +4857,31 @@ test('settleDrift waits on the verdict, and still fails when the probe never con
 	assert.equal(first.pending, true, 'the custom predicate is honoured, so an undecided page is reachable');
 });
 
+test('waitFor converges the moment the observable does, and fails LOUDLY when it never will', async () => {
+	// The "a check that can never fail is not a check" rule, applied to the helper itself:
+	// if a timeout could read as a pass, every converted site would silently regress to
+	// "assert nothing". Feed it a predicate that never becomes true and demand a named
+	// rejection. Mirrors the settleDrift negative above (issue #104 precedent).
+	let ticks = 0;
+	const t0 = Date.now();
+	const won = await waitFor(() => ({ done: true, observed: 'immediate' }), { label: 'already-true' });
+	assert.equal(won, 'immediate', 'a converged reading is returned, not re-derived');
+	assert.ok(Date.now() - t0 < 200, `an already-true predicate must not wait out the budget (took ${Date.now() - t0}ms)`);
+	await assert.rejects(
+		waitFor(() => { ticks += 1; return { done: false, observed: { stuckAt: 1, polls: 'never-zero' } }; },
+			{ timeoutMs: 80, stepMs: 10, label: 'never-converging-site' }),
+		/never converged/,
+		'a predicate that never flips must make the helper THROW — a timeout is a failure, not a pass');
+	assert.ok(ticks >= 2, `the poll really iterated (saw ${ticks} samples before the throw)`);
+	let caught;
+	try {
+		await waitFor(() => ({ done: false, observed: { lastSaw: 'nothing' } }), { timeoutMs: 60, stepMs: 10, label: 'named-reason' });
+	} catch (e) { caught = e; }
+	assert.ok(caught, 'the never-converging poll rejects');
+	assert.match(caught.message, /named-reason/, 'the rejection message NAMES the label — every converted site is findable by its reason');
+	assert.match(caught.message, /lastSaw/, 'and it carries the last observed value, so the failure is diagnosable without re-running');
+});
+
 test('drift probe (T3): a group the HOST CSS still owns is notMounted, not drifted (ownership classifier)', async () => {
 	// T3 (adversarial review 10.5.0): after the ladder ends, "0 hits" has two
 	// causes — a renamed hash vs a surface this page never mounted — and the old
@@ -4958,8 +5007,13 @@ test('drift probe (T3): a surface mounting late leaves the notMounted pool throu
 	// User opens the surface "a minute later": the group mounts, DOM mutates.
 	MOUNTED.add(LATE_GROUP);
 	for (const o of observers) o.cb([]);
-	await sleep(400); // debounce (300ms) + resample
-	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	// debounce (300ms) + resample: the observable that proves the wait is over is the
+	// notMounted pool flipping to empty. Poll for THAT, not for a wall-clock guess.
+	const t1 = await waitFor(() => {
+		const s = h.window.__DSH_DREAM_SKIN_STATUS__;
+		const retracted = !!(s && s.anchors && s.anchors.notMounted.length === 0);
+		return { done: retracted, observed: s };
+	}, { label: 'T3 late mount retracts notMounted via the debounced resample' });
 	assert.deepEqual(t1.anchors.notMounted, [], 'the late mount retracts the notMounted entry (one-way improvement)');
 	assert.deepEqual(t1.anchors.drifted, t0.anchors.drifted, 'the drifted pool is untouched by a notMounted retraction');
 	assert.equal(t1.anchors.pending, false, 'the corrected snapshot stays conclusive');
@@ -5037,8 +5091,13 @@ test('drift probe (R-2): a surface mounting AFTER the terminal verdict retracts 
 	// User opens settings "a minute later": the surface mounts, DOM mutates.
 	mounted = true;
 	for (const o of observers) o.cb([]);
-	await sleep(400); // debounce (300ms) + resample
-	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
+	// debounce (300ms) + resample: the observable that proves the wait is over is the
+	// drifted pool retracting to empty (staying conclusive while it does).
+	const t1 = await waitFor(() => {
+		const s = h.window.__DSH_DREAM_SKIN_STATUS__;
+		const retracted = !!(s && s.anchors && s.anchors.drifted.length === 0 && s.anchors.pending === false);
+		return { done: retracted, observed: s };
+	}, { label: 'R-2 late mount retracts the drifted verdict via the debounced resample' });
 	assert.deepEqual(t1.anchors.drifted, [], 'late mount retracts the drifted verdict (one-way improvement)');
 	assert.equal(t1.anchors.pending, false, 'the corrected snapshot stays conclusive');
 	assert.equal(warns.filter((w) => w.includes('drifted')).length, 1, 'correction never re-warns');
@@ -5088,6 +5147,11 @@ test('drift probe (S-3): fiber unload disarms the late-correction observer and f
 	// is poked — a stale (disconnected) callback must not reach the snapshot.
 	mounted = true;
 	for (const o of observers) o.cb([]);
+	// HONEST CLOCK, not convergence debt: this site asserts a NEGATIVE (an unloaded fiber
+	// publishes NOTHING), and a poll for "the snapshot stayed unchanged" converges on the
+	// first sample and proves nothing — the settleDrift boundary ("no amount of polling can
+	// prove a 'not yet'") applies here too. 400ms = the 300ms debounce + resample would have
+	// run twice over IF the disposed gate had rotted; the frozen read below is the point.
 	await sleep(400); // debounce (300ms) + resample would have run twice over
 	const t1 = h.window.__DSH_DREAM_SKIN_STATUS__;
 	assert.deepEqual(t1.anchors.drifted, driftedBefore, 'an unloaded plugin publishes NOTHING - the verdict is frozen, not improved');

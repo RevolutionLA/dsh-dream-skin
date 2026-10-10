@@ -190,6 +190,9 @@ dsh web
 ```
 
 > Installiert das veröffentlichte npm-Paket — kein Klonen. Wenn `dsh plugin add` einen Workspace-Fehler meldet, `-w` anhängen.
+> In zwei Fällen schreiben Sie die Versionsnummer bitte aus (`npm view dsh-dream-skin version` nennt sie sofort): **innerhalb der ersten 24 Stunden
+> nach einer Veröffentlichung** (pnpm-Abkühlzeit installiert stillschweigend eine ältere Variante) und **bei einem alten Profil aus der 9.x-Ära**
+> (`^9.29.0` reicht nicht bis 10.x) — siehe unten bei „Installation" und „Update".
 
 ## 📦 Installation
 
@@ -201,6 +204,10 @@ auf der Festplatte gespeichert und nach dem Neustart wiederhergestellt).
 ```sh
 dsh plugin --profile web add dsh-dream-skin
 ```
+
+> **In den 24 Stunden nach einer Veröffentlichung die Versionsnummer ausschreiben**: `dsh plugin --profile web add dsh-dream-skin@<neueste Version>`
+> (die Nummer nennt `npm view dsh-dream-skin version` sofort). Auch für den Desktop gilt eine eigene Regel: sein Profil wird **ausschließlich von der
+> Electron-Anwendung** verwaltet, die CLI weist es hart zurück — der gangbare Weg steht in [docs/desktop-support.md](../desktop-support.md).
 
 ### Option B: Von GitHub (auf einen verifizierten Commit gepinnt)
 
@@ -255,6 +262,17 @@ dsh web   # restart to pick it up
 > Nach einem Update bei einer alten Version hängen geblieben? Die Minimum-Release-Age-Richtlinie (Supply-Chain) von pnpm kann ein
 > frisch veröffentlichtes Release zurückhalten. Im Profilverzeichnis ausführen:
 > `pnpm add dsh-dream-skin@latest --config.minimumReleaseAge=0`, um es zu erzwingen.
+
+> **Bei einem alten Profil direkt `add` mit Versionsnummer benutzen, nicht auf `update` bauen**: `update` übernimmt den **bereits in `package.json`
+> stehenden Abhängigkeitsbereich**, und ein in der 9.x-Ära geschriebenes `dsh-dream-skin: ^9.29.0` reicht semver-bedingt nie bis 10.x (ein Caret wandert
+> nur innerhalb derselben Hauptversion) — `update` meldet „bereits aktuell", während die Oberfläche alt bleibt. Zum Umschreiben dieser Abhängigkeit:
+>
+> ```sh
+> dsh plugin --profile web add dsh-dream-skin@<neueste Version>   # npm view dsh-dream-skin version nennt die Nummer sofort
+> ```
+>
+> Das ist kein neuer Defekt, sondern **ein alter Fix, der nie angekommen ist** — bei der Eingrenzung dieses „ich habe doch aktualisiert und sehe nichts"
+> zuerst die tatsächlich installierte Version prüfen; die Schritte stehen in [docs/publishing-to-npm.md](../publishing-to-npm.md) Abschnitt 9.
 
 **Deinstallation:**
 
@@ -365,18 +383,16 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 - [ ] **M** Die letzten Hash-Klassennamen des Hosts abwerfen: die verbliebenen Dekorationsregeln (Seitenleiste / Datei-Panel) auf eigene `data-dsh-dream-skin-*`-Marker umstellen — composer und nav-icon haben gezeigt, dass dieser Weg geht
       — Abnahme: der Drift-Probe liefert auf 0.2.x `drifted: [] && pending: false`
 - [ ] **S** Den „Host-rc-Vortest" als festen Veröffentlichungsschritt verankern: am Tag eines neuen rc die Kompatibilitätstabelle einmal laufen lassen plus einen echten Profil-Ladevorgang
-- [ ] **M** Das peer-Fenster auf `0.3.x` weiterschieben — **erst nach Verifizierung**; bleibt es zu, in den Docs „nicht unterstützt" schreiben statt eines stillen Überspringens
+- [ ] **M** Das peer-Fenster auf `0.3.x` weiterschieben — **blockiert upstream, nicht bei uns**: Stand 2026-10-10 ist auf dem Registry die `latest` von `@deepseek-ai/dsh` die `0.2.0-rc.2` und die Versionsliste endet bei `0.2.1-alpha.2`; `0.3.x` wurde nie veröffentlicht (`npm view @deepseek-ai/dsh versions --json`). Ohne Zielversion, auf die wir auffahren könnten, lässt sich diese Zeile weder beginnen noch überprüfen — das aktuelle peer-Fenster, so wie es oben in der Kompatibilitätstabelle steht, deckt **jede** Host-Version ab, die der Host bis heute veröffentlicht hat.
+      — Abnahme: erst wenn der Host 0.3.x wirklich ausliefert, die Kompatibilitätstabelle einmal durchlaufen plus einen echten Profil-Ladevorgang, und nur bei Bestehen das Fenster weiten; bleibt es zu, in den Docs „nicht unterstützt" schreiben statt eines stillen Überspringens
+- [ ] **M** Den Mechanismus-Nachweis in die CI holen — **diese Runde hat ihn verlegt, geschlossen wird erst nach einem echten grünen Lauf**: `wash:check` gehorcht `DSH_WASH_STRICT` (fehlt Browser oder Host, wird nicht mehr übersprungen, sondern mit Exit 4 abgebrochen und benannt, was fehlt), `ci.yml` hat zusätzlich den Job `wash-gate` (Host-Version live aus dem Zensus, dritte mitsignierte Plugins auf ihre Version festgenagelt, nach dem Lauf das Log zurückgelesen, damit keine Überspringens-Zeile unbemerkt bleibt). **Eingerichtet ≠ gelaufen**: Abnahmekriterium bleibt, dass die vier Computed-Style-Prüfungen im CI-Log **Messwerte** zeigen; vor dem ersten grünen Lauf gilt diese Zeile als unerledigt. Vollständige Beschreibung in [docs/computed-style-gate-in-ci.md](../computed-style-gate-in-ci.md)
 - [ ] **S** Die Drift-Sonde kann keine Flächen erfassen, die erst bei Bedarf eingehängt werden: Frage- und Genehmigungskarte tauchen im DOM erst auf, wenn die Unterhaltung wirklich etwas fragt — eine Abstufung beim Start würde sie permanent als Drift melden, deshalb lässt 10.5.0 sie bewusst aus der Sonde
       — Abnahme: nach einer echten Frage meldet `anchors` Treffer / Fehlschlag bei beiden funktionalen Ankern, und eine frisch geöffnete Seite bleibt bei `drifted: []`
-- [ ] **M** Den Mechanismus-Nachweis in die CI holen: das Computed-Style-Gate (`npm run wash:check`) hängt am Chrome dieses Wartungsrechners und am CSS des lokal installierten Hosts, daher überspringen die vier Computed-Style-Fälle in der CI — die Hälfte des Nachweises „der Mechanismus greift wirklich" kann derzeit nur eine Person nachrechnen; dabei die handgeschriebenen Host-Klassennamen im Fixture durch Anker ersetzen, die der Live-DOM / der `scripts/host-consumers.cjs`-Zensus liefert
-      — Abnahme: das CI-Log zeigt für die vier Fälle **Messwerte** statt einer Überspringens-Begründung; fehlt Browser oder Host, bricht sie mit Exit-Code ungleich 0 ab und benennt, was fehlt – niemals still durchlassen
 
 ### B. Veröffentlichen und Installationskanal
 
 *Motiv: am 2026-09-29 wurden Installationen auf dem offiziellen Desktop `0.2.0-rc.2` abgelehnt; die Pflege-Maschine nutzt aber eine `link:`-Workspace-Installation — **solche Probleme sind bei link-Installationen unsichtbar**.*
 
-- [ ] **S** Der Release-Checkliste einen Schritt „einmal wirklich vom Registry installieren" hinzufügen (neues Profil + exakte Versionsnummer + `--dump-config` zum Prüfen des Loader-Eintrags) → in `docs/publishing-to-npm.md` festschreiben
-- [ ] **S** In jeder Install-/Update-Zeile die exakte Versionsnummer (drei Orte: README, Skill, Desktop-Docs) und pnpm-24-Stunden-Abkühlzeit erklären
 - [ ] **M** Internes / Offline-Vertriebswege dokumentieren (der Release-Tarball-Mechanismus existiert; die kopierbaren Schritte fehlen) | PR-welcome
 
 ### C. Desktop-Betrieb
@@ -386,7 +402,6 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 - [ ] **S** Schema-Versionsfeld in die Zustandsdatei (Upgrades verliefen bisher auf tolerantes Lesen; ein Vorwärtskompatibilitäts-Durchlauf wurde nie geübt)
 - [ ] **M** Ein maschinenlesbarer Ausgang für „ist der Skin wirklich wirksam": Feld-für-Feld-Leseanleitung für `$DSH_HOME/dream-skin.json` und `__DSH_DREAM_SKIN_STATUS__`, damit ein Skript entscheidet und nicht ein Mensch in der Konsole
 - [ ] **M** Leitfaden für Rollen in Serie (Profil-Verzeichnisstruktur, Unterschied `link:` vs. Registry-Installation, Bedeutung der Ausnahmeschlüssel in `compatibility.json`, dynamische Ports)
-- [ ] **L** Konfigurationsvorlagen / Richtlinie verteilen (Administrator hinterlegt einen Standard-Skin, ab dem ersten Start wirksam) — Platzhalter, wird höchstwahrscheinlich nicht gebaut
 
 ### D. Produkt-Erlebnis
 
@@ -394,13 +409,13 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 
 - [ ] **M** Flackerfreier Erstrahmen (FOUC): **erst messen** — das tatsächliche Fenster vom ersten Frame bis zum Abschluss von `apply()` bestimmt die Vorgehensweise. Ohne Messung keine Änderung.
 - [ ] **S** Hinweistext für leeren Zustand beim Verknüpfungshintergrund: Ist „Bild-URL" gewählt, aber noch keine Link eingefügt, zeichnet dieser Modus keinen Hintergrund, und die Oberfläche erklärt nirgends, „wo der Hintergrund geblieben ist" (in allen 8 Sprachen je ein Satz, ins nächste Funktionsrelease legen)
-- [ ] **S** `localStorage`-Kontingent ausmessen: verdrängt das Wachstum der Wallpaper-Chronik still die Persistenz (ein fehlgeschlagener Schreibvorgang wird derzeit **still ignoriert**)
 - [ ] **M** Community-Thema-Galerie — **erst die Spielregeln festlegen, dann Code schreiben**. Verifiziert: ein Themenpaket enthält keinerlei Bildfelder (nur Tokens + Akzentfarbe + Metadaten), Einsendungen tragen darum konstruktiv kein Bildurheberrecht-Risiko; die ganze Kostenseite ist der Prüfaufwand | PR-welcome
 
 ### E. Nicht geplant / nur Pull Requests
 
 - **Mehrere Wallpaper-URLs im Wechsel** (eine Nebenbeobachtung aus Issue #61): Die Server-Seite des Meldenden (bei jeder Anfrage ein zufälliges Bild + vorher auf das Bildschirmverhältnis zusammengesetzt) erreicht denselben Effekt, während die Variante im Plugin die teuerste Änderung dieser Tabelle ist und die tiefste semantische Schulden hinterlässt.
 - **Online-Farbpalette / Themen-Vorschau-Studio**: das ist eine eigenständige Seite, keine Plugin-Fähigkeit, und es überlappt mit der Community-Thema-Galerie, ist aber teurer.
+- **Konfigurationsvorlagen / Richtlinie verteilen** (der Administrator hinterlegt einen Standard-Skin, wirksam ab dem ersten Start; vorher Platzhalter in Gruppe C, nach der Prüfung am 2026-10-10 hierher verschoben): Was diese Zeile anfassen müsste, ist die **Schreibpriorität** der Persistenz — der Auslieferungsseed muss heute der dauerhaften Datei des Nutzers weichen (genau das nagelt das B1-Tor aus 10.6.1 fest), und noch eine Ebene „Standardwerte des Administrators" obendrauf hieße, einen vierten Ursprung in ein Drei-Phasen-Verhalten zu stopfen, das gerade erst durch Tests verriegelt wurde. Für das Bild „eine Person betreut mehrere Maschinen" gibt es bisher keinen echten Kontakt, also machen wir es nicht; mit Batch-Nutzern wird es wieder aufgemacht.
 - **Alles, was in Host-Installer / Binary injiziert oder sie verändert**: steht direkt im Widerspruch zur Position „nur offizielle Erweiterungspunkte" — **niemals**.
 
 ---

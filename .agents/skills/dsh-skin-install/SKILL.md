@@ -52,6 +52,11 @@ dsh plugin --profile web add <所选来源>
   `dsh plugin --profile web add dsh-dream-skin@<该版本>`（显式版本会让 pnpm 自动把它写进 profile 的
   `pnpm-workspace.yaml` → `minimumReleaseAgeExclude`，实测即通过）。**不要**用 `dsh plugin allow-version` 给旧版开豁免：
   那只是让不兼容的旧 peer 范围强行装上，宿主换代损伤一个没修。
+- **版本号一律现查，不要凭记忆写**：`npm view dsh-dream-skin version`（发布时刻另可用
+  `npm view dsh-dream-skin time.<版本>` 核对，决定 24h 冷静期是否已过）。
+- **官方桌面 profile 由 Electron 应用独占管理**：`dsh plugin --profile desktop …` 会被 CLI 硬拒
+  （`profile "desktop" is managed exclusively by the Electron application`），这不是 bug。走
+  `docs/desktop-support.md` 里那条走得通的路，不要在这里试错。
 
 ### 5. 验证与重启
 
@@ -64,6 +69,9 @@ dsh plugin --profile web add <所选来源>
 
 - 更新（npm 装）：`dsh plugin --profile web update dsh-dream-skin`，重启生效；若 pnpm 的 minimum-release-age
   策略挡住新版本，在 profile 目录执行 `pnpm add dsh-dream-skin@latest --config.minimumReleaseAge=0`。
+- **老 profile（9.x 时代装的）先查 `package.json` 里的范围**：写成 `^9.29.0` 时 `update` 按 semver 永远到不了
+  10.x，会报"已是最新"而界面仍是旧版——这类"更新了却没变化"要用显式 `add` 重写依赖：
+  `dsh plugin --profile web add dsh-dream-skin@<最新版本>`，再用 `--dump-config` 复核 loader 条目。
 - 卸载：`dsh plugin --profile web remove dsh-dream-skin`，重启后恢复官方外观。
 
 ## 已知要点（判断用，非写死事实）
