@@ -32,6 +32,7 @@ const path = require('path');
 
 const {
 	measure, measureDesktop, buildFixture, buildDesktopFixture, stripDeclaration, fixtureHtml,
+	coexistFixtureHtml,
 	checkReadings, checkDesktopReadings, cssAlpha, skinTokens, WASH_CHECKS, WASH_GROUPS,
 	DESKTOP_SKINS, DESKTOP_SWEEP, DESKTOP_SHELL_CSS, DESKTOP_SHELL_SOURCE, browserAttempts,
 	probeBrowser, gradeStage, runChrome, environmentError,
@@ -1055,10 +1056,19 @@ test('the corner fixture reads its colors out of the shipped bundle, and refuses
 		assert.throws(() => cornerTokens(source), /invent/i,
 			`an unreadable ${key} must refuse the build instead of becoming a guess`);
 	}
-	// The fixture refuses a page whose tokens were never read, the same way it refuses classes
-	// that were not derived — a thin fixture is worse than no fixture.
+});
+
+test('the fixture refuses a page whose tokens were never read', { skip: RUN ? false : skipWhy }, () => {
+	// Same shape as the class-derivation refusal: a thin fixture is worse than no fixture. Needs
+	// the installed host to BUILD a real `parts` first (the refusal is one field deep), so it is
+	// skip-guarded like every other host-reading case in this file — writing it unguarded made the
+	// CI `test` job red on a machine that has no DSH install, which is an environment fact, not a
+	// broken check, and the two must not share an exit code.
 	const parts = buildFixture();
 	assert.throws(() => fixtureHtml({ ...parts, corner: undefined }), /were not read from the shipped bundle/);
+	assert.throws(() => coexistFixtureHtml({ ...parts, corner: undefined }, { css: '' }),
+		/the coexist fixture tokens were not read from the shipped bundle/,
+		'debt ① was not finished when only the corner page learned to read its colours out of the bundle');
 });
 
 test('mutation: the corner page really paints with the bundle tokens, so a skin change moves the readings', { skip: RUN ? false : skipWhy }, () => {
