@@ -93,16 +93,22 @@ DSH_HOST_ROOT=/tmp/empty-host npm run wash:check
 
 ## 五、仍未验证的（如实记）
 
-- **runner 镜像里到底有没有 Chrome**：这条只能在第一次 CI run 见分晓。镜像若改了（不再预装
-  `/usr/bin/google-chrome`），就落到 `@puppeteer/browsers` 下载那条支路，那条支路依赖 Ubuntu 的
-  共享库齐全；两个引擎都不来时，严格模式会 exit 4 点名 `browser`，不会静默变绿。
+- **runner 镜像里到底有没有 Chrome**：第一次 CI run 已见分晓（run `38061953959`，2026-10-10）——
+  作业日志里是 `Using the runner image browser: /usr/bin/google-chrome`，13 行读数与
+  `wash cascade OK` 都在，整个 job 9 秒跑完。**所以 `@puppeteer/browsers` 那条下载支路仍然没有被
+  CI 真实走过**：镜像若改了（不再预装 `/usr/bin/google-chrome`），就落到那条支路，它依赖 Ubuntu 的
+  共享库齐全；两个引擎都不来时，严格模式会 exit 4 点名 `browser`，不会静默变绿。这条从"未知"
+  降级为"已知未覆盖"，覆盖它需要一个不带 Chrome 的镜像，本仓库不为此排 Windows/自定义 runner。
 - **`--disable-dev-shm-usage` 之外没有再为容器加别的旗**：门自己那份 Chrome 参数只在
   维护机（Windows + Chrome）与本次的 Ubuntu 复现路径上验证过；Windows/Edge 那条候选路径
   **没有在 CI 里跑过**（本 job 不跑 Windows runner）。
 - **宿主版本 pin 跟着 census 走**：census 一旦升到某个还没发布的版本，或者宿主把
   `--dsh-windows-content-radius` / `_fade` / `_fadeTop` 任一条挪走，CI 会**判红（1）**并点名是哪条
   声明没了。这是设计的方向，但意味着第一次 CI run 有可能红——那一次红要当成"宿主漂了"来读，
-  而不是流水线坏了（4 才是流水线坏了）。
+  而不是流水线坏了（4 才是流水线坏了）。**实际的第一次红两者都不是**：`aa6c36c` 那次 `wash-gate`
+  自己绿了，红的是 `test` 矩阵——本仓库一条新写的用例在没有宿主安装的机器上抛了环境错误而不是
+  skip（1 与 4 的分工同样适用于套件自己，见 CHANGELOG 10.10.0 §八）。下一次真红才轮到按上面那句
+  去读。
 - **第三方插件的 0.4.4 钉版会过期**：上游改 `scoped()` 形状时，共存夹具拒绝构建，`wash-gate` 判红；
   修法是重读它们的 bundle 并更新夹具，不是把夹具改成能猜。
 - **`test` job 里那四条引擎用例仍然是 skip**：那个 job 不装浏览器也不装宿主（它测的是 Node 18/20/22/24

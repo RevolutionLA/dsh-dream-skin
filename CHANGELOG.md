@@ -39,7 +39,7 @@
 
 ### 六、Roadmap 与文档通道
 
-- **A5 → CI**：`wash:check` 认 `DSH_WASH_STRICT`，缺浏览器 / 缺宿主不再 skip 而是 **exit 4 并点名缺哪一样**；`.github/workflows/ci.yml` 新增 `wash-gate` 作业（宿主版本从 census 现读、第三方共签插件按版本钉死、跑完回读日志确认没有任何 skip 行）。新增 `tests/wash.ci_strict.test.cjs` 12 条（含 5 处 workflow 形状变异）。顺手抓到一个真 bug：CLI 过去**从不读 `DSH_SKIN_CENTER`**，只有显式传参才生效。说明见 `docs/computed-style-gate-in-ci.md`。**"配置好"不等于"跑过"——首次绿运行之前这一条仍在 Roadmap 上挂着。**
+- **A5 → CI**：`wash:check` 认 `DSH_WASH_STRICT`，缺浏览器 / 缺宿主不再 skip 而是 **exit 4 并点名缺哪一样**；`.github/workflows/ci.yml` 新增 `wash-gate` 作业（宿主版本从 census 现读、第三方共签插件按版本钉死、跑完回读日志确认没有任何 skip 行）。新增 `tests/wash.ci_strict.test.cjs` 12 条（含 5 处 workflow 形状变异）。顺手抓到一个真 bug：CLI 过去**从不读 `DSH_SKIN_CENTER`**，只有显式传参才生效。说明见 `docs/computed-style-gate-in-ci.md`。**"配置好"不等于"跑过"——本条按这条纪律走完了两个状态**：第一次 push 时 `wash-gate` 自己绿了并交出 13 行读数，但整条 workflow 因 `test` 矩阵翻红（红在我方，见 §八），所以没销账；修完自己那半之后 run `38061953959` 四份 `test` + `wash-gate` + `typecheck` 全绿，读数与 `wash cascade OK` 都在、零 skip 行，Roadmap 那条随本次收口**从 8 份 README 删除**。
 - **B6**：`docs/publishing-to-npm.md` 加第八节（发布后从公共 registry 真装一次：临时 profile、读侧同步延迟、冷静期两种行为、桌面 profile 的两条活路、三读数核对）与第九节（桌面用户报"修复没生效"先分诊他实装的版本）。
 - **B7**：8 份 README 与安装技能写清版本号形态——`npm view dsh-dream-skin version` 现查、24h 冷静期会静默装旧版、**老 profile 的 `^9.29.0` 按 semver 到不了 10.x 而 `update` 沿用既有范围**（于是"已是最新"而界面照旧）、桌面 profile 由 Electron 独占管理会被 CLI 硬拒。
 - **重排**：A3（peer 窗口滚动到 `0.3.x`）标为**上游阻塞**——registry 上 `@deepseek-ai/dsh` 的 `latest` 是 `0.2.0-rc.2`、版本列表止于 `0.2.1-alpha.2`，`0.3.x` 从未发布，无目标可对齐；C 组"配置预置 / 策略下发"移入「不做」并写明理由（要动的正是刚被 B1 门锁死的持久化写入优先级）；D 组 localStorage 配额条、B6/B7 完成即删。
@@ -62,7 +62,7 @@
 2. 用门自己提供的 `DSH_HOST_ROOT` 覆盖，把**整套件**在别人机器的形态下重跑一遍再推：`461 定义 = 442 通过 + 15 具名 skip + 4 宿主组 skip`，`fail 0`。**"环境不具备"与"检查失败"必须是两个出口**（issue #102 立的规矩，这次轮到套件自己的加载期违反它）。
 3. 反向腿实测：把**改动前**的那份文件从 `git show HEAD:tests/wash.cascade.test.cjs` 取出来单独跑。宿主缺失的形态下它 `33 定义 = 18 通过 + 14 具名 skip + 1 失败`，失败正是这条用例；维护机形态下它 `33/33` 全绿（这就是本机从来发现不了的原因）。改后的那份在同样两种形态下是 `34 = 19 通过 + 15 具名 skip + 0 失败` 与 `34/34`。**修前红、修后绿两侧都有读数**，这一条才记为已修。
 
-同时这一轮的 `wash-gate` 作业**第一次在 runner 上跑出了读数**：`Computed-style gate (real engine + real host CSS)` 13 行 JSON 读数 + `wash cascade OK`，严格模式下没有任何 skip 行。整体作业仍随 `test` 一起红，所以 Roadmap A5 的删除放在**整条 workflow 绿**之后的单独一次提交里，不提前销账。
+同时这一轮的 `wash-gate` 作业**第一次在 runner 上跑出了读数**：`Computed-style gate (real engine + real host CSS)` 13 行 JSON 读数 + `wash cascade OK`，严格模式下没有任何 skip 行。那一次整体作业仍随 `test` 一起红，所以 Roadmap A5 **没有当场销账**；修完 §八 那条之后重推，run `38061953959` 六个作业全绿、读数照旧在场，A5 才在随后一次纯文档提交里从 8 份 README 删除。**先等自己那半修好，再销别人能复算的账**。
 
 ### 门与账本
 
@@ -70,7 +70,7 @@
 
 ### 未验证 / 边界
 
-- `wash-gate` CI 作业**已在 runner 上跑出读数**（13 行 JSON + `wash cascade OK`，严格模式零 skip），但**整条 workflow 的首次全绿仍未完成**：本轮 `aa6c36c` 的那一次因 `test` 矩阵翻红（见 §八），A5 在整体绿之前不删。**残留的两个可能红点**：Ubuntu 镜像缺 Chrome 时的下载路径、census 钉版本漂移。
+- **已销账（不再是欠账）**：`wash-gate` CI 作业在 run `38061953959` 上随整条 workflow 一起绿，日志里有 13 行读数 + `wash cascade OK`、零 skip 行，Roadmap A5 随之从 8 份 README 删除。**仍欠的两件事**：这个作业只在 push/PR 上跑、没有每日排程，宿主 CSS 漂移要等到有人改东西才暴露；Ubuntu 镜像缺 Chrome 时的下载路径尚未经过一次"镜像真的没带浏览器"的运行（本机与 runner 目前都有 Chrome，这条路是推测中的可用，不是实测过的可用）。
 - Electron 渲染进程内部 0 次机读（不变）；侧栏列第三层不跟随 canvas token 造成的约 15% 明暗差是 10.9.3 **有意保留**的代价。
 - `storageError` 的浏览器端配额触发未实测；一行超大壁纸仍会被保留（宁可让 `localWrite` 报失败，也不悄悄丢掉用户正在看的那张）。
 - **字节上限是"每把钥匙"的，不是跨键总额的**（评审 B-08）：`WALLPAPER_HISTORY_BUDGET` 量的是 `wallpaper-history` 这一个键序列化后的字符数。壁纸历史本身仍可能和其他键（皮肤包库、主题包导出）一起把源的配额吃满——那时兜底的是 `localWrite` 会点名失败键，而不是提前算总额拒绝写入。跨键总额的估计需要一个能读配额余量的 API，浏览器没有给。
