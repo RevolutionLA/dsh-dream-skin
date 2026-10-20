@@ -43,12 +43,33 @@ function makeRes() {
 	};
 }
 
-/** Build a ctx that captures the registered route handler. */
+/**
+ * Build a ctx that captures the registered route handler.
+ *
+ * `generation` models the host the plugin is loaded into, because the service
+ * that carries the trust authorities moved once already (issue #109):
+ *
+ *   - `'0.2.1'` (default, current line) — the `web-startup` row provides
+ *     `webStartup.trustedHosts`; `webRuntime` does not exist at all.
+ *   - `'0.2.0'` — the `web-runtime` row provided `webRuntime.trustedHosts`.
+ *   - `'none'` — neither service is mounted: the host half must still mount
+ *     (loopback-only fence) and must never throw on the missing service.
+ *
+ * Services are reached through `ctx.get(name)`, as a plugin must for an
+ * optional one, so a hard `ctx.<service>` read shows up here as a TypeError
+ * instead of as the silent `pending` the real loader produces.
+ */
 function makeHarness(overrides = {}) {
 	let captured = null;
+	const trustedHosts = overrides.trustedHosts || [];
+	const generation = overrides.generation || '0.2.1';
+	const services = {
+		webRuntime: generation === '0.2.0' ? { trustedHosts } : undefined,
+		webStartup: generation === '0.2.1' ? { trustedHosts } : undefined
+	};
 	const ctx = {
-		webRuntime: { trustedHosts: overrides.trustedHosts || [] },
 		webServer: { register(route) { captured = route; return () => {}; } },
+		get(name) { return services[name]; },
 		effect(fn) { fn(); }
 	};
 	return {
@@ -139,6 +160,56 @@ test('registers a prefix route and applies trusted-host config', async (t) => {
 	// handler mounted; a non-loopback, non-trusted host gets 403
 	const res = await harness.run({ headers: { 'content-type': 'application/json', host: 'evil.example' }, body: '{"method":"get"}' });
 	assert.equal(res.status, 403, 'untrusted authority blocked');
+});
+
+// ── the service gate: which host generation the fence reads (issue #109) ─────
+//
+// `inject` is a HARD gate. Naming a service the running host does not provide
+// leaves the entry `pending` forever: `apply()` never runs, the route never
+// registers, and nothing fails loudly — the loader only logs one line. The host
+// removed `webRuntime` in `0.2.1-alpha.2` (`web-startup` now provides
+// `webStartup`), so hard-requiring either name silently kills the host half on
+// the other generation. These legs pin the mount and the trust source on all
+// three shapes the plugin can meet.
+
+test('inject: the host half hard-requires webServer only', async () => {
+	await loadIndex();
+	assert.deepEqual(
+		mod.inject,
+		['webServer'],
+		'webRuntime was removed in 0.2.1-alpha.2 (webStartup replaced it), so naming either service in inject leaves the entry pending on the other host generation'
+	);
+});
+
+test('0.2.1+ host: mounts and honours the webStartup trust authorities', async (t) => {
+	await loadIndex();
+	fh(t);
+	const harness = makeHarness({ generation: '0.2.1', trustedHosts: ['app.internal'] });
+	mod.apply(harness.ctx);
+	const trusted = await harness.run({ headers: { ...J, host: 'app.internal', 'sec-fetch-site': 'same-origin' }, body: '{"method":"get"}' });
+	assert.equal(trusted.status, 200, 'a webStartup-supplied authority must reach the API');
+	const untrusted = await harness.run({ headers: { ...J, host: 'evil.example', 'sec-fetch-site': 'same-origin' }, body: '{"method":"get"}' });
+	assert.equal(untrusted.status, 403, 'authorities we were not given stay blocked');
+});
+
+test('0.2.0 host: the legacy webRuntime authorities still apply', async (t) => {
+	await loadIndex();
+	fh(t);
+	const harness = makeHarness({ generation: '0.2.0', trustedHosts: ['app.internal'] });
+	mod.apply(harness.ctx);
+	const trusted = await harness.run({ headers: { ...J, host: 'app.internal', 'sec-fetch-site': 'same-origin' }, body: '{"method":"get"}' });
+	assert.equal(trusted.status, 200, 'the 0.2.0 line must keep working after the fallback chain is introduced');
+});
+
+test('no trust service at all: still mounts, loopback-only fence', async (t) => {
+	await loadIndex();
+	fh(t);
+	const harness = makeHarness({ generation: 'none' });
+	mod.apply(harness.ctx);
+	const loopback = await harness.run({ headers: { ...J, host: H, 'sec-fetch-site': 'same-origin' }, body: '{"method":"get"}' });
+	assert.equal(loopback.status, 200, 'a missing optional service must not turn into a 500 or a thrown TypeError');
+	const remote = await harness.run({ headers: { ...J, host: 'evil.example', 'sec-fetch-site': 'same-origin' }, body: '{"method":"get"}' });
+	assert.equal(remote.status, 403, 'with no service there are no extra authorities — loopback stays the whole grant');
 });
 
 test('rejects non-JSON content-type with 415', async (t) => {
