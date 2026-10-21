@@ -41,7 +41,10 @@ const pkg = require('../package.json');
  */
 const MARKET_FILE_BOUND = 262144;
 const BUDGETS = [
-	{ rel: 'lib/client.js', ceiling: 480 * 1024, reason: 'browser half; one combo-served file by host design' },
+	// 480 -> 512 KiB on purpose: wallpaper rotation took the bundle from 449 KB to 476 KB, and its
+	// local-folder source (the settings controls, the host listing client and 12 strings in each of
+	// the 8 dictionaries) to 498 KB. The file stays unminified: it is the audit surface.
+	{ rel: 'lib/client.js', ceiling: 512 * 1024, reason: 'browser half; one combo-served file by host design' },
 	{ rel: 'lib/index.js', ceiling: 40 * 1024, reason: 'host half' }
 ];
 

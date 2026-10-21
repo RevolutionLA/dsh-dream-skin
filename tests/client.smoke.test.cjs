@@ -1280,7 +1280,9 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 	const DYNAMIC_FAMILIES = [
 		{ prefix: 'skin.', ids: SHIPPED_SKINS.map((s) => s.id) },
 		{ prefix: 'material.', ids: ['frosted', 'liquid'] },
-		{ prefix: 'material.', ids: ['frosted', 'liquid'], suffix: '.desc' }
+		{ prefix: 'material.', ids: ['frosted', 'liquid'], suffix: '.desc' },
+		// FOLDER_ERROR_KEYS maps each host error code to one of these (the code picks the key at run time).
+		{ prefix: 'bg2.rotationFolder', ids: ['Unset', 'NotAbsolute', 'Missing', 'NotDirectory', 'Unreadable', 'HostDown'] }
 	];
 	const reachable = (key) => {
 		if (literalUses.has(key)) return true;
@@ -6893,7 +6895,7 @@ function mkProbeImage(probes, mode) {
 }
 
 /** Boot the plugin with a rotation config, a controllable preload and a capturable tick. */
-function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'url', rotation = {}, refresh = null, mode = 'ok', visibility, date, seed = {} } = {}) {
+function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'url', rotation = {}, refresh = null, mode = 'ok', visibility, date, seed = {}, fetch: fetchOverride, setTimeout: timeoutOverride } = {}) {
 	const probes = [];
 	const alerts = [];
 	const listeners = {};
@@ -6913,6 +6915,8 @@ function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'u
 		Image: mkProbeImage(probes, mode),
 		seed: stored,
 		...(date ? { Date: date } : {}),
+		...(fetchOverride ? { fetch: fetchOverride, AbortController } : {}),
+		...(timeoutOverride ? { setTimeout: timeoutOverride } : {}),
 		window: {
 			setInterval: (fn) => { tick = fn; return 11; },
 			clearInterval: () => { tick = null; },
@@ -6947,7 +6951,8 @@ test('rotation: a due rotation shows the next link, keeps history and the stored
 	assert.equal(r.url(), ROT_B, '`wallpaper-url` stays the clean "what is showing now"');
 	assert.equal(r.history().length, 0, 'a rotation never writes the wallpaper history');
 	const c = r.cfg();
-	assert.deepEqual(Object.keys(c).sort(), ['lastRotatedAt', 'minutes', 'mode', 'on', 'urls'], 'the persisted contract is exactly these fields');
+	assert.deepEqual(Object.keys(c).sort(), ['lastRotatedAt', 'minutes', 'mode', 'on', 'source', 'urls'], 'the persisted contract is exactly these fields');
+	assert.equal(c.source, 'links', 'the source defaults to the link list');
 	assert.equal(c.lastRotatedAt, r.refreshCfg().lastFiredAt, 'the commit stamp is the refresh stamp (#61: last fetch of this image)');
 	assert.ok(Math.abs(Date.now() - c.lastRotatedAt) < 5000, 'phase is now');
 	// Sample 2 (final): "next" walks the list and wraps. The cursor is the showing URL,
@@ -7313,4 +7318,346 @@ test('rotation: switching it off stops the schedule — an overdue rotation does
 	clock += 6 * MIN;
 	r.tick();
 	assert.equal(r.url(), ROT_B, 'one interval later it rotates');
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Wallpaper rotation over a local folder (issue #61, local photos). The browser
+// half asks the host half for the folder's images, so these cases run the REAL
+// host route (lib/index.js behind a real HTTP server) over a real directory, and
+// give the sandbox a `fetch` that talks to it: the client never sees a mock of the
+// thing it depends on.
+// ─────────────────────────────────────────────────────────────────────────────
+const nodeFs = require('node:fs');
+const nodeHttp = require('node:http');
+const nodeOs = require('node:os');
+const nodePath = require('node:path');
+const FOLDER_KEY = 'dsh-dream-skin:wallpaper-folder';
+const FOLDER_URL_RE = /^dream-skin\/api\/folder\/file\?name=([^&]+)&v=\d+-\d+$/;
+
+const until = async (check, label, ms = 3000) => {
+	const end = Date.now() + ms;
+	for (;;) {
+		const value = check();
+		if (value) return value;
+		if (Date.now() > end) assert.fail('timed out waiting for: ' + label);
+		await sleep(10);
+	}
+};
+
+/** A real host route over a real photo folder. Each name becomes a file with its own bytes. */
+async function startFolderHost(t, names = ['a.png', 'b.png', 'c.png']) {
+	const { apply } = await import('../lib/index.js');
+	const root = nodeFs.mkdtempSync(nodePath.join(nodeOs.tmpdir(), 'dream-client-folder-'));
+	const home = nodePath.join(root, 'home');
+	const photos = nodePath.join(root, 'photos');
+	nodeFs.mkdirSync(home);
+	nodeFs.mkdirSync(photos);
+	const realHome = process.env.DSH_HOME;
+	process.env.DSH_HOME = home;
+	let route = null;
+	apply({ effect: (fn) => fn(), get: () => undefined, webServer: { register: (r) => { route = r; return () => {}; } } });
+	const server = nodeHttp.createServer((req, res) => { route.handler(req, res); });
+	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const port = server.address().port;
+	const write = (name, shade) => nodeFs.writeFileSync(nodePath.join(photos, name), Buffer.from([0x89, 0x50, 0x4e, 0x47, shade, shade, shade]));
+	names.forEach((n, i) => write(n, i + 1));
+	nodeFs.writeFileSync(nodePath.join(home, 'dream-skin.json'), JSON.stringify({ [FOLDER_KEY]: photos }));
+	t.after(() => {
+		server.close();
+		server.closeAllConnections?.();
+		if (realHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = realHome;
+		nodeFs.rmSync(root, { recursive: true, force: true });
+	});
+	const gate = { hold: null, held: 0, listCalls: 0 };
+	/** The sandbox's fetch: real HTTP to the real route; a folder-list can be held in flight. */
+	const hostFetch = async (url, init) => {
+		if (init && typeof init.body === 'string' && init.body.includes('folder-list')) {
+			gate.listCalls++;
+			if (gate.hold) { gate.held++; await gate.hold; }
+		}
+		return fetch(new URL(url, `http://127.0.0.1:${port}`), init);
+	};
+	return {
+		root, home, photos, port, write, gate, hostFetch,
+		stateFile: () => JSON.parse(nodeFs.readFileSync(nodePath.join(home, 'dream-skin.json'), 'utf8')),
+		get: (link) => fetch(new URL(link, `http://127.0.0.1:${port}/`))
+	};
+}
+
+/** Boot the plugin in folder mode against `host`, with the folder saved and rotation switched on. */
+function bootFolder(host, { current = null, rotation = {}, kind = 'url', mode = 'ok', fetch: fetchImpl, setTimeout: timeoutImpl, visibility, date, seed = {} } = {}) {
+	return bootRotation({
+		urls: [], current, kind, mode, visibility, date, fetch: fetchImpl || host.hostFetch, setTimeout: timeoutImpl,
+		rotation: rotation === null ? null : { source: 'folder', ...rotation },
+		seed: { [FOLDER_KEY]: host.photos, ...seed }
+	});
+}
+const folderName = (url) => decodeURIComponent((FOLDER_URL_RE.exec(url) || [])[1] || '');
+
+test('folder rotation: a due rotation lists the folder through the real host, shows the next image by its host link, and the link serves that file', async (t) => {
+	const host = await startFolderHost(t, ['img2.png', 'img10.png', 'IMG1.png']);
+	const r = bootFolder(host, { rotation: { lastRotatedAt: 0 } });
+	// Sample 1: with no current folder image, the order starts at the top, in human order.
+	await until(() => r.url() !== null && FOLDER_URL_RE.test(r.url() || ''), 'a folder image link');
+	assert.equal(folderName(r.url()), 'IMG1.png', 'img2 sorts before img10, and the first rotation starts at the top');
+	assert.ok(FOLDER_URL_RE.test(r.url()), 'the stored link has exactly the folder-image shape: ' + r.url());
+	assert.ok(/[?&]t=\d{13}$/.test(r.probes[0].url), 'it was probed with the stamp: ' + r.probes[0].url);
+	assert.equal(r.rendered(), r.probes[0].url, 'and that is the URL that is painted');
+	assert.equal(r.history().length, 0, 'a rotation never writes the wallpaper history');
+	// The link is not decoration: asking the host for it returns that very file.
+	const served = await host.get(r.url());
+	assert.equal(served.status, 200);
+	assert.ok(Buffer.from(await served.arrayBuffer()).equals(nodeFs.readFileSync(nodePath.join(host.photos, 'IMG1.png'))), 'the link serves the image it names');
+	// Sample 2: the cursor is the showing image: next, next, wrap.
+	const seen = [];
+	for (let i = 0; i < 3; i++) {
+		const before = r.url();
+		await r.adv.rotateNow();
+		await until(() => r.url() !== before, 'the next image');
+		seen.push(folderName(r.url()));
+	}
+	assert.deepEqual(seen, ['img2.png', 'img10.png', 'IMG1.png'], 'human order, wrapping');
+	assert.equal(r.cfg().source, 'folder', 'the source is stored');
+});
+
+test('folder rotation: a photo added to the folder joins the rotation with no setting change, and a removed one is gone', async (t) => {
+	const host = await startFolderHost(t, ['a.png', 'b.png']);
+	const r = bootFolder(host, { rotation: { lastRotatedAt: Date.now() } });
+	const rotate = async () => { const before = r.url(); await r.adv.rotateNow(); await until(() => r.url() !== before, 'next image'); return folderName(r.url()); };
+	assert.equal(await rotate(), 'a.png');
+	assert.equal(await rotate(), 'b.png');
+	host.write('c.png', 9);
+	assert.equal(await rotate(), 'c.png', 'sample 1: the photo added after boot is the very next one, with no setting touched');
+	assert.equal(await rotate(), 'a.png', 'sample 2: and the order wraps around it');
+	nodeFs.rmSync(nodePath.join(host.photos, 'b.png'));
+	const after = [];
+	for (let i = 0; i < 3; i++) after.push(await rotate());
+	assert.ok(!after.includes('b.png'), 'a deleted photo is never shown again: ' + after.join(','));
+});
+
+test('folder rotation: the render gate, host adoption and the typed boxes accept exactly the folder shape and nothing near it', async (t) => {
+	const host = await startFolderHost(t);
+	const good = 'dream-skin/api/folder/file?name=a.png&v=7-1700000000000';
+	// Render gate: the exact shape paints (cache-busted); look-alikes paint nothing.
+	const paint = (url) => {
+		const r = bootRotation({ urls: [], current: url, rotation: null, fetch: host.hostFetch });
+		return r;
+	};
+	const shown = paint(good);
+	assert.ok(/url\("dream-skin\/api\/folder\/file\?name=a\.png&v=7-1700000000000"\)/.test(shown.g.main().style.backgroundImage), 'the exact shape paints: ' + shown.g.main().style.backgroundImage);
+	const lookalikes = [
+		'dream-skin/api/folder/file?name=../x.png&v=1-1', 'dream-skin/api/folder/file?name=..%2Fx.png&v=1-1',
+		'/dream-skin/api/folder/file?name=a.png&v=1-1', '//evil.example/x.png', 'dream-skin/api/folder/file?name=a.png&v=1-1&extra=1',
+		'dream-skin/api/folder/file?name=a.png', 'dream-skin/api/folder/other?name=a.png&v=1-1', 'dream-skin/api/folder/file?name=%2e%2e&v=1-1',
+		'dream-skin/api/folder/file?name=a.png&v=x-1', 'dream-skin/api/folder/file?name=%00.png&v=1-1', 'dream-skin/api/folder/file?name=.hidden.png&v=1-1',
+		'dream-skin/api/folder/file?name=' + 'a'.repeat(700) + '&v=1-1'
+	];
+	for (const url of lookalikes) {
+		const r = bootRotation({ urls: [], current: url, rotation: null, fetch: host.hostFetch });
+		assert.throws(() => r.g.main(), /exactly one live wallpaper layer/, 'a look-alike paints nothing: ' + url.slice(0, 70));
+	}
+	// The typed box and the list box keep their own gate: the folder shape is not a link a user can type.
+	const typed = bootRotation({ urls: [], current: ROT_A, rotation: null, fetch: host.hostFetch });
+	typed.adv.setUrl(good);
+	assert.equal(typed.url(), ROT_A, 'the typed box refuses a folder link');
+	assert.deepEqual(typed.alerts, ['bg2.urlInvalid']);
+	typed.adv.setRotationList(good + '\n' + ROT_B);
+	assert.deepEqual(typed.cfg().urls, [ROT_B], 'and so does the link list: only the real link survives');
+	// Host adoption: a folder link in the host state is adopted, a look-alike is not.
+	nodeFs.writeFileSync(nodePath.join(host.home, 'dream-skin.json'), JSON.stringify({ [FOLDER_KEY]: host.photos, 'dsh-dream-skin:wallpaper-url': good }));
+	const adopt = bootRotation({ urls: [], current: ROT_A, rotation: null, fetch: host.hostFetch });
+	await until(() => adopt.url() === good, 'the folder link adopted from the host state');
+	nodeFs.writeFileSync(nodePath.join(host.home, 'dream-skin.json'), JSON.stringify({ [FOLDER_KEY]: host.photos, 'dsh-dream-skin:wallpaper-url': lookalikes[0] }));
+	const refuse = bootRotation({ urls: [], current: ROT_A, rotation: null, fetch: host.hostFetch });
+	await sleep(150);
+	assert.equal(refuse.url(), ROT_A, 'a look-alike in the host state is not adopted');
+});
+
+test('folder rotation: saving a folder reaches the host before the listing is asked, and every unusable folder is explained and never switched on', async (t) => {
+	const host = await startFolderHost(t, ['a.png', 'b.png']);
+	const other = nodePath.join(host.root, 'other');
+	nodeFs.mkdirSync(other);
+	for (const [i, n] of ['x.png', 'y.png', 'z.png'].entries()) nodeFs.writeFileSync(nodePath.join(other, n), Buffer.from([1, 2, 3, i]));
+	const r = bootFolder(host, { rotation: { on: 0, lastRotatedAt: Date.now() } });
+	await sleep(60);
+	const view = () => r.h.storeStates['dream-skin-wallpaper-advanced'].rotation;
+	// The host's state file still names the OLD folder (2 images). Saving the new one must make the
+	// listing see the NEW one (3 images): the write is debounced, so the save has to flush it first.
+	const answer = await r.adv.setRotationFolder(other);
+	assert.equal(answer.files.length, 3, 'sample 1: the listing is of the folder just saved, not the one the host file held');
+	assert.equal(host.stateFile()[FOLDER_KEY], other, 'sample 2: and the host file now names it');
+	assert.equal(view().folderCount, 3, 'the settings row is told the count');
+	assert.equal(view().folderError, null);
+	// Blank saves change nothing (R13).
+	await r.adv.setRotationFolder('   ');
+	assert.equal(r.h.localStorage.getItem(FOLDER_KEY), other, 'a blank box keeps the folder');
+	// A path that cannot be a path is refused outright, before it reaches storage or the host.
+	for (const bad of ['x'.repeat(2000), '/tmp/\u0001bad', '/tmp/new\nline']) {
+		r.alerts.length = 0;
+		assert.equal(await r.adv.setRotationFolder(bad), null, 'refused');
+		assert.deepEqual(r.alerts, ['bg2.rotationFolderInvalid'], 'and said so');
+		assert.equal(r.h.localStorage.getItem(FOLDER_KEY), other, 'the saved folder is untouched');
+	}
+	// Each unusable folder is explained with its own code, and a switch-on is refused without being stored.
+	for (const [path, code] of [[nodePath.join(host.root, 'nope'), 'folder-missing'], ['relative/dir', 'folder-not-absolute'], [nodePath.join(host.photos, 'a.png'), 'folder-not-directory']]) {
+		await r.adv.setRotationFolder(path);
+		assert.equal(view().folderError, code, `${code} is reported`);
+		r.alerts.length = 0;
+		await r.adv.setRotationSource('folder');
+		await r.adv.setRotation(true);
+		assert.deepEqual(r.alerts, [({ 'folder-missing': 'bg2.rotationFolderMissing', 'folder-not-absolute': 'bg2.rotationFolderNotAbsolute', 'folder-not-directory': 'bg2.rotationFolderNotDirectory' })[code]], `${code}: the refusal says why`);
+		assert.equal(r.cfg().on, 0, `${code}: and the switch was not stored as on`);
+	}
+	// One image is not a rotation either.
+	const lone = nodePath.join(host.root, 'lone');
+	nodeFs.mkdirSync(lone);
+	nodeFs.writeFileSync(nodePath.join(lone, 'only.png'), Buffer.from([1]));
+	await r.adv.setRotationFolder(lone);
+	r.alerts.length = 0;
+	await r.adv.setRotation(true);
+	assert.deepEqual(r.alerts, ['bg2.rotationNeedTwo'], 'a folder with a single image cannot be rotated');
+	assert.equal(r.cfg().on, 0);
+	// A valid folder switches on, and starts a fresh interval.
+	await r.adv.setRotationFolder(other);
+	r.alerts.length = 0;
+	await r.adv.setRotation(true);
+	assert.deepEqual(r.alerts, [], 'a usable folder is accepted silently');
+	assert.equal(r.cfg().on, 1, 'and stored as on');
+	assert.equal(r.probes.length, 0, 'without rotating the instant it is enabled');
+	// Shrinking the pool under a running schedule switches it off.
+	for (const n of ['y.png', 'z.png']) nodeFs.rmSync(nodePath.join(other, n));
+	r.alerts.length = 0;
+	await r.adv.setRotationFolder(other);
+	assert.equal(r.cfg().on, 0, 'a folder that can no longer supply two images switches the schedule off');
+	assert.deepEqual(r.alerts, ['bg2.rotationNeedTwo']);
+});
+
+test('folder rotation: no host means no rotation, a spent interval and a stated reason — the wallpaper stays', async (t) => {
+	const host = await startFolderHost(t);
+	let calls = 0;
+	const down = async () => { calls++; throw new Error('connection refused'); };
+	const r = bootFolder(host, { current: 'dream-skin/api/folder/file?name=a.png&v=1-1', rotation: { lastRotatedAt: 0 }, fetch: down });
+	await until(() => r.cfg().lastRotatedAt > 0, 'the interval to be spent');
+	assert.equal(r.url(), 'dream-skin/api/folder/file?name=a.png&v=1-1', 'the current wallpaper is kept');
+	assert.equal(r.probes.length, 0, 'nothing was probed');
+	const view = r.h.storeStates['dream-skin-wallpaper-advanced'].rotation;
+	assert.equal(view.folderError, 'host-unreachable', 'the row is told why');
+	const before = calls;
+	r.tick();
+	r.tick();
+	await sleep(40);
+	assert.equal(calls, before, 'later ticks inside the interval do not ask again');
+	r.alerts.length = 0;
+	await r.adv.rotateNow();
+	assert.deepEqual(r.alerts, ['bg2.rotationFolderHostDown'], 'an explicit "next now" says the host is unreachable');
+});
+
+test('folder rotation: a listing still in flight when the plugin is torn down, re-armed or switched off must not write', async (t) => {
+	// CONTRIBUTING rule 1: the resource is caught IN FLIGHT — the host's answer is held pending.
+	const host = await startFolderHost(t);
+	const hold = () => { let release; host.gate.hold = new Promise((resolve) => { release = resolve; }); host.gate.held = 0; return () => { host.gate.hold = null; release(); }; };
+	// Teardown.
+	let release = hold();
+	const r1 = bootFolder(host, { rotation: { lastRotatedAt: 0 } });
+	await until(() => host.gate.held === 1, 'the listing to be in flight');
+	assert.equal(r1.url(), null, 'sample 1: nothing is committed while the listing is pending');
+	const before = r1.h.localStorage.getItem('dsh-dream-skin:wallpaper-rotation');
+	r1.unmount();
+	release();
+	await sleep(120);
+	assert.equal(r1.url(), null, 'sample 2: the late answer of an unmounted plugin paints nothing');
+	assert.equal(r1.h.localStorage.getItem('dsh-dream-skin:wallpaper-rotation'), before, 'and records no phase');
+	// Switching off.
+	release = hold();
+	const r2 = bootFolder(host, { rotation: { lastRotatedAt: 0 } });
+	await until(() => host.gate.held === 1, 'the second listing to be in flight');
+	await r2.adv.setRotation(false);
+	release();
+	await sleep(120);
+	assert.equal(r2.url(), null, 'switching it off while the host is answering stops the rotation');
+	assert.equal(r2.probes.length, 0, 'no preload was started from the late answer');
+	// Re-arm: a settings action restarts the scheduler; the old listing is dropped, the fresh one commits.
+	release = hold();
+	const r3 = bootFolder(host, { rotation: { lastRotatedAt: 0 } });
+	await until(() => host.gate.held === 1, 'the third listing to be in flight');
+	r3.adv.setRefresh(false, 24);
+	await until(() => host.gate.held === 2, 'the re-armed scheduler to ask again');
+	release();
+	await until(() => r3.url() !== null && FOLDER_URL_RE.test(r3.url()), 'the fresh listing to commit');
+	assert.equal(r3.probes.length, 1, 'exactly one preload: the abandoned listing started none');
+});
+
+test('folder rotation: dead images are skipped within a bounded attempt, and a failed rotation still spends its interval', async (t) => {
+	const host = await startFolderHost(t, ['a.png', 'b.png', 'c.png', 'd.png', 'e.png']);
+	const dead = bootFolder(host, { current: null, rotation: { lastRotatedAt: 0 }, mode: 'fail' });
+	await until(() => dead.cfg().lastRotatedAt > 0, 'the interval to be spent');
+	assert.deepEqual(dead.probes.map((p) => folderName(p.url.split('&t=')[0])), ['a.png', 'b.png', 'c.png'], 'bounded: three candidates in order');
+	assert.equal(dead.url(), null, 'the wallpaper was not replaced');
+	const calls = host.gate.listCalls;
+	dead.tick();
+	dead.tick();
+	await sleep(40);
+	assert.equal(host.gate.listCalls, calls, 'later ticks inside the interval do not list again');
+	let n = 0;
+	const flaky = bootFolder(host, { rotation: { lastRotatedAt: 0 }, mode: () => (++n === 1 ? 'fail' : 'ok') });
+	await until(() => flaky.url() !== null, 'the second image to commit');
+	assert.equal(folderName(flaky.url()), 'b.png', 'the dead first image is skipped and the next live one shown');
+});
+
+test('folder rotation: switching source, long names, clearing the wallpaper and the sentinel key', async (t) => {
+	const host = await startFolderHost(t, ['a.png', 'b.png']);
+	const long = '八'.repeat(100) + '.png';
+	host.write(long, 5);
+	const r = bootFolder(host, { rotation: { source: 'links', on: 1, urls: [ROT_A, ROT_B], lastRotatedAt: Date.now() } });
+	// Source: whitelisted, a change switches the schedule off, the same source is a no-op.
+	await r.adv.setRotationSource('shuffle');
+	assert.equal(r.cfg().source, 'links', 'an unknown source is ignored');
+	assert.equal(r.cfg().on, 1);
+	await r.adv.setRotationSource('links');
+	assert.equal(r.cfg().on, 1, 'choosing the current source changes nothing');
+	await r.adv.setRotationSource('folder');
+	assert.equal(r.cfg().source, 'folder', 'the source is stored');
+	assert.equal(r.cfg().on, 0, 'a new pool has not been checked, so the schedule is off until it is enabled again');
+	assert.deepEqual(r.cfg().urls, [ROT_A, ROT_B], 'the link list is kept while the folder is in use');
+	// A name whose link would exceed the cap is skipped; the others rotate.
+	await r.adv.setRotation(true);
+	const seen = new Set();
+	for (let i = 0; i < 5; i++) { const b = r.url(); await r.adv.rotateNow(); await until(() => r.url() !== b, 'next image'); seen.add(folderName(r.url())); }
+	assert.ok(!seen.has(long), 'the over-long name never becomes a link');
+	assert.deepEqual([...seen].sort(), ['a.png', 'b.png'], 'the rest rotate');
+	// Clearing the wallpaper: schedule off, phase reset, folder and list kept (T3).
+	r.adv.clearAll();
+	assert.equal(r.cfg().on, 0);
+	assert.equal(r.cfg().lastRotatedAt, 0);
+	assert.equal(r.h.localStorage.getItem(FOLDER_KEY), host.photos, 'the folder the user typed survives');
+	// Sentinel: an upgrader whose only stored preference is the folder keeps their state.
+	const fresh = buildSandbox();
+	fresh.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	fresh.localStorage.setItem(FOLDER_KEY, '/some/folder');
+	fresh.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(fresh));
+	assert.equal(fresh.localStorage.getItem('dsh-dream-skin:skin'), null, 'no factory skin pushed onto the upgrader');
+	assert.equal(fresh.localStorage.getItem(FOLDER_KEY), '/some/folder', 'their folder survives');
+});
+
+test('folder rotation: a host that never answers is given up on after the deadline, the request is aborted, and the interval is spent', async (t) => {
+	const host = await startFolderHost(t);
+	const deadlines = [];
+	const realSetTimeout = setTimeout;
+	// Only the 15 s listing deadline is captured; every other timer (the debounced host push) stays real.
+	const timers = (fn, ms, ...rest) => (ms === 15000 ? (deadlines.push(fn), 0) : realSetTimeout(fn, ms, ...rest));
+	let aborted = false;
+	const hung = (url, init) => new Promise((resolve, reject) => {
+		if (init && typeof init.body === 'string' && init.body.includes('folder-list')) {
+			init.signal.addEventListener('abort', () => { aborted = true; reject(new Error('aborted')); });
+			return;
+		}
+		host.hostFetch(url, init).then(resolve, reject);
+	});
+	const r = bootFolder(host, { rotation: { lastRotatedAt: 0 }, fetch: hung, setTimeout: timers });
+	await until(() => deadlines.length === 1, 'the listing deadline to be armed');
+	assert.equal(r.cfg().lastRotatedAt, 0, 'sample 1: while the host is silent nothing is spent or committed');
+	deadlines[0]();
+	await until(() => r.cfg().lastRotatedAt > 0, 'the interval to be spent after the deadline');
+	assert.equal(aborted, true, 'sample 2: the pending request was aborted');
+	assert.equal(r.h.storeStates['dream-skin-wallpaper-advanced'].rotation.folderError, 'host-unreachable', 'and reported as unreachable');
 });
