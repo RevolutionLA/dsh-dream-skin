@@ -7606,7 +7606,10 @@ test('folder rotation: dead images are skipped within a bounded attempt, and a f
 
 test('folder rotation: switching source, long names, clearing the wallpaper and the sentinel key', async (t) => {
 	const host = await startFolderHost(t, ['a.png', 'b.png']);
-	const long = '八'.repeat(100) + '.png';
+	// 80 CJK characters: 244 UTF-8 bytes, inside Linux NAME_MAX (255), yet the encoded link exceeds the 700-character cap.
+	const long = '八'.repeat(80) + '.png';
+	assert.ok(Buffer.byteLength(long) <= 255, 'the fixture name fits every CI filesystem');
+	assert.ok(`dream-skin/api/folder/file?name=${encodeURIComponent(long)}&v=0-0`.length > 700, 'the fixture link is over the cap');
 	host.write(long, 5);
 	const r = bootFolder(host, { rotation: { source: 'links', on: 1, urls: [ROT_A, ROT_B], lastRotatedAt: Date.now() } });
 	// Source: whitelisted, a change switches the schedule off, the same source is a no-op.
