@@ -156,6 +156,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🧊 **Materiales de cristal (Esmerilado / Líquido)** | Un clic cambia el carácter del vidrio; los controles de transparencia leen **derecha = más transparente**; UN mando de desenfoque guía el fondo y todas las superficies de cristal |
 | 🖼️ **Aspecto listo al instalar** | La primera instalación ya viene estilizada: piel Nebula + fondo incluido + valores ajustados; reinicia y listo |
 | 🌤️ **Foto diaria de Bing (predefinida)** | El fondo avanzado incluye la API de la foto diaria de Bing pre-rellenada: pulsa «Aplicar» y funciona; también acepta cualquier URL de imagen con actualización automática |
+| 🔁 **Rotación de fondos** | Con el fondo de URL de imagen puedes pegar hasta 20 enlaces de imagen http/https (uno por línea) y alternarlos en orden o al azar cada 5 minutos a 7 días, o pulsar «Siguiente fondo ahora». Un enlace roto solo se descarta a sí mismo; no rota con la ventana oculta (se pone al día al volver); desactivada por defecto (issue #61) |
 | 🔤 **Superficies internas opacas** | Tarjetas, campos de entrada y burbujas de mensaje siguen siendo legibles — nunca lavados |
 | ↩️ **Restaurar el predeterminado** | Vuelve al aspecto integrado de DSH (sigue al sistema) con un clic |
 | 💾 **Persistencia en tres niveles** | Skin y wallpaper en `localStorage` **y un archivo en el host** — sobrevive a la recarga y al puerto nuevo que DSH Desktop recibe en cada arranque |
@@ -422,7 +423,6 @@ entidades de la tabla de módulos: seeds de plataforma (`react`, `react/jsx-runt
 
 ### E. No haremos / solo PR
 
-- **Rotación de varios enlaces de fondo** (observación lateral del issue #61): la solución por servidor del reportante (imagen aleatoria por solicitud + precompuesta a la proporción de pantalla) ya logra el mismo efecto, mientras que implementarlo dentro del plugin es el cambio más caro de esta tabla y el que deja más deuda semántica.
 - **Paleta en línea / Studio de vista previa de temas**: eso es un sitio independiente, no una capacidad del plugin, y se solapa con la galería comunitaria de temas costando más.
 - **Precarga de configuración / distribución de política** (el administrador deja una piel por defecto que actúa desde el primer arranque; era el marcador de posición del grupo C y se movió aquí tras la decisión del 2026-10-10): lo que tocaría este ítem es la **prioridad de escritura** de la persistencia — la semilla de fábrica ahora debe ceder ante el archivo durable del usuario (la puerta B1 de 10.6.1 existe para clavar exactamente eso), y sumar una capa más de «valores por defecto del administrador» equivale a meter una cuarta fuente en un comportamiento de tres estados que las pruebas acaban de sellar. Y el perfil «una persona atiende una tanda de máquinas» todavía no tiene ningún contacto real, así que no se hace; se reabrirá cuando aparezcan usuarios por lotes.
 - **Cualquier práctica que inyecte o modifique el instalador / binario del anfitrión**: choca de frente con el posicionamiento «solo puntos de extensión oficiales» — **nunca**.

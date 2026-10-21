@@ -149,6 +149,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🧊 **Glas-Materialien (Milchglas / Flüssig)** | Ein Klick wechselt den Glas-Charakter; Transparenz-Regler: **rechts = durchsichtiger**; EIN Unschärferegler steuert Hintergrund und alle Glasflächen |
 | 🖼️ **Fertiger Look ab Installation** | Die Erstinstallation kommt komplett gestylt: Nebula-Skin + mitgeliefertes Hintergrundbild + abgestimmte Werte — neustarten und losgehen |
 | 🌤️ **Bing-Tagesbild (voreingestellt)** | Der erweiterte Hintergrund enthält die Bing-Tagesbild-API bereits vorausgefüllt — „Übernehmen" genügt; jede beliebige Bild-URL mit Auto-Update funktioniert ebenfalls |
+| 🔁 **Wallpaper-Rotation** | Mit dem Bild-URL-Wallpaper lassen sich bis zu 20 http/https-Bildlinks (einer pro Zeile) einfügen und im Abstand von 5 Minuten bis 7 Tagen der Reihe nach oder zufällig wechseln, oder per „Jetzt nächstes Wallpaper“. Ein defekter Link fällt nur selbst weg; bei verstecktem Fenster wird nicht gewechselt (Nachholen bei Rückkehr); standardmäßig aus (Issue #61) |
 | 🔤 **Undurchsichtige innere Flächen** | Karten, Eingabefelder und Nachrichtenblasen bleiben lesbar — nie ausgewaschen |
 | ↩️ **Standard-Wiederherstellung** | Mit einem Klick zurück zum eingebauten DSH-Erscheinungsbild (System folgen) |
 | 💾 **Drei-Ebenen-Speicherung** | Skin & Wallpaper in `localStorage` **und einer Host-Datei** — überleben ein Neuladen und auch den neuen Port, den DSH Desktop bei jedem Start bekommt |
@@ -408,7 +409,6 @@ Das Client-Bundle ist direkt im `__ModuleLoader__`-Format geschrieben (derselben
 
 ### E. Nicht geplant / nur Pull Requests
 
-- **Mehrere Wallpaper-URLs im Wechsel** (eine Nebenbeobachtung aus Issue #61): Die Server-Seite des Meldenden (bei jeder Anfrage ein zufälliges Bild + vorher auf das Bildschirmverhältnis zusammengesetzt) erreicht denselben Effekt, während die Variante im Plugin die teuerste Änderung dieser Tabelle ist und die tiefste semantische Schulden hinterlässt.
 - **Online-Farbpalette / Themen-Vorschau-Studio**: das ist eine eigenständige Seite, keine Plugin-Fähigkeit, und es überlappt mit der Community-Thema-Galerie, ist aber teurer.
 - **Konfigurationsvorlagen / Richtlinie verteilen** (der Administrator hinterlegt einen Standard-Skin, wirksam ab dem ersten Start; vorher Platzhalter in Gruppe C, nach der Prüfung am 2026-10-10 hierher verschoben): Was diese Zeile anfassen müsste, ist die **Schreibpriorität** der Persistenz — der Auslieferungsseed muss heute der dauerhaften Datei des Nutzers weichen (genau das nagelt das B1-Tor aus 10.6.1 fest), und noch eine Ebene „Standardwerte des Administrators" obendrauf hieße, einen vierten Ursprung in ein Drei-Phasen-Verhalten zu stopfen, das gerade erst durch Tests verriegelt wurde. Für das Bild „eine Person betreut mehrere Maschinen" gibt es bisher keinen echten Kontakt, also machen wir es nicht; mit Batch-Nutzern wird es wieder aufgemacht.
 - **Alles, was in Host-Installer / Binary injiziert oder sie verändert**: steht direkt im Widerspruch zur Position „nur offizielle Erweiterungspunkte" — **niemals**.

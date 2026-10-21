@@ -154,6 +154,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 🧊 **Matériaux de verre (Dépoli / Liquide)** | Un clic change le caractère du verre ; les curseurs de transparence se lisent **droite = plus transparent** ; UN réglage de flou pilote le fond et toutes les surfaces de verre |
 | 🖼️ **Apparence prête à l'installation** | La première installation arrive déjà habillée : thème Nebula + fond intégré + valeurs ajustées — redémarrez et c'est prêt |
 | 🌤️ **Photo du jour Bing (pré-remplie)** | Le fond avancé est pré-rempli avec l'API photo du jour de Bing : cliquez « Appliquer » et c'est actif ; toute URL d'image + rafraîchissement automatique fonctionne aussi |
+| 🔁 **Rotation des fonds d'écran** | Avec le fond « URL d'image », collez jusqu'à 20 liens d'image http/https (un par ligne) et faites-les défiler dans l'ordre ou au hasard toutes les 5 minutes à 7 jours, ou appuyez sur « Fond suivant maintenant ». Un lien cassé n'écarte que lui-même ; rien ne tourne fenêtre masquée (rattrapage au retour) ; désactivée par défaut (ticket #61) |
 | 🔤 **Surfaces internes opaques** | Cartes, champs de saisie, bulles de message restent lisibles — jamais délavés |
 | ↩️ **Restauration par défaut** | Revenir à l'apparence native de DSH (suivre le système) en un clic |
 | 💾 **Persistance à trois niveaux** | Skin & wallpaper dans `localStorage` **et un fichier côté hôte** — survivent au rechargement et au nouveau port que DSH Desktop reçoit à chaque lancement |
@@ -411,7 +412,6 @@ seeds de plateforme (`react`, `react/jsx-runtime`, …) et des bundles client en
 
 ### E. On ne fera pas / PR seulement
 
-- **Rotation de plusieurs liens de fond d'écran** (observation annexe du ticket #61) : la solution serveur du rapporteur (une image aléatoire par requête + pré-composée au ratio de l'écran) obtient déjà le même effet, tandis que le faire dans le plugin est le changement le plus coûteux de ce tableau et le plus lourd en dette sémantique.
 - **Palette en ligne / Studio de prévisualisation de thèmes** : c'est un site autonome, pas une capacité du plugin, et cela recouvre la galerie communautaire de thèmes en plus cher.
 - **Préconfiguration / distribution de politique** (l'administrateur dépose un skin par défaut, actif dès le premier lancement — c'était le placeholder du groupe C, déplacé ici après l'arbitrage du 2026-10-10) : ce que cette ligne toucherait, c'est la **priorité d'écriture** de la persistance — la graine d'usine doit désormais s'effacer devant le fichier durable de l'utilisateur (la porte B1 de la 10.6.1 existe pour verrouiller exactement cela), et ajouter encore une couche « valeurs par défaut de l'administrateur » revient à glisser une quatrième source dans un comportement à trois états que les tests viennent seulement de verrouiller. Et le profil « une personne gère une flotte de machines » n'a toujours aucun contact réel, donc on ne le fait pas ; on le rouvrira quand des utilisateurs en flotte apparaîtront.
 - **Toute injection modifiant le paquet d'installation ou le binaire de l'hôte** : contradiction directe avec le positionnement « uniquement les points d'extension officiels » — **jamais**.

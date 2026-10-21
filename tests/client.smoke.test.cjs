@@ -6773,3 +6773,470 @@ test('drift probe (A1): with no host CSS to read, a registered group is still re
 	assert.equal(accounted.length, everyGroup.filter((g) => !mounted.has(g)).length,
 		'and no group may be counted twice across pools');
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Wallpaper rotation (issue #61, second observation: cycling through several
+// links). The four blockers named when this was first declined are each pinned
+// below by name: (1) the list is an additive key and `wallpaper-url` stays "what
+// is showing now"; (2) every entry passes the gate on every path and one bad entry
+// never costs the others; (3) rotation has its own phase and shares the tick, so
+// one wake-up fetches at most once; (4) the key is a sentinel, not a factory
+// default, and a rotation never writes the wallpaper history.
+// ─────────────────────────────────────────────────────────────────────────────
+const ROT_KEY = 'dsh-dream-skin:wallpaper-rotation';
+const ROT_REFRESH_KEY = 'dsh-dream-skin:wallpaper-refresh';
+const ROT_HISTORY_KEY = 'dsh-dream-skin:wallpaper-history';
+const ROT_A = 'https://cdn.example.com/a.jpg';
+const ROT_B = 'https://cdn.example.com/b.jpg';
+const ROT_C = 'https://cdn.example.com/c.jpg';
+const ROT_D = 'https://cdn.example.com/d.jpg';
+const ROT_E = 'https://cdn.example.com/e.jpg';
+const MIN = 60 * 1000;
+
+/**
+ * An `Image` whose preload the test decides. `mode` is 'ok' (loads at once), 'fail'
+ * (errors at once), 'hold' (stays pending until the test calls `ok()`/`fail()`), or a
+ * function of (probe, n) returning one of those. Every probe is recorded.
+ */
+function mkProbeImage(probes, mode) {
+	return function () {
+		const self = this;
+		this.onload = null;
+		this.onerror = null;
+		let src = '';
+		Object.defineProperty(this, 'src', {
+			get: () => src,
+			set: (v) => {
+				src = v;
+				const probe = { url: v, ok: () => self.onload && self.onload(), fail: () => self.onerror && self.onerror() };
+				probes.push(probe);
+				const m = typeof mode === 'function' ? mode(probe, probes.length) : mode;
+				if (m === 'ok') probe.ok();
+				else if (m === 'fail') probe.fail();
+			}
+		});
+	};
+}
+
+/** Boot the plugin with a rotation config, a controllable preload and a capturable tick. */
+function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'url', rotation = {}, refresh = null, mode = 'ok', visibility, date, seed = {} } = {}) {
+	const probes = [];
+	const alerts = [];
+	const listeners = {};
+	let tick = null;
+	const g = mkWallpaperDoc();
+	g.doc.addEventListener = (name, fn) => { listeners[name] = fn; };
+	g.doc.removeEventListener = (name, fn) => { if (listeners[name] === fn) delete listeners[name]; };
+	if (visibility) g.doc.visibilityState = visibility;
+	const stored = { 'dsh-dream-skin:wallpaper-kind': kind, 'dsh-dream-skin:wallpaper-follows-skin': '0', ...seed };
+	if (current !== null) stored['dsh-dream-skin:wallpaper-url'] = current;
+	if (rotation !== null) {
+		stored[ROT_KEY] = JSON.stringify({ on: 1, mode: 'sequential', minutes: 60, urls, lastRotatedAt: 0, ...rotation });
+	}
+	if (refresh) stored[ROT_REFRESH_KEY] = JSON.stringify(refresh);
+	const h = buildSandbox({
+		document: g.doc,
+		Image: mkProbeImage(probes, mode),
+		seed: stored,
+		...(date ? { Date: date } : {}),
+		window: {
+			setInterval: (fn) => { tick = fn; return 11; },
+			clearInterval: () => { tick = null; },
+			alert: (m) => alerts.push(m)
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	const ctx = makeApplyContext(h, { captureActions: true });
+	e.apply(ctx);
+	const cfg = () => JSON.parse(h.localStorage.getItem(ROT_KEY));
+	return {
+		h, g, probes, alerts, listeners, ctx,
+		tick: () => tick && tick(),
+		hasTick: () => tick !== null,
+		adv: h.actionBags['dream-skin-wallpaper-advanced'],
+		url: () => h.localStorage.getItem('dsh-dream-skin:wallpaper-url'),
+		rendered: () => (/url\("([^"]+)"\)/.exec(g.main().style.backgroundImage) || [])[1],
+		cfg,
+		refreshCfg: () => JSON.parse(h.localStorage.getItem(ROT_REFRESH_KEY)),
+		history: () => JSON.parse(h.localStorage.getItem(ROT_HISTORY_KEY) || '[]'),
+		unmount: () => { for (const d of h.disposers || []) d(); }
+	};
+}
+
+test('rotation: a due rotation shows the next link, keeps history and the stored URL clean, and writes one documented key', () => {
+	const r = bootRotation();
+	// Boot catch-up (sample 1): due at boot, so exactly one preload ran and it checked
+	// the very URL that is painted, cache-busted by the stamp the commit also persists.
+	assert.equal(r.probes.length, 1, 'one preload at boot');
+	assert.ok(/^https:\/\/cdn\.example\.com\/b\.jpg\?t=\d{13}$/.test(r.probes[0].url), 'the next link is probed with a stamp: ' + r.probes[0].url);
+	assert.equal(r.rendered(), r.probes[0].url, 'the probe checked exactly the URL that renders');
+	assert.equal(r.url(), ROT_B, '`wallpaper-url` stays the clean "what is showing now"');
+	assert.equal(r.history().length, 0, 'a rotation never writes the wallpaper history');
+	const c = r.cfg();
+	assert.deepEqual(Object.keys(c).sort(), ['lastRotatedAt', 'minutes', 'mode', 'on', 'urls'], 'the persisted contract is exactly these fields');
+	assert.equal(c.lastRotatedAt, r.refreshCfg().lastFiredAt, 'the commit stamp is the refresh stamp (#61: last fetch of this image)');
+	assert.ok(Math.abs(Date.now() - c.lastRotatedAt) < 5000, 'phase is now');
+	// Sample 2 (final): "next" walks the list and wraps. The cursor is the showing URL,
+	// so no cursor field exists to drift.
+	const seen = [];
+	for (let i = 0; i < 3; i++) { r.adv.rotateNow(); seen.push(r.url()); }
+	assert.deepEqual(seen, [ROT_C, ROT_A, ROT_B], 'sequential order wraps around the list');
+	assert.equal(r.history().length, 0, 'still no history after several rotations');
+});
+
+test('rotation: every entry passes the gate on every path, and one bad entry never costs the others', () => {
+	const GOOD1 = 'https://good1.example.com/a.jpg';
+	const GOOD2 = 'https://good2.example.com/b.jpg';
+	const tampered = [
+		'javascript:alert(1)', 'file:///etc/passwd', 'data:image/png;base64,AAAAAAAAAAAA', 'ftp://host/x.jpg',
+		'http:/nope', GOOD1, 42, null, GOOD2 + '?t=1700000000000', 'https://x.example.com/' + 'a'.repeat(2100),
+		'https://good1.example.com/a.jpg'
+	];
+	// Path 1: a hand-edited / host-adopted state file reaches a real rotation. Cycle many
+	// times in both orders; nothing but the two good links may ever be painted.
+	for (const mode of ['sequential', 'random']) {
+		const r = bootRotation({ urls: tampered, current: GOOD1, rotation: { mode, lastRotatedAt: Date.now() } });
+		assert.equal(r.probes.length, 0, mode + ': not due at boot, nothing probed yet');
+		const shown = new Set();
+		for (let i = 0; i < 8; i++) {
+			r.adv.rotateNow();
+			shown.add(r.url());
+			assert.ok(r.url() === GOOD1 || r.url() === GOOD2, mode + ': only gated links are ever painted, saw ' + r.url());
+		}
+		assert.deepEqual([...shown].sort(), [GOOD1, GOOD2], mode + ': the good entries keep rotating although others were refused');
+		assert.deepEqual(r.cfg().urls, [GOOD1, GOOD2], mode + ': the stored list is scrubbed entry by entry, de-duplicated and stamp-free');
+	}
+	// Path 2: the settings box. Mixed lines keep the valid ones and say how many were refused.
+	const r = bootRotation({ rotation: null });
+	r.adv.setRotationList('javascript:alert(1)\n' + GOOD1 + '\n\n   \nftp://bad.example.com/x.jpg\n' + GOOD2 + '\n');
+	assert.deepEqual(r.cfg().urls, [GOOD1, GOOD2], 'the valid lines survive');
+	assert.deepEqual(r.alerts, ['bg2.rotationDropped'], 'the refusal is announced once');
+	// Nothing usable at all: refused whole, the saved list is untouched.
+	r.alerts.length = 0;
+	r.adv.setRotationList('javascript:alert(1)\ndata:image/png;base64,AAAAAAAAAAAA');
+	assert.deepEqual(r.cfg().urls, [GOOD1, GOOD2], 'an all-bad box changes nothing');
+	assert.deepEqual(r.alerts, ['bg2.rotationNoValid'], 'and says so');
+	// The cap: 25 valid lines keep the first 20.
+	r.adv.setRotationList(Array.from({ length: 25 }, (_, i) => 'https://cap.example.com/' + i + '.jpg').join('\n'));
+	assert.equal(r.cfg().urls.length, 20, 'the list is capped');
+	assert.equal(r.cfg().urls[19], 'https://cap.example.com/19.jpg', 'the cap keeps the first entries');
+});
+
+test('rotation: one wake-up fetches at most once, and the URL refresh still runs when rotation is not due', () => {
+	const now = Date.now();
+	// Both due: only the rotation fetches (the refresh would re-fetch the link being replaced).
+	const both = bootRotation({
+		rotation: { minutes: 5, lastRotatedAt: now - 6 * MIN },
+		refresh: { on: 1, hours: 1, lastFiredAt: now - 2 * 60 * MIN }
+	});
+	assert.equal(both.probes.length, 1, 'one fetch at boot, not two');
+	assert.equal(both.url(), ROT_B, 'and it was the rotation');
+	assert.ok(!/[?&]t=\d/.test(both.url()), 'no ?t= leaks into stored state');
+	both.tick();
+	assert.equal(both.probes.length, 1, 'right after a commit neither schedule is due: the next tick fetches nothing');
+	assert.equal(both.refreshCfg().lastFiredAt, both.cfg().lastRotatedAt, 'the commit re-phased the refresh too');
+	// The race only exists while the rotation's preload is still in flight (a synchronous commit
+	// re-phases the refresh before it can run): hold the preload, both due.
+	const held = bootRotation({
+		mode: 'hold',
+		rotation: { minutes: 5, lastRotatedAt: now - 6 * MIN },
+		refresh: { on: 1, hours: 1, lastFiredAt: now - 2 * 60 * MIN }
+	});
+	assert.equal(held.probes.length, 1, 'sample 1: with the rotation preload pending, the due refresh does not fetch the link being replaced');
+	held.tick();
+	held.tick();
+	assert.equal(held.probes.length, 1, 'sample 2: nor does it on later ticks while the rotation is still in flight');
+	held.probes[0].ok();
+	assert.equal(held.url(), ROT_B, 'the rotation then commits');
+	// Rotation not due, refresh due: the refresh is untouched by the feature.
+	const refreshOnly = bootRotation({
+		rotation: { minutes: 60, lastRotatedAt: now - MIN },
+		refresh: { on: 1, hours: 1, lastFiredAt: now - 2 * 60 * MIN }
+	});
+	assert.equal(refreshOnly.probes.length, 1, 'the refresh fetched');
+	assert.ok(refreshOnly.probes[0].url.startsWith(ROT_A + '?t='), 'it re-fetched the CURRENT link, not the next one');
+	assert.equal(refreshOnly.url(), ROT_A, 'the showing link did not change');
+});
+
+test('rotation: it waits for its interval, for a visible window, for the link kind, and for being switched on', () => {
+	const now = Date.now();
+	// Interval: 1 minute into a 60-minute interval does not rotate; the next tick still does not.
+	const early = bootRotation({ rotation: { minutes: 60, lastRotatedAt: now - MIN } });
+	assert.equal(early.probes.length, 0, 'not due at boot');
+	early.tick();
+	assert.equal(early.url(), ROT_A, 'and not due at the tick either');
+	// A clock that went backwards: a stamp in the future must not freeze the schedule.
+	const skewed = bootRotation({ rotation: { minutes: 5, lastRotatedAt: now + 3 * 60 * MIN } });
+	assert.equal(skewed.url(), ROT_B, 'a stamp from the future counts as due');
+	// Off.
+	const off = bootRotation({ rotation: { on: 0 } });
+	off.tick();
+	assert.equal(off.probes.length, 0, 'switched off: no fetch at boot and none at the tick');
+	// Kind: rotation never overwrites a wallpaper the user picked as an image or a gradient.
+	for (const kind of ['image', 'gradient']) {
+		const k = bootRotation({ kind });
+		k.tick();
+		assert.equal(k.probes.length, 0, kind + ': nothing is fetched');
+		assert.equal(k.h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), kind, kind + ': the kind is left alone');
+	}
+	// Hidden window: no rotation on the tick; the visibility catch-up does it on return (sample 1, then 2).
+	const hidden = bootRotation({ visibility: 'hidden' });
+	assert.equal(hidden.probes.length, 0, 'hidden at boot: no fetch');
+	hidden.tick();
+	assert.equal(hidden.probes.length, 0, 'hidden at the tick: no fetch');
+	assert.equal(typeof hidden.listeners.visibilitychange, 'function', 'the shared visibility catch-up is armed');
+	hidden.g.doc.visibilityState = 'visible';
+	hidden.listeners.visibilitychange();
+	assert.equal(hidden.url(), ROT_B, 'on return the overdue rotation happens');
+});
+
+test('rotation: a dead link keeps the wallpaper, tries a bounded number of others, and spends the interval', () => {
+	const urls = [ROT_A, ROT_B, ROT_C, ROT_D, ROT_E];
+	// Everything dead: three candidates tried in order, then the interval is spent.
+	const dead = bootRotation({ urls, mode: 'fail' });
+	assert.deepEqual(dead.probes.map((p) => p.url.split('?')[0]), [ROT_B, ROT_C, ROT_D], 'bounded: the next three in order, no more');
+	assert.equal(dead.url(), ROT_A, 'the current wallpaper is kept');
+	const spent = dead.cfg().lastRotatedAt;
+	assert.ok(Math.abs(Date.now() - spent) < 5000, 'the interval was spent, so a list of dead links is not retried every minute');
+	dead.tick();
+	dead.tick();
+	assert.equal(dead.probes.length, 3, 'later ticks inside the interval fetch nothing');
+	// First dead, second alive: it moves on within the same attempt.
+	let n = 0;
+	const flaky = bootRotation({ urls, mode: () => (++n === 1 ? 'fail' : 'ok') });
+	assert.deepEqual(flaky.probes.map((p) => p.url.split('?')[0]), [ROT_B, ROT_C], 'the dead link is skipped');
+	assert.equal(flaky.url(), ROT_C, 'and the next live one is shown');
+});
+
+test('rotation: a preload still in flight when the plugin is torn down or re-armed must not write', async () => {
+	// CONTRIBUTING rule 1: the resource is caught IN FLIGHT (the preload is held pending),
+	// not after it has already settled.
+	const r = bootRotation({ mode: 'hold' });
+	assert.equal(r.probes.length, 1, 'sample 1: a preload is in flight');
+	assert.equal(r.url(), ROT_A, 'and nothing was committed yet');
+	const before = r.h.localStorage.getItem(ROT_KEY);
+	r.unmount();
+	r.probes[0].ok();
+	assert.equal(r.url(), ROT_A, 'sample 2: the late preload of an unmounted plugin does not repaint');
+	assert.equal(r.h.localStorage.getItem(ROT_KEY), before, 'nor does it touch the stored phase');
+	// Re-arm (a settings action restarts the scheduler): the old preload is abandoned, and
+	// the still-due rotation starts a fresh one that does commit.
+	const r2 = bootRotation({ mode: 'hold' });
+	assert.equal(r2.probes.length, 1, 'sample 1: a preload is in flight');
+	r2.adv.setRefresh(false, 24);
+	assert.equal(r2.probes.length, 2, 'the re-armed scheduler started its own preload');
+	r2.probes[0].ok();
+	assert.equal(r2.url(), ROT_A, 'sample 2: the abandoned preload committed nothing');
+	r2.probes[1].ok();
+	assert.equal(r2.url(), ROT_B, 'the fresh preload committed');
+	// Switching rotation off while a preload is in flight: the user said stop, so it must not land.
+	const r3 = bootRotation({ mode: 'hold' });
+	assert.equal(r3.probes.length, 1, 'sample 1: a preload is in flight');
+	r3.adv.setRotation(false);
+	r3.probes[0].ok();
+	assert.equal(r3.url(), ROT_A, 'sample 2: it did not land after rotation was switched off');
+	// Editing the list while a preload is in flight: a link the user just removed must not appear.
+	const r4 = bootRotation({ urls: [ROT_A, ROT_B, ROT_C], mode: 'hold' });
+	assert.ok(r4.probes[0].url.startsWith(ROT_B), 'the in-flight candidate is B');
+	r4.adv.setRotationList(ROT_A + '\n' + ROT_C);
+	r4.probes[0].ok();
+	assert.notEqual(r4.url(), ROT_B, 'a link removed from the list while loading is never shown');
+});
+
+test('rotation: a preload that never answers is abandoned after the deadline and the due rotation retries', () => {
+	let clock = Date.now();
+	const FakeDate = class extends Date {
+		constructor(...a) { super(...(a.length ? a : [clock])); }
+		static now() { return clock; }
+	};
+	const r = bootRotation({ mode: 'hold', date: FakeDate });
+	assert.equal(r.probes.length, 1, 'sample 1: held preload');
+	clock += 2 * MIN;
+	r.tick();
+	assert.equal(r.probes.length, 1, 'inside the deadline the pending preload is waited for');
+	clock += 2 * MIN;
+	r.tick();
+	assert.equal(r.probes.length, 2, 'past the deadline a fresh attempt starts');
+	r.probes[1].ok();
+	assert.equal(r.url(), ROT_B, 'and it can commit');
+	r.probes[0].ok();
+	assert.equal(r.url(), ROT_B, 'while the stale one cannot move the wallpaper again');
+});
+
+test('rotation: switching it on is validated before it is stored and starts a fresh interval', () => {
+	// Image kind: refused, and the refusal is not persisted (the T2 rule of setRefresh).
+	const image = bootRotation({ kind: 'image', rotation: null });
+	image.adv.setRotationList(ROT_A + '\n' + ROT_B);
+	image.adv.setRotation(true);
+	assert.deepEqual(image.alerts, ['bg2.rotationUrlOnly'], 'told to pick the link kind first');
+	assert.equal(image.cfg().on, 0, 'a refused toggle does not land as on');
+	// Too short a list: refused, not persisted.
+	const short = bootRotation({ rotation: null });
+	short.adv.setRotationList(ROT_A);
+	short.adv.setRotation(true);
+	assert.deepEqual(short.alerts, ['bg2.rotationNeedTwo'], 'one link is not a rotation');
+	assert.equal(short.cfg().on, 0, 'and was not stored as on');
+	assert.equal(short.probes.length, 0, 'nothing was fetched');
+	// A valid switch-on stamps now: the user is looking at a wallpaper, an old stamp must not fire at once.
+	const ok = bootRotation({ rotation: { on: 0, lastRotatedAt: Date.now() - 24 * 60 * MIN } });
+	ok.adv.setRotation(true);
+	assert.equal(ok.cfg().on, 1, 'switched on');
+	assert.ok(Math.abs(Date.now() - ok.cfg().lastRotatedAt) < 5000, 'a fresh interval starts now');
+	assert.equal(ok.probes.length, 0, 'sample 1: nothing rotates the instant it is enabled');
+	assert.equal(ok.url(), ROT_A, 'sample 2: the wallpaper is unchanged');
+	// And off, again, only if it was on: a user who never used rotation never gets the key.
+	ok.adv.setRotation(false);
+	assert.equal(ok.cfg().on, 0, 'switched off');
+	const never = bootRotation({ rotation: null });
+	never.adv.setRotation(false);
+	assert.equal(never.h.localStorage.getItem(ROT_KEY), null, 'switching off something never configured writes nothing');
+});
+
+test('rotation: the list box ignores an empty save, switches rotation off when the list gets too short, and the controls clamp', () => {
+	const r = bootRotation({ rotation: { on: 1, lastRotatedAt: Date.now(), urls: [ROT_A, ROT_B, ROT_C] } });
+	// R13: an empty or blank box changes nothing at all.
+	const before = r.h.localStorage.getItem(ROT_KEY);
+	r.adv.setRotationList('');
+	r.adv.setRotationList('   \n\t\n');
+	r.adv.setRotationList(undefined);
+	assert.equal(r.h.localStorage.getItem(ROT_KEY), before, 'blank saves are no-ops');
+	assert.deepEqual(r.alerts, [], 'and silent');
+	// Shrinking below two entries switches rotation off, and says why.
+	r.adv.setRotationList(ROT_B);
+	assert.deepEqual(r.cfg().urls, [ROT_B], 'the list was saved');
+	assert.equal(r.cfg().on, 0, 'rotation switched itself off');
+	assert.deepEqual(r.alerts, ['bg2.rotationNeedTwo'], 'with an explanation');
+	// Mode is whitelisted; minutes clamp to the documented range and junk reads as the default.
+	r.adv.setRotationMode('random');
+	assert.equal(r.cfg().mode, 'random', 'a known mode is stored');
+	r.adv.setRotationMode('shuffle-all');
+	assert.equal(r.cfg().mode, 'random', 'an unknown mode leaves the stored one alone');
+	for (const [input, want] of [[1, 5], [4.4, 5], [90, 90], [99999, 10080], ['abc', 60], [NaN, 60]]) {
+		r.adv.setRotationMinutes(input);
+		assert.equal(r.cfg().minutes, want, `minutes ${String(input)} -> ${want}`);
+	}
+});
+
+test('rotation: "next now" needs the link kind and two links, ignores the schedule, and re-phases it', () => {
+	const image = bootRotation({ kind: 'image' });
+	image.adv.rotateNow();
+	assert.deepEqual(image.alerts, ['bg2.rotationUrlOnly'], 'wrong kind: told why');
+	assert.equal(image.probes.length, 0, 'nothing fetched');
+	const solo = bootRotation({ urls: [ROT_A] });
+	solo.adv.rotateNow();
+	assert.deepEqual(solo.alerts, ['bg2.rotationNeedTwo'], 'one link: told why');
+	// Works with the schedule off and not due, and moves the phase.
+	const off = bootRotation({ rotation: { on: 0, lastRotatedAt: Date.now() - MIN } });
+	assert.equal(off.probes.length, 0, 'sample 1: off, so nothing at boot');
+	off.adv.rotateNow();
+	assert.equal(off.url(), ROT_B, 'sample 2: it rotated although the schedule is off');
+	assert.ok(Math.abs(Date.now() - off.cfg().lastRotatedAt) < 5000, 'and the phase moved to now');
+	assert.equal(off.cfg().on, 0, 'without switching the schedule on');
+});
+
+test('rotation: applying a link yourself keeps it for a full interval, and only touches the key when rotation is on', () => {
+	const on = bootRotation({ rotation: { minutes: 30, lastRotatedAt: Date.now() - 20 * MIN } });
+	assert.equal(on.probes.length, 0, 'not due at boot');
+	on.adv.setUrl('https://my.example.com/own.jpg');
+	assert.ok(Math.abs(Date.now() - on.cfg().lastRotatedAt) < 5000, 'a manual choice re-phases the rotation');
+	on.tick();
+	assert.equal(on.url(), 'https://my.example.com/own.jpg', 'so the timer does not replace it on the next tick');
+	// A user who never used rotation: applying a link must not invent the key.
+	const plain = bootRotation({ rotation: null });
+	plain.adv.setUrl('https://my.example.com/own.jpg');
+	assert.equal(plain.h.localStorage.getItem(ROT_KEY), null, 'no rotation key appears for a non-user');
+	// And a list entry that is not in the list: sequential order starts at the top.
+	const outside = bootRotation({ current: 'https://my.example.com/own.jpg' });
+	assert.equal(outside.url(), ROT_A, 'the first rotation from a link outside the list starts at its first entry');
+});
+
+test('rotation: clearing the wallpaper switches the schedule off and resets its phase, but keeps the typed list (T3)', () => {
+	const r = bootRotation({ rotation: { lastRotatedAt: Date.now() } });
+	assert.equal(r.cfg().on, 1, 'sample 1: rotation is on');
+	r.adv.clearAll();
+	const c = r.cfg();
+	assert.equal(c.on, 0, 'sample 2: the schedule is off');
+	assert.equal(c.lastRotatedAt, 0, 'and its phase is reset, so a NEW wallpaper cannot inherit the countdown');
+	assert.deepEqual(c.urls, [ROT_A, ROT_B, ROT_C], 'the list the user typed survives');
+	assert.equal(r.hasTick(), false, 'the scheduler was stopped');
+	// A user who never used rotation does not get the key from clearing.
+	const plain = bootRotation({ rotation: null });
+	plain.adv.clearAll();
+	assert.equal(plain.h.localStorage.getItem(ROT_KEY), null, 'clearing creates no rotation key');
+});
+
+test('rotation: random never repeats the showing link and visits the others; low-power mode does not pause it', () => {
+	const urls = [ROT_A, ROT_B, ROT_C, ROT_D];
+	const r = bootRotation({ urls, rotation: { mode: 'random', lastRotatedAt: Date.now() } });
+	const visited = new Set();
+	let previous = r.url();
+	for (let i = 0; i < 60; i++) {
+		r.adv.rotateNow();
+		assert.notEqual(r.url(), previous, 'random never "rotates" to the link that is already showing');
+		previous = r.url();
+		visited.add(previous);
+	}
+	assert.equal(visited.size, 4, 'and over many rotations reaches every link');
+	// Decision: rotation costs one image decode per interval, so the low-power switch (#110, which
+	// removes blur) does not stop it.
+	const low = bootRotation({ seed: { 'dsh-dream-skin:performance': '1' } });
+	assert.equal(low.url(), ROT_B, 'a due rotation still happens with low-power mode on');
+});
+
+test('rotation: the key is a sentinel — an upgrader whose only stored preference is a rotation list keeps their state', () => {
+	// Same B2/F1 reasoning as the fill-mode key: without the key in the first-install probe, a
+	// user whose only stored preference is the list is invisible to it and would get the whole
+	// factory look pushed over their own choices.
+	const h = buildSandbox();
+	h.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	h.localStorage.setItem(ROT_KEY, JSON.stringify({ on: 0, mode: 'random', minutes: 15, urls: [ROT_A, ROT_B], lastRotatedAt: 0 }));
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h));
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:skin'), null, 'no factory skin pushed onto the upgrader');
+	assert.equal(h.localStorage.getItem('dsh-dream-skin:wallpaper'), null, 'the bundled wallpaper is not seeded');
+	assert.equal(JSON.parse(h.localStorage.getItem(ROT_KEY)).mode, 'random', 'their own rotation settings survive');
+	// And the key is NOT a factory default: polling third-party links stays an explicit opt-in (B7).
+	const fresh = buildSandbox();
+	fresh.localStorage.removeItem('dsh-dream-skin:factory-applied');
+	fresh.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(fresh));
+	assert.equal(fresh.localStorage.getItem(ROT_KEY), null, 'a first install does not get a rotation config');
+});
+
+test('rotation: a preload that answers after the user picked another wallpaper kind does not bring the link back', () => {
+	// `setGradient` does not restart the scheduler, so the in-flight preload is not abandoned by
+	// the re-arm path; the commit has to re-check the kind itself.
+	const r = bootRotation({ mode: 'hold' });
+	assert.equal(r.probes.length, 1, 'sample 1: a preload is in flight');
+	r.adv.setGradient('linear-gradient(135deg, #000000 0%, #ffffff 100%)');
+	assert.equal(r.h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'gradient', 'the user moved to a gradient');
+	r.probes[0].ok();
+	assert.equal(r.h.localStorage.getItem('dsh-dream-skin:wallpaper-kind'), 'gradient', 'sample 2: the late preload leaves the kind alone');
+	assert.equal(r.url(), ROT_A, 'and the stored link is not replaced');
+	assert.equal(r.cfg().lastRotatedAt, 0, 'and no phase is recorded for a rotation that did not happen');
+});
+
+test('rotation: switching it off stops the schedule — an overdue rotation does not happen, and switching back on starts a fresh interval', () => {
+	let clock = Date.now();
+	const FakeDate = class extends Date {
+		constructor(...a) { super(...(a.length ? a : [clock])); }
+		static now() { return clock; }
+	};
+	const r = bootRotation({ date: FakeDate, rotation: { minutes: 5, lastRotatedAt: clock } });
+	assert.equal(r.probes.length, 0, 'sample 1: on, and not yet due');
+	r.adv.setRotation(false);
+	assert.equal(r.cfg().on, 0, 'the switch is stored as off');
+	clock += 3 * 60 * MIN;
+	r.tick();
+	r.tick();
+	assert.equal(r.probes.length, 0, 'sample 2: nothing is fetched while it is off, however overdue');
+	assert.equal(r.url(), ROT_A, 'the wallpaper stays put');
+	r.listeners.visibilitychange();
+	r.adv.setRefresh(false, 24);
+	assert.equal(r.probes.length, 0, 'sample 3: neither the visibility catch-up nor a scheduler re-arm rotates an off schedule');
+	r.adv.setRotation(true);
+	r.tick();
+	assert.equal(r.probes.length, 0, 'switching it back on does not rotate at once');
+	clock += 6 * MIN;
+	r.tick();
+	assert.equal(r.url(), ROT_B, 'one interval later it rotates');
+});

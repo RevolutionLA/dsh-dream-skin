@@ -576,3 +576,73 @@ test('mutation: a byte budget of 999999999 keeps the five photos and the quota c
 		`mutation expected: the entry cap alone lets a ${raw.length}-character value through — the number the byte cap exists to stop`);
 });
 
+
+// ── wallpaper rotation controls (issue #61, second observation) ───────────────────────────────
+// The behavior is pinned in client.smoke.test.cjs through the action bag; this case pins the
+// other half, what the settings page shows and which action each control calls, in the same
+// JSX-recording harness as the empty-state case above.
+test('the rotation controls show on the link kind only, and each control calls its own action', async () => {
+	const h = buildSandbox();
+	const nodes = [];
+	h.factory(makeRequire({ nodes })).apply(makeApplyContext(h));
+	await flush();
+	const calls = [];
+	const props = {
+		setRotation: (v) => calls.push(['setRotation', v]),
+		setRotationList: (v) => calls.push(['setRotationList', v]),
+		setRotationMode: (v) => calls.push(['setRotationMode', v]),
+		setRotationMinutes: (v) => calls.push(['setRotationMinutes', v]),
+		rotateNow: () => calls.push(['rotateNow'])
+	};
+	const state = (over) => ({ kind: 'url', url: 'https://example.com/a.jpg', gradient: null, history: [],
+		rotation: { on: true, mode: 'random', minutes: 30, urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'] }, ...over });
+	const find = (seen, pred) => seen.find(pred);
+
+	// Sample 1: a link wallpaper with two saved links shows the whole control set.
+	let seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state(), props);
+	for (const key of ['bg2.rotation', 'bg2.rotationList', 'bg2.rotationSave', 'bg2.rotationNow', 'bg2.rotationMinutes', 'bg2.rotationSequential', 'bg2.rotationRandom']) {
+		assert.ok(hasText(seen, key), `${key} is on the page`);
+	}
+	const box = find(seen, (n) => n.type === 'textarea');
+	assert.ok(box, 'the list is a text box');
+	assert.equal(box.props.defaultValue, 'https://example.com/a.jpg\nhttps://example.com/b.jpg', 'it shows the saved list, one link per line');
+	const random = find(seen, (n) => n.props && n.props['aria-pressed'] === true && n.props.children && n.props.children[0] === 'bg2.rotationRandom');
+	assert.ok(random, 'the stored mode is the pressed one');
+	const interval = find(seen, (n) => n.type === 'input' && n.props.type === 'number' && n.props.min === 5);
+	assert.equal(interval.props.value, 30, 'the interval box shows the stored value');
+
+	// Each control reaches its own action.
+	const buttonWith = (text) => find(seen, (n) => n.type === 'button' && (n.props.children === text || (Array.isArray(n.props.children) && n.props.children[0] === text)));
+	buttonWith('bg2.rotationSave').props.onClick();
+	buttonWith('bg2.rotationNow').props.onClick();
+	buttonWith('bg2.rotationSequential').props.onClick();
+	find(seen, (n) => n.type === 'input' && n.props.type === 'checkbox' && n.props.checked === true).props.onChange({ target: { checked: false } });
+	assert.deepEqual(calls.map((c) => c[0]), ['setRotationList', 'rotateNow', 'setRotationMode', 'setRotation'], 'one action per control');
+	assert.deepEqual(calls[2], ['setRotationMode', 'sequential'], 'the mode button passes its mode');
+	assert.deepEqual(calls[3], ['setRotation', false], 'the checkbox passes its state');
+
+	// Sample 2 (reverse legs): fewer than two links hides the controls that need two; other kinds hide everything.
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ rotation: { on: false, mode: 'sequential', minutes: 60, urls: ['https://example.com/a.jpg'] } }), props);
+	assert.ok(hasText(seen, 'bg2.rotationList'), 'the list box is still there to fill in');
+	assert.equal(hasText(seen, 'bg2.rotationNow'), false, 'one link: no "next now"');
+	assert.equal(hasText(seen, 'bg2.rotationMinutes'), false, 'one link: no interval');
+	for (const kind of ['image', 'gradient']) {
+		seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ kind }), props);
+		assert.equal(hasText(seen, 'bg2.rotation'), false, `${kind}: no rotation checkbox`);
+		assert.equal(hasText(seen, 'bg2.rotationList'), false, `${kind}: no list box`);
+	}
+	// A state from before the field existed renders as "never configured", not as a crash.
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', { kind: 'url', url: null, gradient: null, history: [] }, props);
+	assert.ok(hasText(seen, 'bg2.rotation'), 'an old state still renders the rotation checkbox');
+});
+
+// ── every rotation string the page asks for is defined ────────────────────────────────────────
+// The parity case above proves the eight dictionaries agree with each other; it cannot see a key
+// the page asks for that none of them defines (the page would print the raw id).
+test('every rotation string the page and its alerts use is defined in the dictionaries', () => {
+	const zh = dictKeys(CODE, 'zh');
+	assert.ok(zh && zh.length > 50, 'the zh dictionary is readable');
+	const used = [...new Set([...CODE.matchAll(/(?:\bt|localeT)\("(bg2\.rotation[A-Za-z]*)"/g)].map((m) => m[1]))];
+	assert.ok(used.length >= 10, 'the rotation strings the page and its alerts use were found: ' + used.join(', '));
+	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
+});
