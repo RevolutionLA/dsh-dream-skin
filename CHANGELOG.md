@@ -2,6 +2,23 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.22.2] - 2026-10-22
+
+> **壁纸标语：在壁纸上叠一句自己的话（默认开关开，文字为空时什么都不画）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 601→**611 全绿**。
+
+### 一、改了什么
+- 新键 `dsh-dream-skin:wallpaper-caption`（`{on,text,font,size,opacity,position}`），仅本插件写；不进出厂默认，不进主题包的导入 / 导出 / 分享。
+- 标语层紧跟壁纸层之后（渗色层 → 壁纸 → 标语，均为 `z-index:-1`、`pointer-events:none`、`aria-hidden`）；换图、轮换、定时刷新都不重建、不重写节点。
+- 文字只经 `textContent` 写入；清洗去掉控制字符与 bidi 覆盖/隔离字符，CRLF 归一，最多 3 行、120 个码点（不切断代理对）。字体 4 选 1、位置 5 选 1，字号 16–96（`min(Npx, 8vw)`），不透明度 0.15–0.9，非法值回落默认或钳到边界。
+- 设置页新增「壁纸标语」行（order 34），8 种语言各 18 条文案。
+
+### 二、门与账本
+- 新增 10 条用例（`tests/client.caption.test.cjs`，AC23–AC32）；5 次反向破坏见 `docs/evidence/wallpaper-caption/mutations.md`。
+- `docs/desktop-support.md` 键表新增一行，套件读数同步为 611；`tests/package.runtime_size.test.cjs` 的 `lib/client.js` 上限 512→576 KiB（叠上游 10.22.0 与 #114 后约 513 KiB，附理由）。
+
+### 三、诚实边界
+- 老板键 / bootVeil 期间隐藏标语（AC33、AC34）留给后合入的老板键分支：本版 `isCaptionSuppressed()` 恒为 false。
+- 375px 窄窗与阿拉伯语从右往左排版只做了样式断言，未实机检查。
 ## [10.22.1] - 2026-10-22
 
 > **URL 壁纸定时更新改用分钟（5–43200，默认 1440）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 590→**601 全绿**。
