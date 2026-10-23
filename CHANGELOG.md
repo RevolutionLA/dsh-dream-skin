@@ -2,6 +2,24 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.22.1] - 2026-10-22
+
+> **URL 壁纸定时更新改用分钟（5–43200，默认 1440）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 590→**601 全绿**。
+
+### 一、改了什么
+- 「更新间隔」输入框单位由小时改为分钟，范围 5–43200，默认 1440；非法值（非数字、null、空白、无穷）不写入，越界钳到边界，小数四舍五入。
+- 新键 `dsh-dream-skin:wallpaper-refresh-minutes`（`{minutes,mirrorHours}`）；旧键 `dsh-dream-skin:wallpaper-refresh` 继续写回 `hours = clamp(round(minutes/60), 1, 720)`，保证降级可用。`minutes` 仅在 `mirrorHours` 等于旧键 `hours` 时被信任，否则按 `hours × 60` 读取。
+- 迁移幂等，只在宿主探测落定后运行（宿主值优先）；未动过的出厂种子不迁移。清除壁纸同时删除两个键。
+- i18n：8 种语言 `bg2.refreshHours` → `bg2.refreshMinutes`。旧动作 `setRefresh(on, hours)` 保留为兼容包装。
+- 同版随附 #114（@lisihao）的本地文件夹图源：壁纸轮换可读一个本地文件夹里的图片，+21 条用例（`tests/client.smoke.test.cjs` +9、`tests/client.storage.test.cjs` +2、新文件 `tests/host.folder.test.cjs` +10），套件 569→590；见 `docs/evidence/` 中 #61 的实机账本。
+
+### 二、门与账本
+- 新增 11 条用例（`tests/client.refreshminutes.test.cjs`）：迁移与幂等、出厂种子、降级/升级、宿主优先、边界与非法值、5 分钟调度、i18n。5 次反向破坏见 `docs/evidence/refresh-minutes/mutations.md`。
+- `docs/desktop-support.md` 键表新增一行，套件读数同步为 601。
+
+### 三、诚实边界
+- 旧版本只能表达整小时：在新版设成 90 分钟后降级，旧版显示 2 小时；再升级时若旧版没改过小时数，仍按 90 分钟。
+
 ## [10.22.0] - 2026-10-22
 
 > **低功耗模式把菜单变成了「保鲜膜」——本版给菜单底色加下限，让「降低透明度」真的降透明（#115 / #116，@aurora-zl）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 568→**569 全绿**。
@@ -52,7 +70,7 @@ README §E 一直把「壁纸多条链接轮换」列在**不做 / 只接受 PR*
 
 ### 三、门与账本
 
-- 新增 **18 条用例**（`tests/client.smoke.test.cjs` +16、`tests/client.storage.test.cjs` +2），覆盖持久化字段集、逐条安全门、单次唤醒单次拉取（含预加载在飞的竞态）、开关关闭后逾期/可见性/重挂都不动、清除壁纸保留列表但不继承倒计时、低功耗模式不暂停轮换。PR 内附 **44 次反向破坏**与实机读数（`docs/evidence/wallpaper-rotation/`）。
+- 新增 **18 条用例**（`tests/client.smoke.test.cjs` +16、`tests/client.storage.test.cjs` +2），覆盖持久化字段集、逐条安全门、单次唤醒单次拉取（含预加载在飞的竞态）、开关关闭后逾期/可见性/重挂都不动、清除壁纸保留列表但不继承倒计时、低功耗模式不暂停轮换。PR 内附 **45 次反向破坏**与实机读数（`docs/evidence/wallpaper-rotation/`）。
 - 套件 **550→568**；`docs/desktop-support.md` 键表与套件读数同步；README 功能表新增一行。
 
 ### 四、诚实边界
