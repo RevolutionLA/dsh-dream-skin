@@ -2,6 +2,64 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.23.0] - 2026-10-22
+
+> **老板键（Boss key）：一键把壁纸换成纯色，再按一次恢复（窗口内快捷键，不是系统全局热键）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 611→**638 全绿**。
+
+### 一、改了什么
+- 新键 `dsh-dream-skin:boss-key`（`{enabled,color,onRestart,resume,fallbackBinding,syncWindows,bootPaint}`）与 `dsh-dream-skin:boss-active`，仅本插件写；不进出厂默认，不进主题包。
+- 进入：同一同步调用栈内写纯色、清图片与渗色层、隐藏标语、`html[data-dsk-boss="1"]`，作废在飞的轮换探测，冻结轮换与定时刷新。退出：先解码原图（≤2s），解码后在同一次 `applyWallpaper2` 里恢复图片与标语；RESTORING 期间再按回到 BOSS。120ms 前沿防抖。
+- `onRestart` 三选一（`restore-last` / `always-normal` / `always-boss`）；`resume` 二选一（`restart-interval` 退出后轮换与刷新各自重新计满一个周期 / `keep-phase`）。
+- 快捷键：宿主有 `shortcuts` 服务时注册命令 `dsh-dream-skin.boss-key.toggle`（默认 ⌘⌥V / Ctrl+Alt+V，写入 `desktop:macos|windows`、`web:macos|windows` 四个 profile；宿主在 Linux 保留 primary+V，Linux profile 不设默认；宿主拒收默认时改为不绑定重新注册），否则页内 capture 阶段 keydown 兜底（默认 macOS ⌘⌥V、其他 Ctrl+Alt+V，可改可清除；旧的 Ctrl+Alt+Shift+B 存档读作新默认；忽略 `repeat` / `isComposing`；保留组合被设置行拒绝）。
+- 多窗口：`syncWindows=1` 时跟随其它窗口的 `boss-active`（`storage` 事件），跟随方不回写。
+- 启动：`bootPaint=solid-first`（默认）先画纯色，宿主探测与解码完成后恰好画一次图；`seed-first` 维持旧行为。
+- 状态快照新增 `boss:{phase,via,veil}`；设置页新增「老板键」行（order 32.5），8 种语言各 25 条文案（含默认键提示与「清除」）。
+
+### 二、门与账本
+- 新增 27 条用例（`tests/client.bosskey.test.cjs`，含默认键存在、改绑/清除、宿主拒收默认，AC1–AC15、AC21、AC33、AC34）；10 次反向破坏见 `docs/evidence/boss-key/mutations.md`。
+- `docs/desktop-support.md` 键表新增两行，套件读数同步为 638；`lib/client.js` 仍在 10.22.2 定下的 576 KiB 上限内。
+
+### 三、诚实边界
+- 宿主快捷键服务与 catalog 的真实形状、录键冲突提示，只在假服务上测过，需在宿主 rc.2 实机确认。
+- 官方 Desktop 多窗口的 `storage` 事件未验证；solid-first 的纯色停留时长与观感未实机评估。
+- 默认键的真实冲突：macOS Finder 的 ⌘⌥V 是「移动到这里」，只在 Finder 内生效，不影响 DSH 窗口；部分 Windows 键盘布局（如波兰语、匈牙利语等）把 Ctrl+Alt 当 AltGr，AltGr+V 可能打出字符，宿主会忽略带 AltGraph 的按键，这类布局请改绑；Linux 上宿主保留 primary+V，宿主模式下需自己录键（兜底监听仍用 Ctrl+Alt+V）。
+- `restart-interval` 的刷新周期取 `refreshIntervalMs()`（10.22.1 的分钟间隔）；AC21 用 5 分钟间隔验证，3 次集成点反向破坏见 `docs/evidence/boss-key/mutations.md` 末节。
+
+## [10.22.2] - 2026-10-22
+
+> **壁纸标语：在壁纸上叠一句自己的话（默认开关开，文字为空时什么都不画）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 601→**611 全绿**。
+
+### 一、改了什么
+- 新键 `dsh-dream-skin:wallpaper-caption`（`{on,text,font,size,opacity,position}`），仅本插件写；不进出厂默认，不进主题包的导入 / 导出 / 分享。
+- 标语层紧跟壁纸层之后（渗色层 → 壁纸 → 标语，均为 `z-index:-1`、`pointer-events:none`、`aria-hidden`）；换图、轮换、定时刷新都不重建、不重写节点。
+- 文字只经 `textContent` 写入；清洗去掉控制字符与 bidi 覆盖/隔离字符，CRLF 归一，最多 3 行、120 个码点（不切断代理对）。字体 4 选 1、位置 5 选 1，字号 16–96（`min(Npx, 8vw)`），不透明度 0.15–0.9，非法值回落默认或钳到边界。
+- 设置页新增「壁纸标语」行（order 34），8 种语言各 18 条文案。
+
+### 二、门与账本
+- 新增 10 条用例（`tests/client.caption.test.cjs`，AC23–AC32）；5 次反向破坏见 `docs/evidence/wallpaper-caption/mutations.md`。
+- `docs/desktop-support.md` 键表新增一行，套件读数同步为 611；`tests/package.runtime_size.test.cjs` 的 `lib/client.js` 上限 512→576 KiB（叠上游 10.22.0 与 #114 后约 513 KiB，附理由）。
+
+### 三、诚实边界
+- 老板键 / bootVeil 期间隐藏标语（AC33、AC34）留给后合入的老板键分支：本版 `isCaptionSuppressed()` 恒为 false。
+- 375px 窄窗与阿拉伯语从右往左排版只做了样式断言，未实机检查。
+## [10.22.1] - 2026-10-22
+
+> **URL 壁纸定时更新改用分钟（5–43200，默认 1440）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 590→**601 全绿**。
+
+### 一、改了什么
+- 「更新间隔」输入框单位由小时改为分钟，范围 5–43200，默认 1440；非法值（非数字、null、空白、无穷）不写入，越界钳到边界，小数四舍五入。
+- 新键 `dsh-dream-skin:wallpaper-refresh-minutes`（`{minutes,mirrorHours}`）；旧键 `dsh-dream-skin:wallpaper-refresh` 继续写回 `hours = clamp(round(minutes/60), 1, 720)`，保证降级可用。`minutes` 仅在 `mirrorHours` 等于旧键 `hours` 时被信任，否则按 `hours × 60` 读取。
+- 迁移幂等，只在宿主探测落定后运行（宿主值优先）；未动过的出厂种子不迁移。清除壁纸同时删除两个键。
+- i18n：8 种语言 `bg2.refreshHours` → `bg2.refreshMinutes`。旧动作 `setRefresh(on, hours)` 保留为兼容包装。
+- 同版随附 #114（@lisihao）的本地文件夹图源：壁纸轮换可读一个本地文件夹里的图片，+21 条用例（`tests/client.smoke.test.cjs` +9、`tests/client.storage.test.cjs` +2、新文件 `tests/host.folder.test.cjs` +10），套件 569→590；见 `docs/evidence/` 中 #61 的实机账本。
+
+### 二、门与账本
+- 新增 11 条用例（`tests/client.refreshminutes.test.cjs`）：迁移与幂等、出厂种子、降级/升级、宿主优先、边界与非法值、5 分钟调度、i18n。5 次反向破坏见 `docs/evidence/refresh-minutes/mutations.md`。
+- `docs/desktop-support.md` 键表新增一行，套件读数同步为 601。
+
+### 三、诚实边界
+- 旧版本只能表达整小时：在新版设成 90 分钟后降级，旧版显示 2 小时；再升级时若旧版没改过小时数，仍按 90 分钟。
+
 ## [10.22.0] - 2026-10-22
 
 > **低功耗模式把菜单变成了「保鲜膜」——本版给菜单底色加下限，让「降低透明度」真的降透明（#115 / #116，@aurora-zl）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 568→**569 全绿**。
@@ -52,7 +110,7 @@ README §E 一直把「壁纸多条链接轮换」列在**不做 / 只接受 PR*
 
 ### 三、门与账本
 
-- 新增 **18 条用例**（`tests/client.smoke.test.cjs` +16、`tests/client.storage.test.cjs` +2），覆盖持久化字段集、逐条安全门、单次唤醒单次拉取（含预加载在飞的竞态）、开关关闭后逾期/可见性/重挂都不动、清除壁纸保留列表但不继承倒计时、低功耗模式不暂停轮换。PR 内附 **44 次反向破坏**与实机读数（`docs/evidence/wallpaper-rotation/`）。
+- 新增 **18 条用例**（`tests/client.smoke.test.cjs` +16、`tests/client.storage.test.cjs` +2），覆盖持久化字段集、逐条安全门、单次唤醒单次拉取（含预加载在飞的竞态）、开关关闭后逾期/可见性/重挂都不动、清除壁纸保留列表但不继承倒计时、低功耗模式不暂停轮换。PR 内附 **45 次反向破坏**与实机读数（`docs/evidence/wallpaper-rotation/`）。
 - 套件 **550→568**；`docs/desktop-support.md` 键表与套件读数同步；README 功能表新增一行。
 
 ### 四、诚实边界

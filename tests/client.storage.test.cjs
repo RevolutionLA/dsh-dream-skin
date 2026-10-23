@@ -646,3 +646,68 @@ test('every rotation string the page and its alerts use is defined in the dictio
 	assert.ok(used.length >= 10, 'the rotation strings the page and its alerts use were found: ' + used.join(', '));
 	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
 });
+
+// ── the rotation source switch and the folder controls ─────────────────────────────────────────
+test('the folder controls show for the folder source only, explain each failure code, and each control calls its own action', async () => {
+	const h = buildSandbox();
+	const nodes = [];
+	h.factory(makeRequire({ nodes })).apply(makeApplyContext(h));
+	await flush();
+	const calls = [];
+	const props = {
+		setRotation: (v) => calls.push(['setRotation', v]),
+		setRotationList: (v) => calls.push(['setRotationList', v]),
+		setRotationSource: (v) => calls.push(['setRotationSource', v]),
+		setRotationFolder: (v) => calls.push(['setRotationFolder', v]),
+		setRotationMode: (v) => calls.push(['setRotationMode', v]),
+		setRotationMinutes: (v) => calls.push(['setRotationMinutes', v]),
+		rotateNow: () => calls.push(['rotateNow'])
+	};
+	const rot = (over) => ({ on: true, mode: 'sequential', minutes: 30, urls: [], source: 'folder', folder: '/Users/me/Pictures', folderCount: 12, folderError: null, ...over });
+	const state = (over) => ({ kind: 'url', url: null, gradient: null, history: [], rotation: rot(over) });
+	const find = (seen, pred) => seen.find(pred);
+	const buttonWith = (seen, text) => find(seen, (n) => n.type === 'button' && (n.props.children === text || (Array.isArray(n.props.children) && n.props.children[0] === text)));
+
+	// Sample 1: the folder source shows the path box, its hint, the count, and the shared controls.
+	let seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({}), { ...props, t: (k, p) => (p ? `${k}:${p.n}` : k) });
+	for (const key of ['bg2.rotationSourceLinks', 'bg2.rotationSourceFolder', 'bg2.rotationFolderHint', 'bg2.rotationFolderSave', 'bg2.rotationFolderCount:12', 'bg2.rotationNow', 'bg2.rotationMinutes']) {
+		assert.ok(hasText(seen, key), `${key} is on the page`);
+	}
+	assert.equal(hasText(seen, 'bg2.rotationList'), false, 'the link list is not shown for the folder source');
+	assert.equal(find(seen, (n) => n.type === 'textarea'), undefined, 'and neither is its text box');
+	const box = find(seen, (n) => n.type === 'input' && n.props.type === 'text');
+	assert.equal(box.props.defaultValue, '/Users/me/Pictures', 'the path box shows the saved folder');
+	const pressed = find(seen, (n) => n.type === 'button' && n.props['aria-pressed'] === true && n.props.children && n.props.children[0] === 'bg2.rotationSourceFolder');
+	assert.ok(pressed, 'the stored source is the pressed one');
+	buttonWith(seen, 'bg2.rotationFolderSave').props.onClick();
+	buttonWith(seen, 'bg2.rotationSourceLinks').props.onClick();
+	buttonWith(seen, 'bg2.rotationNow').props.onClick();
+	assert.deepEqual(calls.map((c) => c[0]), ['setRotationFolder', 'setRotationSource', 'rotateNow'], 'one action per control');
+	assert.deepEqual(calls[1], ['setRotationSource', 'links'], 'the source button passes its source');
+
+	// Each failure code is explained with its own string, and an unknown one falls back to the host-down text.
+	const codes = { 'folder-unset': 'bg2.rotationFolderUnset', 'folder-not-absolute': 'bg2.rotationFolderNotAbsolute', 'folder-missing': 'bg2.rotationFolderMissing', 'folder-not-directory': 'bg2.rotationFolderNotDirectory', 'folder-unreadable': 'bg2.rotationFolderUnreadable', 'host-unreachable': 'bg2.rotationFolderHostDown', 'something-new': 'bg2.rotationFolderHostDown' };
+	for (const [code, key] of Object.entries(codes)) {
+		seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ folderError: code, folderCount: null }), props);
+		assert.ok(hasText(seen, key), `${code} reads as ${key}`);
+	}
+	// Reverse legs: the link source shows the list and no path box; a folder-less state hides the shared controls.
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ source: 'links', urls: ['https://a.example/1.jpg', 'https://a.example/2.jpg'] }), props);
+	assert.ok(hasText(seen, 'bg2.rotationList'), 'links source: the list box is back');
+	assert.equal(find(seen, (n) => n.type === 'input' && n.props.type === 'text'), undefined, 'links source: no path box');
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ folder: '', folderCount: null }), props);
+	assert.equal(hasText(seen, 'bg2.rotationNow'), false, 'a folder source with no folder saved has no "next now" yet');
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', { ...state({}), kind: 'gradient' }, props);
+	assert.equal(hasText(seen, 'bg2.rotationSourceFolder'), false, 'other wallpaper kinds show no source switch');
+});
+
+test('every string the folder error map points at is defined in the dictionaries', () => {
+	const zh = dictKeys(CODE, 'zh');
+	const block = CODE.match(/const FOLDER_ERROR_KEYS = \{([\s\S]*?)\n\t\t\};/);
+	assert.ok(block, 'the error map is readable');
+	const keys = [...block[1].matchAll(/: "(bg2\.[A-Za-z]+)"/g)].map((m) => m[1]);
+	assert.equal(keys.length, 6, 'six codes are mapped');
+	for (const key of keys) assert.ok(zh.includes(key), `${key} is defined`);
+	const used = [...new Set([...CODE.matchAll(/(?:\bt|localeT)\("(bg2\.rotation[A-Za-z]*)"/g)].map((m) => m[1]))];
+	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
+});
