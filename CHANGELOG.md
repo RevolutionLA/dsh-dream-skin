@@ -2,6 +2,29 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [10.23.0] - 2026-10-22
+
+> **老板键（Boss key）：一键把壁纸换成纯色，再按一次恢复（窗口内快捷键，不是系统全局热键）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 611→**638 全绿**。
+
+### 一、改了什么
+- 新键 `dsh-dream-skin:boss-key`（`{enabled,color,onRestart,resume,fallbackBinding,syncWindows,bootPaint}`）与 `dsh-dream-skin:boss-active`，仅本插件写；不进出厂默认，不进主题包。
+- 进入：同一同步调用栈内写纯色、清图片与渗色层、隐藏标语、`html[data-dsk-boss="1"]`，作废在飞的轮换探测，冻结轮换与定时刷新。退出：先解码原图（≤2s），解码后在同一次 `applyWallpaper2` 里恢复图片与标语；RESTORING 期间再按回到 BOSS。120ms 前沿防抖。
+- `onRestart` 三选一（`restore-last` / `always-normal` / `always-boss`）；`resume` 二选一（`restart-interval` 退出后轮换与刷新各自重新计满一个周期 / `keep-phase`）。
+- 快捷键：宿主有 `shortcuts` 服务时注册命令 `dsh-dream-skin.boss-key.toggle`（默认 ⌘⌥V / Ctrl+Alt+V，写入 `desktop:macos|windows`、`web:macos|windows` 四个 profile；宿主在 Linux 保留 primary+V，Linux profile 不设默认；宿主拒收默认时改为不绑定重新注册），否则页内 capture 阶段 keydown 兜底（默认 macOS ⌘⌥V、其他 Ctrl+Alt+V，可改可清除；旧的 Ctrl+Alt+Shift+B 存档读作新默认；忽略 `repeat` / `isComposing`；保留组合被设置行拒绝）。
+- 多窗口：`syncWindows=1` 时跟随其它窗口的 `boss-active`（`storage` 事件），跟随方不回写。
+- 启动：`bootPaint=solid-first`（默认）先画纯色，宿主探测与解码完成后恰好画一次图；`seed-first` 维持旧行为。
+- 状态快照新增 `boss:{phase,via,veil}`；设置页新增「老板键」行（order 32.5），8 种语言各 25 条文案（含默认键提示与「清除」）。
+
+### 二、门与账本
+- 新增 27 条用例（`tests/client.bosskey.test.cjs`，含默认键存在、改绑/清除、宿主拒收默认，AC1–AC15、AC21、AC33、AC34）；10 次反向破坏见 `docs/evidence/boss-key/mutations.md`。
+- `docs/desktop-support.md` 键表新增两行，套件读数同步为 638；`lib/client.js` 仍在 10.22.2 定下的 576 KiB 上限内。
+
+### 三、诚实边界
+- 宿主快捷键服务与 catalog 的真实形状、录键冲突提示，只在假服务上测过，需在宿主 rc.2 实机确认。
+- 官方 Desktop 多窗口的 `storage` 事件未验证；solid-first 的纯色停留时长与观感未实机评估。
+- 默认键的真实冲突：macOS Finder 的 ⌘⌥V 是「移动到这里」，只在 Finder 内生效，不影响 DSH 窗口；部分 Windows 键盘布局（如波兰语、匈牙利语等）把 Ctrl+Alt 当 AltGr，AltGr+V 可能打出字符，宿主会忽略带 AltGraph 的按键，这类布局请改绑；Linux 上宿主保留 primary+V，宿主模式下需自己录键（兜底监听仍用 Ctrl+Alt+V）。
+- `restart-interval` 的刷新周期取 `refreshIntervalMs()`（10.22.1 的分钟间隔）；AC21 用 5 分钟间隔验证，3 次集成点反向破坏见 `docs/evidence/boss-key/mutations.md` 末节。
+
 ## [10.22.2] - 2026-10-22
 
 > **壁纸标语：在壁纸上叠一句自己的话（默认开关开，文字为空时什么都不画）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺，两池都不碰），全套 `npm test` 601→**611 全绿**。

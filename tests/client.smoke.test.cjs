@@ -6904,7 +6904,9 @@ function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'u
 	g.doc.addEventListener = (name, fn) => { listeners[name] = fn; };
 	g.doc.removeEventListener = (name, fn) => { if (listeners[name] === fn) delete listeners[name]; };
 	if (visibility) g.doc.visibilityState = visibility;
-	const stored = { 'dsh-dream-skin:wallpaper-kind': kind, 'dsh-dream-skin:wallpaper-follows-skin': '0', ...seed };
+	// Boss key (10.23.0): these cases pin the seed-first first paint with a live host fetch; the
+	// solid-first boot veil (the new default) has its own cases in client.bosskey.test.cjs.
+	const stored = { 'dsh-dream-skin:wallpaper-kind': kind, 'dsh-dream-skin:wallpaper-follows-skin': '0', 'dsh-dream-skin:boss-key': JSON.stringify({ bootPaint: 'seed-first' }), ...seed };
 	if (current !== null) stored['dsh-dream-skin:wallpaper-url'] = current;
 	if (rotation !== null) {
 		stored[ROT_KEY] = JSON.stringify({ on: 1, mode: 'sequential', minutes: 60, urls, lastRotatedAt: 0, ...rotation });
