@@ -5877,6 +5877,118 @@ test('issue #61 (blur fill): the bleed layer paints BEHIND the image and detache
 	assert.equal(g.bleeds().length, 0, 'clearing the wallpaper tears the bleed layer down too');
 });
 
+// ── portrait wallpapers tile side by side under contain / blur ──────────────
+// A portrait photo on a landscape window left two wide empty bands in the
+// contain and blur modes. It now repeats horizontally at full height. The
+// orientation comes from an Image probe, so these cases settle the probe by hand.
+
+/** Image stub whose probes stay pending until the test loads them with a size. */
+function mkShapeImage(probes) {
+	return function () {
+		const self = this;
+		this.onload = null;
+		this.onerror = null;
+		this.naturalWidth = 0;
+		this.naturalHeight = 0;
+		let src = '';
+		Object.defineProperty(this, 'src', {
+			get: () => src,
+			set: (v) => {
+				src = v;
+				probes.push({ url: v, load: (w, h) => { self.naturalWidth = w; self.naturalHeight = h; if (self.onload) self.onload(); } });
+			}
+		});
+	};
+}
+const loadProbes = (probes, w, h) => { for (const p of probes.splice(0)) p.load(w, h); };
+
+function startShaped(seed) {
+	const g = mkWallpaperDoc();
+	const probes = [];
+	const h = buildSandbox({ document: g.doc, Image: mkShapeImage(probes), seed });
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	return { g, h, probes, adv: h.actionBags['dream-skin-wallpaper-advanced'] };
+}
+const TALL_SEED = {
+	'dsh-dream-skin:wallpaper-kind': 'url',
+	'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/tall.jpg',
+	'dsh-dream-skin:wallpaper-follows-skin': '0',
+	[FIT_KEY]: 'blur'
+};
+
+test('portrait tile: a portrait image repeats at full height under blur and contain, never under cover', () => {
+	const { g, probes, adv } = startShaped(TALL_SEED);
+	assert.equal(probes.length, 1, 'the blur render probes the image once');
+	assert.equal(g.main().style.backgroundImage, `url("${probes[0].url}")`, 'the probe loads the exact URL the layer renders');
+	assert.equal(g.main().style.backgroundSize, 'contain', 'until the probe answers, the old contain look stays');
+	assert.equal(g.bleeds().length, 1, 'and so does the bleed');
+
+	loadProbes(probes, 600, 1200);
+	assert.equal(g.main().style.backgroundSize, 'auto 100%', 'portrait: each copy is full height');
+	assert.equal(g.main().style.backgroundRepeat, 'repeat-x', 'portrait: copies sit side by side');
+	assert.equal(g.bleeds().length, 0, 'the tiles fill the window, so the bleed layer goes');
+
+	adv.setFit('cover');
+	assert.equal(g.main().style.backgroundSize, 'cover', 'cover keeps its single cropped copy');
+	assert.equal(g.main().style.backgroundRepeat, 'no-repeat', 'cover does not tile');
+
+	adv.setFit('contain');
+	assert.equal(probes.length, 0, 'the same image is not probed again');
+	assert.equal(g.main().style.backgroundSize, 'auto 100%', 'contain tiles the portrait image too');
+	assert.equal(g.main().style.backgroundRepeat, 'repeat-x');
+
+	adv.setUrl('https://cdn.example.com/wide.jpg');
+	assert.equal(g.main().style.backgroundRepeat, 'no-repeat', 'a new image starts untiled, not with the previous repeat');
+	assert.equal(g.main().style.backgroundSize, 'contain');
+	loadProbes(probes, 1600, 900);
+	assert.equal(g.main().style.backgroundSize, 'contain', 'a landscape image keeps contain');
+	assert.equal(g.main().style.backgroundRepeat, 'no-repeat', 'a landscape image does not tile');
+});
+
+test('portrait tile: a late probe answer for a replaced or unloaded wallpaper changes nothing', () => {
+	const { g, h, probes, adv } = startShaped(TALL_SEED);
+	const tallProbe = probes.splice(0)[0];
+	adv.setUrl('https://cdn.example.com/wide.jpg');
+	const wideProbes = probes.length;
+	tallProbe.load(600, 1200);
+	assert.equal(g.main().style.backgroundRepeat, 'no-repeat', 'the old image\'s portrait answer does not tile the new one');
+	assert.equal(g.main().style.backgroundSize, 'contain');
+	assert.equal(probes.length, wideProbes, 'nor does it discard the new image\'s pending probe and start another');
+	probes.splice(0);
+
+	adv.setUrl('https://cdn.example.com/tall-2.jpg');
+	const pending = probes.splice(0);
+	assert.ok(pending.length > 0, 'the new image is probed');
+	for (const d of h.disposers || []) d();
+	const live = () => g.created.filter((el) => !el.removed && g.doc.body.children.includes(el) && el.style.backgroundImage);
+	assert.equal(live().length, 0, 'unloading the plugin removes the wallpaper layer');
+	for (const p of pending) p.load(600, 1200);
+	assert.equal(live().length, 0, 'a probe that lands after unload does not bring a wallpaper layer back');
+});
+
+test('portrait tile: a probe that settles synchronously tiles on the same render', () => {
+	const g = mkWallpaperDoc();
+	const Image = function () {
+		this.naturalWidth = 600;
+		this.naturalHeight = 1200;
+		Object.defineProperty(this, 'src', { set: () => { if (this.onload) this.onload(); } });
+	};
+	const h = buildSandbox({ document: g.doc, Image, seed: TALL_SEED });
+	h.factory(makeRequire(makeRuntime().RT)).apply(makeApplyContext(h, { captureActions: true }));
+	assert.equal(g.main().style.backgroundRepeat, 'repeat-x', 'the answer is used although the re-render was swallowed by the re-entry guard');
+});
+
+test('portrait tile: a gradient wallpaper is never probed', () => {
+	const { probes } = startShaped({
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(168deg, #faeeef 0%, #f5e8e9 100%)',
+		'dsh-dream-skin:wallpaper-follows-skin': '0',
+		[FIT_KEY]: 'blur'
+	});
+	assert.equal(probes.length, 0, 'a gradient has no orientation to probe');
+});
+
 test('issue #110: low-power mode drops backdrop-filter, the wallpaper blur and the bleed layer', () => {
 	// The bundle ships no CSS animations, so the measured GPU cost is compositing
 	// large blurred surfaces (#110: >50% idle on an M4 with two windows open).
