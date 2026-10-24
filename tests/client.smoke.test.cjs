@@ -6427,6 +6427,248 @@ test('dockkit right panel: the fullscreen gate rides the wash marker lifecycle',
 	assert.equal(attrs.has(gate[1]), false, 'and it is retracted with the wash layer');
 });
 
+// ── wallpaper framing — viewport offsets + zoom ──────────────────────────────
+// The "fit" control (#61) decides how the photo meets its box; framing decides
+// WHERE inside that box it sits and how large it is. Percentage positioning
+// alone is trapped by (container − image) — 0 % pins one edge, 100 % the other,
+// so a percentage can never leave the frame. Offsets are therefore expressed in
+// vw/vh, and zoom is a scale on the same layer.
+const FRAME_X_KEY = 'dsh-dream-skin:wallpaper-pos-x';
+const FRAME_Y_KEY = 'dsh-dream-skin:wallpaper-pos-y';
+const FRAME_ZOOM_KEY = 'dsh-dream-skin:wallpaper-zoom';
+
+/** Boot the bundle with a URL wallpaper plus any framing seed, and hand back the row actions. */
+function bootFraming(seed = {}, doc = mkWallpaperDoc()) {
+	const h = buildSandbox({
+		document: doc.doc,
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/wide.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0',
+			...seed
+		}
+	});
+	const e = h.factory(makeRequire(makeRuntime().RT));
+	e.apply(makeApplyContext(h, { captureActions: true }));
+	return { h, g: doc, adv: h.actionBags['dream-skin-wallpaper-advanced'] };
+}
+
+test('wallpaper framing: an untouched wallpaper renders 50/50 at 100 %, and stores nothing', () => {
+	const { h, g } = bootFraming();
+	assert.equal(g.main().style.backgroundPosition, '50% 50%', 'centred by default — byte-identical to the pre-framing render');
+	assert.equal(g.main().style.transform, '', 'no scale at 100 %');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), null, 'reading must not invent a stored value');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), null, 'reading must not invent a stored value');
+});
+
+test('wallpaper framing: offsets are viewport units, so the image can leave the frame', () => {
+	const { h, g, adv } = bootFraming();
+	adv.setFrameX(-100);
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '-100', 'a left offset persists as a signed integer');
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% - 100vw) 50%', 'negative offsets subtract — never "calc(50% + -100vw)"');
+	adv.setFrameY(60);
+	assert.equal(h.localStorage.getItem(FRAME_Y_KEY), '60');
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% - 100vw) calc(50% + 60vh)');
+	adv.resetFrame();
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '0', 'reset writes the centred default back');
+	assert.equal(h.localStorage.getItem(FRAME_Y_KEY), '0');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '100');
+	assert.equal(g.main().style.backgroundPosition, '50% 50%', 'and the render returns to the untouched form');
+});
+
+test('wallpaper framing: zoom scales the layer and is clamped to 50–300 %', () => {
+	const { h, g, adv } = bootFraming();
+	adv.setFrameZoom(50);
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '50', 'the lower bound is 50 %, not 100 %');
+	assert.equal(g.main().style.transform, 'scale(0.5)');
+	adv.setFrameZoom(1000);
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '300', 'out-of-range writes clamp BEFORE persisting');
+	assert.equal(g.main().style.transform, 'scale(3)');
+	adv.setFrameZoom(100);
+	assert.equal(g.main().style.transform, '', '100 % is identity — no transform may be left behind');
+});
+
+test('wallpaper framing: a gradient ignores framing (it fills its box by definition)', () => {
+	const { g } = bootFraming({
+		'dsh-dream-skin:wallpaper-kind': 'gradient',
+		'dsh-dream-skin:wallpaper-gradient': 'linear-gradient(135deg, #000 0%, #fff 100%)',
+		[FRAME_X_KEY]: '-50',
+		[FRAME_Y_KEY]: '25',
+		[FRAME_ZOOM_KEY]: '200'
+	});
+	assert.equal(g.main().style.backgroundPosition, '50% 50%', 'a stored offset is ignored, not applied');
+	assert.equal(g.main().style.transform, '', 'and no scale either');
+});
+
+test('wallpaper framing: the blur backdrop keeps the crop and never shrinks under the zoom', () => {
+	// The halo must frame the same crop as the image, but `1.2 * zoom` alone drops under a
+	// viewport-sized box below ~83% zoom (1.2 * 0.9 = 1.08 still covers, 1.2 * 0.5 = 0.6
+	// does not) — and a halo sitting inside the viewport IS the hard-edged band #61 removes.
+	// So the multiplier is clamped at its creation value while the crop keeps following.
+	// Seed the blur fill mode directly: calling setFit('blur') would count as a fit CHANGE and
+	// reset the framing, wiping the seeded zoom (that reset is the documented behaviour).
+	const { g, adv } = bootFraming({
+		'dsh-dream-skin:wallpaper-fit': 'blur',
+		[FRAME_ZOOM_KEY]: '50'
+	});
+	const [bleed] = g.bleeds();
+	assert.ok(bleed, 'the blur fill mode creates its bleed layer');
+	const bleedScale = () => Number(/scale\(([\d.]+)\)/.exec(bleed.style.transform)[1]);
+	assert.equal(bleedScale(), 1.2,
+		'the FULL RENDER clamps below 83% — a 0.6 box would sit inside the viewport');
+	adv.setFrameX(-30);
+	adv.setFrameY(40);
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% - 30vw) calc(50% + 40vh)',
+		'the sharp layer did move — otherwise the assertions below are vacuous');
+	assert.equal(bleed.style.backgroundPosition, g.main().style.backgroundPosition,
+		'the halo must not drift away from the image it sits behind');
+	assert.equal(bleedScale(), 1.2, 'the DRAG path clamps too — both sites must agree');
+	adv.setFrameZoom(150);
+	assert.ok(Math.abs(bleedScale() - 1.8) < 1e-6, 'above 100% the halo tracks the zoom');
+});
+
+test('wallpaper framing: low-power mode never resurrects the blur backdrop', () => {
+	// Issue #110 skips the bleed layer while low-power is on, and framing is a separate
+	// style-only path. The two must not fight: the full render must not create the
+	// backdrop, and a slider drag must not quietly create it afterwards. The control leg
+	// is what makes the difference attributable to the SWITCH rather than to the seed.
+	const control = bootFraming();
+	control.adv.setFit('blur');
+	control.adv.setFrameX(-40);
+	control.adv.setFrameY(25);
+	control.adv.setFrameZoom(150);
+	assert.equal(control.g.bleeds().length, 1,
+		'control: with low-power off the same sequence (fit + three drags) keeps the backdrop');
+
+	const { g, adv } = bootFraming({ 'dsh-dream-skin:performance': '1' });
+	adv.setFit('blur');
+	assert.equal(g.bleeds().length, 0, 'low-power must not create the bleed layer for fit=blur');
+	// Assert after EVERY step: a create-then-remove inside one drag would slip past a single
+	// check taken once at the end.
+	adv.setFrameX(-40);
+	assert.equal(g.bleeds().length, 0, 'dragging X must not create the bleed layer');
+	adv.setFrameY(25);
+	assert.equal(g.bleeds().length, 0, 'dragging Y must not create the bleed layer');
+	adv.setFrameZoom(150);
+	assert.equal(g.bleeds().length, 0, 'dragging the zoom must not create the bleed layer');
+	assert.equal(g.main().style.filter, 'none', 'low-power keeps the wallpaper unblurred while framing moves it');
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% - 40vw) calc(50% + 25vh)',
+		'framing still moves the sharp layer — a no-op would make the two bleed assertions vacuous');
+	assert.equal(g.main().style.transform, 'scale(1.5)', 'and the zoom still applies to the sharp layer');
+});
+
+test('wallpaper framing: a framing move only repaints the layer', () => {
+	// The maintainer asked for "no horizontal scrollbar at offset = ±100". A scrollbar is
+	// the SYMPTOM of a positioned box, so this pins the cause instead of one crop of it:
+	// the layer stays `position:fixed` (out of flow, inset:0) and the only properties a
+	// framing move may touch are the two paint-only ones. `scrollWidth` is deliberately NOT
+	// asserted — the fake DOM has no layout, so that assertion would be vacuously true, and
+	// a gate that cannot fail is worse than no gate.
+	const { g, adv } = bootFraming();
+	const layer = g.main();
+	assert.ok(String(layer.style.cssText).includes('position:fixed'), 'the layer starts out of flow');
+	assert.ok(String(layer.style.cssText).includes('inset:0'), 'and pinned to the viewport box');
+	const before = { ...layer.style };
+	adv.setFrameX(100);
+	adv.setFrameY(-100);
+	adv.setFrameZoom(300);
+	const after = { ...layer.style };
+	const changed = Object.keys(after).filter((k) => after[k] !== before[k]).sort();
+	assert.deepEqual(changed, ['backgroundPosition', 'transform'],
+		`a framing move must only repaint — changed: ${changed.join(', ') || '(nothing)'}`);
+	assert.equal(after.backgroundPosition, 'calc(50% + 100vw) calc(50% - 100vh)', 'the ±100 corners really are applied');
+	assert.equal(after.transform, 'scale(3)', 'and so is the 300 % zoom — otherwise the check is vacuous');
+});
+
+test('wallpaper framing: junk values are clamped for rendering and never written back', () => {
+	const { h, g } = bootFraming({
+		[FRAME_X_KEY]: '500',
+		[FRAME_Y_KEY]: 'abc',
+		[FRAME_ZOOM_KEY]: '999'
+	});
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% + 100vw) 50%', '500 clamps to 100; "abc" falls back to the centred default');
+	assert.equal(g.main().style.transform, 'scale(3)', '999 clamps to 300');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '500', 'a tampered value is NOT rewritten (same discipline as fit)');
+	assert.equal(h.localStorage.getItem(FRAME_Y_KEY), 'abc');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '999');
+	// An empty stored value is "not set", not "zero": `Number('') === 0` would clamp the
+	// zoom to its 50 % floor instead of the shipped 100 %, and the min is where a wrong
+	// reading does the most visible damage. A hand-edited state file or a host round-trip
+	// can deliver "", and the design says bad values fall back to the default.
+	const blank = bootFraming({ [FRAME_ZOOM_KEY]: '', [FRAME_Y_KEY]: '   ' });
+	assert.equal(blank.g.main().style.transform, '', 'an empty zoom renders as the 100 % default, not 50 %');
+	assert.equal(blank.g.main().style.backgroundPosition, '50% 50%', 'a blank offset is centred');
+	assert.equal(blank.h.localStorage.getItem(FRAME_ZOOM_KEY), '', 'and it is still not written back');
+});
+
+test('wallpaper framing: a new picture or a fill-mode change starts from centre', () => {
+	const { h, adv } = bootFraming();
+	const wallpaper = h.actionBags['dream-skin-wallpaper'];
+	assert.ok(wallpaper, 'the wallpaper row exposes its actions');
+	adv.setFrameX(40);
+	adv.setFrameY(-20);
+	adv.setFrameZoom(150);
+	wallpaper.setWallpaper('data:image/jpeg;base64,AAAA');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '0', 'a different picture must not inherit the old offsets');
+	assert.equal(h.localStorage.getItem(FRAME_Y_KEY), '0');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '100');
+	assert.equal(h.storeStates['dream-skin-wallpaper-advanced'].hasImage, true,
+		'the row state learns a picture exists — the framing group re-renders on THIS slice, not on a storage read');
+	adv.setFrameX(-30);
+	adv.setFit('contain');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '0', '完整显示 shows the whole photo only when the offsets are cleared');
+	adv.setFrameX(-30);
+	adv.setFit('contain');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '-30', 're-clicking the same mode is not a change and must not wipe the framing');
+	wallpaper.clearWallpaper();
+	assert.equal(h.storeStates['dream-skin-wallpaper-advanced'].hasImage, false, 'clearing hides the framing group again');
+});
+
+test('wallpaper framing: a slider move updates styles without republishing the token layer', () => {
+	// Framing changes no token, so it must not take the applyWallpaper2 route: that
+	// path republishes the whole override layer, and the host emits theme/change on
+	// every publish — once per pixel of a slider drag. The write-budget counter is
+	// the witness; the same harness keeps the seeded wallpaper painted, so a fallback
+	// to the full render cannot hide behind a missing layer.
+	const p = makeWriteBudgetHarness({
+		seed: {
+			'dsh-dream-skin:wallpaper-kind': 'url',
+			'dsh-dream-skin:wallpaper-url': 'https://cdn.example.com/wide.jpg',
+			'dsh-dream-skin:wallpaper-follows-skin': '0'
+		}
+	});
+	const layer = p.h.document.body.children.find(
+		(el) => typeof el.style.backgroundImage === 'string' && el.style.backgroundImage !== ''
+	);
+	assert.ok(layer, 'the seeded wallpaper painted a live layer before the slider moved');
+	const publishedBefore = p.counts.publish;
+	p.h.actionBags['dream-skin-wallpaper-advanced'].setFrameX(-25);
+	assert.equal(layer.style.backgroundPosition, 'calc(50% - 25vw) 50%',
+		'the style-only path still moves the LIVE layer — a no-op would make the publish assertion vacuous');
+	assert.equal(p.counts.publish, publishedBefore,
+		`a framing slider republished the token layer (${p.counts.publish - publishedBefore} publish(es)) — framing changes no token`);
+});
+
+test('wallpaper framing: a different URL recentres, re-applying the same URL does not', () => {
+	const { h, g, adv } = bootFraming();
+	adv.setFrameX(-40);
+	adv.setFrameY(25);
+	adv.setFrameZoom(180);
+	adv.setUrl('https://cdn.example.com/other.jpg');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '0', 'a different link is a different composition — X recentres');
+	assert.equal(h.localStorage.getItem(FRAME_Y_KEY), '0', 'Y recentres too');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '100', 'and the zoom returns to identity');
+	assert.equal(g.main().style.backgroundPosition, '50% 50%', 'the live layer shows the recentred crop');
+
+	adv.setFrameX(-40);
+	adv.setFrameZoom(180);
+	adv.setUrl('https://cdn.example.com/other.jpg');
+	assert.equal(h.localStorage.getItem(FRAME_X_KEY), '-40',
+		're-applying the SAME link is not a new composition and must not wipe the framing');
+	assert.equal(h.localStorage.getItem(FRAME_ZOOM_KEY), '180');
+	assert.equal(g.main().style.backgroundPosition, 'calc(50% - 40vw) 50%', 'and the user crop stays on screen');
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Issue #84 — write-volume accounting for a skin switch
 // ═══════════════════════════════════════════════════════════════════════════
@@ -7102,6 +7344,42 @@ test('rotation: a due rotation shows the next link, keeps history and the stored
 	for (let i = 0; i < 3; i++) { r.adv.rotateNow(); seen.push(r.url()); }
 	assert.deepEqual(seen, [ROT_C, ROT_A, ROT_B], 'sequential order wraps around the list');
 	assert.equal(r.history().length, 0, 'still no history after several rotations');
+});
+
+test('rotation: an automatic rotation keeps the manual framing — it never recentres the user crop', () => {
+	// A DECISION, not a coincidence (review 2026-10-23, and #95's "don't quietly fix it"):
+	// rotation only swaps the LINK — timed, or the「next now」button — so it is not the user
+	// choosing a new composition, and an automatic event must never overwrite a manual
+	// setting (the same family as "low-power does not pause rotation"). A user who types a
+	// URL (or picks an image) IS choosing a new composition, so `setUrl` / `setImage` reset
+	// the framing. The scheduled URL refresh follows the same RULE — it never resets the
+	// framing either — even though it is a separate code path, so this is a rule rather
+	// than a quirk of one call site.
+	const r = bootRotation({
+		seed: { [FRAME_X_KEY]: '-40', [FRAME_Y_KEY]: '25', [FRAME_ZOOM_KEY]: '180' }
+	});
+	assert.equal(r.url(), ROT_B, 'precondition: the automatic commit really happened');
+	assert.equal(r.h.localStorage.getItem(FRAME_X_KEY), '-40', 'the manual X offset survives the rotation');
+	assert.equal(r.h.localStorage.getItem(FRAME_Y_KEY), '25', 'and Y');
+	assert.equal(r.h.localStorage.getItem(FRAME_ZOOM_KEY), '180', 'and the zoom');
+	assert.equal(r.rendered(), r.probes[0].url, 'the crop is painted on the NEXT link, not on the old picture');
+	assert.equal(r.g.main().style.backgroundPosition, 'calc(50% - 40vw) calc(50% + 25vh)',
+		'the rotated image is painted with the user crop, not centred');
+	assert.equal(r.g.main().style.transform, 'scale(1.8)', 'and with the user zoom');
+	// The「next now」button is the same operation with the timer skipped: the user asked to
+	// advance the link, not to recompose, so the rule has to hold there too — otherwise it
+	// is really "timers are special", which is not the reason written above.
+	r.adv.rotateNow();
+	assert.equal(r.url(), ROT_C, 'precondition: the button advanced the link');
+	assert.equal(r.h.localStorage.getItem(FRAME_X_KEY), '-40', 'a manual "next now" keeps the crop as well');
+	assert.equal(r.h.localStorage.getItem(FRAME_ZOOM_KEY), '180');
+	assert.equal(r.g.main().style.backgroundPosition, 'calc(50% - 40vw) calc(50% + 25vh)',
+		'and the advanced link is painted with it');
+	// Reverse leg, so nobody reads this as "the reset simply did not run": a MANUAL change
+	// of the same URL kind must still recentre — that is the rule this one is carved out of.
+	r.adv.setUrl('https://cdn.example.com/manual.jpg');
+	assert.equal(r.h.localStorage.getItem(FRAME_X_KEY), '0', 'a manual link change is the user changing the composition');
+	assert.equal(r.h.localStorage.getItem(FRAME_ZOOM_KEY), '100');
 });
 
 test('rotation: every entry passes the gate on every path, and one bad entry never costs the others', () => {
