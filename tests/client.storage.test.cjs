@@ -711,3 +711,40 @@ test('every string the folder error map points at is defined in the dictionaries
 	const used = [...new Set([...CODE.matchAll(/(?:\bt|localeT)\("(bg2\.rotation[A-Za-z]*)"/g)].map((m) => m[1]))];
 	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
 });
+
+test('10.25.0: a folder source calls its in-order mode "by folder name", and the caption row has a folder-name switch', async () => {
+	const h = buildSandbox();
+	const nodes = [];
+	h.factory(makeRequire({ nodes })).apply(makeApplyContext(h));
+	await flush();
+	const calls = [];
+	const props = {
+		setRotation() {}, setRotationList() {}, setRotationSource() {}, setRotationFolder() {}, setRotationMinutes() {}, rotateNow() {},
+		setRotationMode: (v) => calls.push(['setRotationMode', v])
+	};
+	const rot = (over) => ({ on: true, mode: 'sequential', minutes: 30, urls: ['https://a.example/1.jpg', 'https://a.example/2.jpg'], source: 'folder', folder: '/Users/me/Pictures', folderCount: 12, folderError: null, ...over });
+	const state = (over) => ({ kind: 'url', url: null, gradient: null, history: [], rotation: rot(over) });
+	const buttonWith = (seen, text) => seen.find((n) => n.type === 'button' && Array.isArray(n.props.children) && n.props.children[0] === text);
+
+	let seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({}), props);
+	assert.ok(buttonWith(seen, 'bg2.rotationByFolder'), 'folder source: the in-order mode reads "by folder name"');
+	assert.equal(buttonWith(seen, 'bg2.rotationSequential'), undefined, 'and the plain "in order" label is not there too');
+	assert.ok(buttonWith(seen, 'bg2.rotationRandom'), 'random stays');
+	buttonWith(seen, 'bg2.rotationByFolder').props.onClick();
+	assert.deepEqual(calls, [['setRotationMode', 'sequential']], 'it is the stored sequential mode, no new value');
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ source: 'links' }), props);
+	assert.ok(buttonWith(seen, 'bg2.rotationSequential'), 'links source: the plain "in order" label');
+	assert.equal(buttonWith(seen, 'bg2.rotationByFolder'), undefined, 'links have no folders to name');
+
+	const captionCalls = [];
+	const caption = { on: 1, text: '', font: 'serif', size: 40, opacity: 0.55, position: 'bottom-right', folderName: 0 };
+	seen = render(h, nodes, 'dream-skin-wallpaper-caption', { caption }, { setCaption: (p) => captionCalls.push(p) });
+	assert.ok(hasText(seen, 'caption.folderName') && hasText(seen, 'caption.folderNameHint'), 'the switch and its explanation are on the page');
+	const boxes = seen.filter((n) => n.type === 'input' && n.props.type === 'checkbox');
+	assert.equal(boxes.length, 2, 'two switches: the caption and the folder name');
+	assert.equal(boxes[1].props.checked, false, 'it shows the stored value');
+	boxes[1].props.onChange({ target: { checked: true } });
+	assert.deepEqual(captionCalls, [{ folderName: 1 }], 'ticking it stores folderName');
+	seen = render(h, nodes, 'dream-skin-wallpaper-caption', { caption: { ...caption, folderName: 1 } }, { setCaption() {} });
+	assert.equal(seen.filter((n) => n.type === 'input' && n.props.type === 'checkbox')[1].props.checked, true, 'and reads back as ticked');
+});

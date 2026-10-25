@@ -183,7 +183,7 @@ const captionRegion = () => { const a = CODE.indexOf('//#region dsh-dream-skin: 
 test('AC23 defaults: switch on, empty text renders no node, nothing in FACTORY_DEFAULTS', async () => {
 	const h = await boot({ seed: { ...URL_SEED } });
 	assert.ok(h.cap, 'caption row injected');
-	assert.deepEqual(h.state().caption, { on: 1, text: '', font: 'serif', size: 40, opacity: 0.55, position: 'bottom-right' });
+	assert.deepEqual(h.state().caption, { on: 1, text: '', font: 'serif', size: 40, opacity: 0.55, position: 'bottom-right', folderName: 0 });
 	assert.equal(captionLayer(h), null, 'empty text: no caption node');
 	assert.ok(wallpaperLayer(h), 'wallpaper itself is on screen');
 	const fd = CODE.slice(CODE.indexOf('const FACTORY_DEFAULTS = {'), CODE.indexOf('};', CODE.indexOf('const FACTORY_DEFAULTS = {')));
@@ -243,7 +243,7 @@ test('AC25 an image change, a rotation commit and a refresh commit never touch t
 test('AC26 invalid config falls back or clamps; cssText never carries raw input', async () => {
 	const evil = 'x;background:url(https://evil/)';
 	const h = await boot({ seed: seedCaption({ on: 1, text: 'hi', font: evil, size: 9999, opacity: -3, position: evil }) });
-	assert.deepEqual(h.state().caption, { on: 1, text: 'hi', font: 'serif', size: 96, opacity: 0.15, position: 'bottom-right' });
+	assert.deepEqual(h.state().caption, { on: 1, text: 'hi', font: 'serif', size: 96, opacity: 0.15, position: 'bottom-right', folderName: 0 });
 	const layer = captionLayer(h);
 	const span = layer.childNodes[0];
 	for (const css of [String(layer.style.cssText), String(span.style.cssText), String(span.style.fontSize)]) {
@@ -316,9 +316,9 @@ test('AC28 theme packs never carry the caption: hash import ignores it, export/s
 // ---------- AC30 ----------
 test('AC30 persistence + host push; switch-off removes the node but keeps the text; clearing the wallpaper keeps the config', async () => {
 	const h = await boot({ seed: { ...URL_SEED } });
-	h.cap.setCaption({ text: '你好', font: 'kai', position: 'top' });
+	h.cap.setCaption({ text: '你好', font: 'kai', position: 'top', folderName: 0 });
 	await new Promise((r) => setTimeout(r, 260)); // host push is debounced 200 ms
-	assert.deepEqual(json(h, KEY), { on: 1, text: '你好', font: 'kai', size: 40, opacity: 0.55, position: 'top' });
+	assert.deepEqual(json(h, KEY), { on: 1, text: '你好', font: 'kai', size: 40, opacity: 0.55, position: 'top', folderName: 0 });
 	assert.ok(h.sent.sets.some((p) => Object.prototype.hasOwnProperty.call(p, KEY)), 'pushed to the host');
 	assert.equal(h.state().caption.text, '你好', 'store synced');
 	h.cap.setCaption({ on: 0 });
