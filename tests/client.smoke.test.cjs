@@ -332,6 +332,19 @@ function makeEl() {
 			if (i < 0) this.children.push(c); else this.children.splice(i, 0, c);
 			if (c) c.parentElement = this;
 		},
+		// The caption layer (10.22.2) keeps itself right after the wallpaper layer with these two.
+		after(c) {
+			const p = this.parentElement;
+			if (!p || !c) return;
+			if (c.parentElement) { const i = c.parentElement.children.indexOf(c); if (i >= 0) c.parentElement.children.splice(i, 1); }
+			p.children.splice(p.children.indexOf(this) + 1, 0, c);
+			c.parentElement = p;
+		},
+		get previousSibling() {
+			const p = this.parentElement;
+			const i = p ? p.children.indexOf(this) : -1;
+			return i > 0 ? p.children[i - 1] : null;
+		},
 		click() {},
 		remove() {
 			this.removed = true;
@@ -7777,4 +7790,83 @@ test('folder rotation: a host that never answers is given up on after the deadli
 	await until(() => r.cfg().lastRotatedAt > 0, 'the interval to be spent after the deadline');
 	assert.equal(aborted, true, 'sample 2: the pending request was aborted');
 	assert.equal(r.h.storeStates['dream-skin-wallpaper-advanced'].rotation.folderError, 'host-unreachable', 'and reported as unreachable');
+});
+
+// ── subfolders, folder-by-folder order and the folder name (10.25.0) ────────
+// People keep one folder per person. The host lists three levels of real
+// subfolders; a sequential rotation plays the folder through, then each
+// subfolder by name; and the caption layer can name the folder on screen.
+
+/** Write `rel` (a relative path, subfolders created) into the host's photo folder. */
+const putPhoto = (host, rel, shade) => {
+	nodeFs.mkdirSync(nodePath.dirname(nodePath.join(host.photos, rel)), { recursive: true });
+	nodeFs.writeFileSync(nodePath.join(host.photos, rel), Buffer.from([0x89, 0x50, 0x4e, 0x47, shade, shade, shade]));
+};
+/** The caption text on screen, or null when no caption layer is live. */
+const captionShown = (r) => {
+	const el = r.g.doc.body.children.find((n) => n.attrs && n.attrs['aria-hidden'] === 'true' && !n.removed);
+	return el ? el.children[0].textContent : null;
+};
+
+test('folder subfolders: sequential rotation plays the folder, then each subfolder by name, and each link serves its file', async (t) => {
+	const host = await startFolderHost(t, ['r.png']);
+	putPhoto(host, 'Bella/b.png', 2);
+	putPhoto(host, 'Anna/a2.png', 3);
+	putPhoto(host, 'Anna/a1.png', 4);
+	putPhoto(host, 'Anna/Beach/s.png', 5);
+	const r = bootFolder(host, { rotation: { lastRotatedAt: Date.now() } });
+	const seen = [];
+	for (let i = 0; i < 6; i++) {
+		const before = r.url();
+		await r.adv.rotateNow();
+		await until(() => r.url() !== before, 'the next image');
+		seen.push(folderName(r.url()));
+	}
+	assert.deepEqual(seen, ['r.png', 'Anna/a1.png', 'Anna/a2.png', 'Anna/Beach/s.png', 'Bella/b.png', 'r.png'], 'folder by folder, by name, wrapping');
+	assert.ok(r.probes.some((p) => /name=Anna%2FBeach%2Fs\.png&/.test(p.url)), 'the separator travels percent-encoded');
+	const served = await host.get(r.probes.find((p) => p.url.includes('Beach')).url);
+	assert.equal(served.status, 200, 'a subfolder link serves its file');
+	assert.ok(Buffer.from(await served.arrayBuffer()).equals(nodeFs.readFileSync(nodePath.join(host.photos, 'Anna', 'Beach', 's.png'))));
+});
+
+test('folder subfolders: the render gate takes a relative path of plain names and nothing near it', async (t) => {
+	const host = await startFolderHost(t);
+	const paints = (name) => {
+		const r = bootRotation({ urls: [], current: `dream-skin/api/folder/file?name=${name}&v=1-1`, rotation: null, fetch: host.hostFetch });
+		try { r.g.main(); return true; } catch { return false; }
+	};
+	for (const name of ['Anna%2Fa.png', 'a%2Fb%2Fc%2Fd.png', '%E6%B2%B3%E5%90%88%2F1.jpg']) assert.equal(paints(name), true, `${name} paints`);
+	for (const name of ['a%2F..%2Fb.png', '..%2Fx.png', '%2Fabs.png', 'a%2F%2Fb.png', '.x%2Fy.jpg', 'a%2F.y.jpg', 'a%2F', 'a%2Fb%2Fc%2Fd%2Fe.png', 'a%5Cb.png', 'a%2F%0Ab.png']) {
+		assert.equal(paints(name), false, `${name} paints nothing`);
+	}
+});
+
+test('folder name: the caption names the innermost folder of the image on screen, only when asked, and follows the rotation', async (t) => {
+	const host = await startFolderHost(t, ['r.png']);
+	putPhoto(host, 'Anna/a1.png', 3);
+	putPhoto(host, 'Anna/Beach/s.png', 4);
+	putPhoto(host, 'Ev‮il/e.png', 5);
+	const r = bootFolder(host, { rotation: { lastRotatedAt: Date.now() } });
+	const cap = r.h.actionBags['dream-skin-wallpaper-caption'];
+	const next = async () => { const before = r.url(); await r.adv.rotateNow(); await until(() => r.url() !== before, 'the next image'); return folderName(r.url()); };
+
+	assert.equal(await next(), 'r.png');
+	assert.equal(await next(), 'Anna/a1.png');
+	assert.equal(captionShown(r), null, 'off by default: nothing is drawn over the wallpaper');
+	cap.setCaption({ folderName: 1 });
+	assert.equal(captionShown(r), 'Anna', 'switched on: the folder of the image on screen');
+	cap.setCaption({ text: 'hi' });
+	assert.equal(captionShown(r), 'Anna\nhi', 'the folder name is its own line above the caption text');
+	cap.setCaption({ on: 0 });
+	assert.equal(captionShown(r), 'Anna', 'it shows even with the caption itself switched off');
+	assert.equal(await next(), 'Anna/Beach/s.png');
+	assert.equal(captionShown(r), 'Beach', 'the innermost folder is named, and it follows the rotation');
+	assert.equal(await next(), 'Ev‮il/e.png');
+	assert.equal(captionShown(r), 'Evil', 'a folder name is cleaned like caption text: no bidi override reaches the page');
+	assert.equal(await next(), 'r.png');
+	assert.equal(captionShown(r), null, 'an image in the folder itself has no folder name to show');
+	cap.setCaption({ folderName: 0, on: 1 });
+	assert.equal(await next(), 'Anna/a1.png');
+	assert.equal(captionShown(r), 'hi', 'switched off: only the caption text');
+	assert.equal(JSON.parse(r.h.localStorage.getItem('dsh-dream-skin:wallpaper-caption')).text, 'hi', 'the folder name is never written into the stored caption');
 });

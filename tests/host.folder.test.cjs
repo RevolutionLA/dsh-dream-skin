@@ -90,7 +90,7 @@ async function fixture(t, { folder } = {}) {
 	return { root, home, photos, outside, port, call, list, file, setFolder };
 }
 
-test('folder list: images in human order, nothing else — dotfiles, svg, heic, subfolders, empty and oversize files and every symlink stay out', async (t) => {
+test('folder list: images in human order, nothing else — dotfiles, svg, heic, empty and oversize files and every symlink stay out; a subfolder\'s images follow the folder\'s own', async (t) => {
 	const f = await fixture(t);
 	for (const [name, shade] of [['img10.png', 10], ['img2.png', 2], ['IMG1.JPG', 1], ['a b.webp', 4], ['八骏图 final.jpeg', 5], ['x.gif', 6], ['y.avif', 7], ['z.bmp', 8]]) fs.writeFileSync(path.join(f.photos, name), png(shade));
 	for (const name of ['.hidden.png', 'vector.svg', 'phone.heic', 'notes.txt', 'noext']) fs.writeFileSync(path.join(f.photos, name), png(9));
@@ -104,7 +104,7 @@ test('folder list: images in human order, nothing else — dotfiles, svg, heic, 
 	fs.symlinkSync(path.join(f.photos, 'img2.png'), path.join(f.photos, 'alias.png'));
 	const answer = await f.list();
 	assert.equal(answer.ok, true);
-	assert.deepEqual(answer.value.files.map((x) => x.name), ['a b.webp', 'IMG1.JPG', 'img2.png', 'img10.png', 'x.gif', 'y.avif', 'z.bmp', '八骏图 final.jpeg'], 'sorted like a person sorts, only real image files');
+	assert.deepEqual(answer.value.files.map((x) => x.name), ['a b.webp', 'IMG1.JPG', 'img2.png', 'img10.png', 'x.gif', 'y.avif', 'z.bmp', '八骏图 final.jpeg', 'album/nested.png'], 'sorted like a person sorts, only real image files, the folder before its subfolder');
 	assert.equal(answer.value.truncated, false);
 	for (const entry of answer.value.files) assert.deepEqual(Object.keys(entry).sort(), ['mtimeMs', 'name', 'size'], 'the entry carries exactly name, size and mtimeMs');
 	assert.ok(!JSON.stringify(answer).includes(f.photos), 'no path leaks into the answer');
@@ -182,7 +182,7 @@ test('folder file: names that are not a plain image basename are refused with a 
 	fs.symlinkSync(path.join(f.photos, 'ok.png'), path.join(f.photos, 'alias.png'));
 	fs.writeFileSync(path.join(f.photos, 'huge.png'), '');
 	fs.truncateSync(path.join(f.photos, 'huge.png'), 41 * 1024 * 1024);
-	const refused = ['../outside/secret.png', '..%2Foutside%2Fsecret.png', 'album/nested.png', 'album\\nested.png', path.join(f.outside, 'secret.png'), '.hidden.png', '..', '.', '', 'vector.svg', 'notes.txt', 'dir.png', 'escape.png', 'alias.png', 'huge.png', 'missing.png', 'ok.png\u0000.txt', 'ok.png\n', 'a'.repeat(300) + '.png'];
+	const refused = ['../outside/secret.png', '..%2Foutside%2Fsecret.png', 'album\\nested.png', 'album/../ok.png', './ok.png', '/ok.png', 'album//nested.png', 'album/', path.join(f.outside, 'secret.png'), '.hidden.png', '..', '.', '', 'vector.svg', 'notes.txt', 'dir.png', 'escape.png', 'alias.png', 'huge.png', 'missing.png', 'ok.png\u0000.txt', 'ok.png\n', 'a'.repeat(300) + '.png'];
 	for (const name of refused) {
 		const res = await f.file(name);
 		assert.equal(res.status, 404, `${JSON.stringify(name)} is refused`);
@@ -190,6 +190,7 @@ test('folder file: names that are not a plain image basename are refused with a 
 	}
 	assert.equal((await f.call({ path: '/dream-skin/api/folder/file' })).status, 404, 'no name at all');
 	assert.equal((await f.file('ok.png')).status, 200, 'reverse leg: the legitimate neighbor is served after all that');
+	assert.equal((await f.file('album/nested.png')).status, 200, 'reverse leg: and so is the image in the real subfolder');
 });
 
 test('folder file: the folder is the persisted setting — a `folder` in the request changes nothing', async (t) => {
@@ -247,4 +248,87 @@ test('folder list: a huge folder costs at most the cap in stats — names are so
 	assert.equal(answer.value.files.length, 2000, 'sample 1: the cap holds');
 	assert.equal(answer.value.truncated, true, 'and the answer admits it');
 	assert.ok(lstatCalls <= 2000 + 2, `sample 2: at most the cap in stats (+ the folder itself), saw ${lstatCalls}`);
+});
+
+// ── subfolders: up to three real levels below the folder ─────────────────────
+// A person's photos usually sit in a folder named after them, so the listing
+// walks subfolders too. Every path the listing names must be servable, and the
+// file route must refuse every path the listing would not name — the two share
+// one rule, and these cases hold them to it from both sides.
+
+test('folder list: three subfolder levels are listed, the fourth is not, in folder-then-name order', async (t) => {
+	const f = await fixture(t);
+	const put = (rel, shade) => {
+		fs.mkdirSync(path.dirname(path.join(f.photos, rel)), { recursive: true });
+		fs.writeFileSync(path.join(f.photos, rel), png(shade));
+	};
+	put('root.png', 1);
+	put('Bella/b2.png', 2);
+	put('Bella/b10.png', 3);
+	put('Anna/a.png', 4);
+	put('Anna/Beach/sea.png', 5);
+	put('Anna/Beach/Day1/deep.png', 6);
+	put('Anna/Beach/Day1/Too/deeper.png', 7);
+	put('z-last.png', 8);
+	const names = (await f.list()).value.files.map((x) => x.name);
+	assert.deepEqual(names, ['root.png', 'z-last.png', 'Anna/a.png', 'Anna/Beach/sea.png', 'Anna/Beach/Day1/deep.png', 'Bella/b2.png', 'Bella/b10.png'],
+		'the folder\'s own images, then each subfolder by name, each one played through before the next');
+	assert.ok(!names.includes('Anna/Beach/Day1/Too/deeper.png'), 'the fourth level is not listed');
+	for (const name of names) assert.equal((await f.file(name)).status, 200, `${name}: every listed path is served`);
+	const deep = await f.file('Anna/Beach/Day1/Too/deeper.png');
+	assert.equal(deep.status, 404, 'and the fourth level is not served either');
+	assert.equal(deep.body.length, 0);
+});
+
+test('folder list: a symlinked or hidden subfolder is neither listed nor served, and its real neighbor is', async (t) => {
+	const f = await fixture(t);
+	fs.mkdirSync(path.join(f.photos, 'Real'));
+	fs.writeFileSync(path.join(f.photos, 'Real', 'ok.png'), png(1));
+	fs.writeFileSync(path.join(f.outside, 'secret.png'), png(99));
+	fs.symlinkSync(f.outside, path.join(f.photos, 'Escape'));
+	fs.symlinkSync(path.join(f.photos, 'Real'), path.join(f.photos, 'Alias'));
+	fs.mkdirSync(path.join(f.photos, '.cache'));
+	fs.writeFileSync(path.join(f.photos, '.cache', 'thumb.png'), png(2));
+	const names = (await f.list()).value.files.map((x) => x.name);
+	assert.deepEqual(names, ['Real/ok.png'], 'only the real, visible subfolder is walked');
+	for (const name of ['Escape/secret.png', 'Alias/ok.png', '.cache/thumb.png', 'Real/../Escape/secret.png', 'Real\\ok.png', 'a/b/c/d/e.png']) {
+		const res = await f.file(name);
+		assert.equal(res.status, 404, `${JSON.stringify(name)} is refused`);
+		assert.equal(res.body.length, 0, `${JSON.stringify(name)}: no body`);
+	}
+	assert.equal((await f.file('Real/ok.png')).status, 200, 'reverse leg: the real subfolder\'s image is served');
+});
+
+test('folder list: an unreadable subfolder is skipped, the rest of the tree still lists', { skip: process.getuid?.() === 0 && 'root reads every directory' }, async (t) => {
+	const f = await fixture(t);
+	fs.mkdirSync(path.join(f.photos, 'Locked'));
+	fs.writeFileSync(path.join(f.photos, 'Locked', 'x.png'), png(1));
+	fs.mkdirSync(path.join(f.photos, 'Open'));
+	fs.writeFileSync(path.join(f.photos, 'Open', 'y.png'), png(2));
+	fs.chmodSync(path.join(f.photos, 'Locked'), 0o000);
+	let answer;
+	try {
+		answer = await f.list();
+	} finally {
+		// Restored here, not in t.after: the fixture's cleanup hook runs first and could not delete it.
+		fs.chmodSync(path.join(f.photos, 'Locked'), 0o755);
+	}
+	assert.equal(answer.ok, true, 'one locked subfolder does not fail the listing');
+	assert.deepEqual(answer.value.files.map((x) => x.name), ['Open/y.png']);
+});
+
+test('folder list: past the directory cap the walk stops and says so, and the first folders are still listed', async (t) => {
+	const f = await fixture(t);
+	// 501 subfolders plus the folder itself: the cap of 500 reads the folder and the first 499.
+	for (let i = 0; i <= 500; i++) {
+		const dir = path.join(f.photos, `d${String(i).padStart(3, '0')}`);
+		fs.mkdirSync(dir);
+		fs.writeFileSync(path.join(dir, 'p.png'), png(1));
+	}
+	const answer = await f.list();
+	const names = answer.value.files.map((x) => x.name);
+	assert.equal(answer.value.truncated, true, 'the answer admits the tree was cut');
+	assert.equal(names.length, 499, 'one image per subfolder that was read');
+	assert.equal(names[0], 'd000/p.png', 'folders are walked in name order');
+	assert.ok(!names.includes('d499/p.png') && !names.includes('d500/p.png'), 'the folders past the cap are not listed');
 });
