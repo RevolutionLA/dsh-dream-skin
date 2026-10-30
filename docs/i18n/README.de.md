@@ -83,7 +83,7 @@ Overlay-Ebene (`overrideTokens`), per Klick ein-/ausschaltbar und mit einem Klic
 
 | Fähigkeit | Was du tun kannst |
 |------|------|
-| 🖼️ **Wallpaper 2.0** | Lokales Bild / **Bild-URL** / **Gradient-Presets**; dazu **Deckkraft / Unschärfe**; jeder Skin **schlägt** sogar einen Gradient vor und kann **automatisch abdunkeln** (weniger Ablenkung beim Fokussieren) |
+| 🖼️ **Wallpaper 2.0** | Lokales Bild / **Bild-URL** / **Gradient-Presets**; dazu **Deckkraft / Unschärfe**; jeder Skin **schlägt** sogar einen Gradient vor und kann **automatisch abdunkeln** (begrenzt die Bilddeckkraft auf 45 %) |
 | 🌈 **Accent pro Nutzer** | Lege eine eigene Marken-Akzentfarbe über den aktiven Skin (`overrideTokens`-Ebene, der Skin bleibt unangetastet): **12 Preset-Farbfelder per Klick**, Farbwähler, Zufallsfunktion und eine Option zum Entfernen/Wiederherstellen |
 | 📦 **Theme-Pack importieren / exportieren / teilen** | Eine `*.dsh-theme.json` = Manifest + vollständige Tokens. Datei importieren, per Klick anwenden oder einen **Freigabelink** kopieren (im URL-Hash kodiert) |
 | 🪟 **Popup-Deckkraft** | Ein Regler für die Transparenz von Dropdowns / Overlays / Dialog-Hintergrundfüllung, dauerhaft gespeichert; alle Flächen mit dem Popup-Grund-Token (Einstellungen, Plugin-Verwaltung, Trajektorien-Tooltips, schwebende Karten) teilen eine Lesbarkeitsuntergrenze von 92 % undurchsichtig – die erhöhte Fläche des Themas selbst –, Menü- und Abdunklungs-Layer bleiben im vollen Bereich |
@@ -166,7 +166,7 @@ npm run compositor:audit        # pro Stelle: Zeile / Unschärferadius / Selekto
 
 (im Repository ausführen — das npm-Paket enthält nur die Laufzeit, nicht scripts/)
 
-Gemessen in der ausgelieferten Browser-Hälfte: **6 `backdrop-filter`-Flächen** (Fragekarte des Hosts 24px, Todo-/Queue-Dock 20px; unser Modal 14px, Eingabe 14px, Liquid Glass 34px), **40 radial-gradient-Vorkommen**, **2 `requestAnimationFrame`-Schleifen** sowie **ein bildschirmfüllendes `filter: blur()` auf dem Hintergrundbild** (im Modus "unscharf füllen" mit einem dickeren Bleed-Schein) — Letzteres ist der größte Durchgang überhaupt, steht als Inline-Stil im JS statt im Stylesheet, und ein reiner CSS-Audit übersieht ihn (die erste Fassung unseres Audits tat genau das). `tests/compositor_budget.test.cjs` hält diese Zahlen: eine Fläche mehr oder ein dickerer Radius bedeutet, die Budget-Tabelle mit Begründung im Diff zu ändern.
+Gemessen in der ausgelieferten Browser-Hälfte: **6 `backdrop-filter`-Flächen** (Fragekarte des Hosts 24px, Todo-/Queue-Dock 20px; unser Modal 14px, Eingabe 14px, das `/`-Befehlsmenü 14px, Liquid Glass 34px; das Audit zählt zusätzlich zwei `none`-Low-Power-Guards, insgesamt 8 Deklarationen), **40 radial-gradient-Vorkommen**, **2 `requestAnimationFrame`-Schleifen** sowie **ein bildschirmfüllendes `filter: blur()` auf dem Hintergrundbild** (im Modus "unscharf füllen" mit einem dickeren Bleed-Schein) — Letzteres ist der größte Durchgang überhaupt, steht als Inline-Stil im JS statt im Stylesheet, und ein reiner CSS-Audit übersieht ihn (die erste Fassung unseres Audits tat genau das). `tests/compositor_budget.test.cjs` hält diese Zahlen: eine Fläche mehr oder ein dickerer Radius bedeutet, die Budget-Tabelle mit Begründung im Diff zu ändern.
 
 **Was es beweist**: wie viele Flächen dieser Build *deklariert*, wie dick jede ist, und dass der Energiespar-Schalter sie wirklich abdeckt (inklusive Pseudoelementen und Hintergrundbild-Ebene).
 **Was es nicht beweist**: wie viele deine Maschine gerade komponiert — das hängt von Fensterzahl, externen Displays, Treiber und den aktuell eingehängten Flächen ab.
@@ -349,7 +349,7 @@ Dual-Face-Plugin:
   3. rendert das Wallpaper als festen Hintergrund (`z-index:-1`) und stapelt `ctx.theme.overrideTokens(...)`, wodurch die
      Hauptfläche (`--dsw-alias-bg-base`) und die Seitenleiste (`--dsw-specific-sidebar-fill`) transluzent werden;
   4. lauscht auf `theme/change` und färbt den Wallpaper-Überzug beim Skin-/Scheme-Wechsel neu;
-  5. registriert einen eigenen **Settings → Theme / Appearance**-Bereich (`settings.section`) und hängt die fünf
+  5. registriert einen eigenen **Settings → Theme / Appearance**-Bereich (`settings.section`) und hängt die sieben
      Funktionszeilen in den `settings.dreamSkin.item`-Slot ein.
 
 Jeder Skin trägt sein `colorScheme` (`light`/`dark`); dieses Plugin stempelt es auf sein eigenes Wurzelelement

@@ -83,7 +83,7 @@
 
 | 기능 | 할 수 있는 일 |
 |------|------|
-| 🖼️ **Wallpaper 2.0** | 로컬 이미지 / **이미지 URL** / **gradient preset**; 여기에 **opacity / blur**까지; 각 skin은 심지어 gradient를 **추천**하고 **자동으로 어둡게**(집중할 때 방해 요소 줄이기) 할 수 있습니다 |
+| 🖼️ **Wallpaper 2.0** | 로컬 이미지 / **이미지 URL** / **gradient preset**; 여기에 **opacity / blur**까지; 각 skin은 심지어 gradient를 **추천**하고 **자동으로 어둡게**(배경 불투명도를 최대 45%로 제한) 할 수 있습니다 |
 | 🌈 **사용자별 Accent** | 활성 skin 위에 나만의 브랜드 accent를 쌓을 수 있습니다 (`overrideTokens` 레이어, skin은 그대로): **클릭 한 번으로 적용되는 preset 스와치 12종**, color picker, 랜덤, 그리고 초기화/복원 옵션 |
 | 📦 **Theme pack 가져오기 / 내보내기 / 공유** | `*.dsh-theme.json` = manifest + 전체 tokens. 파일을 가져오거나, 한 번의 클릭으로 적용하거나, **공유 링크**(URL hash에 인코딩)를 복사할 수 있습니다 |
 | 🪟 **Popup 투명도** | dropdown / overlay / dialog의 하단 채움 투명도를 조절하는 슬라이더, 설정이 유지됩니다. 팝업 바탕 토큰으로 칠해진 면(설정, 플러그인 관리자, 궤적 툴팁, 카드형 오버레이)은 공통으로 가독성 하한(불투명도 92%, 스킨 자체의 들림 면)을 유지하고, 메뉴와 스크림 계통은 계속 전 구간입니다 |
@@ -171,7 +171,7 @@ npm run compositor:audit        # 지점별: 줄 번호 / 블러 반경 / 선택
 
 (저장소에서 실행 — npm 패키지에는 런타임만 들어 있고 scripts/는 포함되지 않습니다)
 
-출시되는 브라우저 절반의 실측: **`backdrop-filter` 패널 6개**(호스트 질문 카드 24px, 할 일/큐 독 20px, 우리 모달 14px, 입력창 14px, 리퀴드 글래스 34px), **radial-gradient 40곳**, **`requestAnimationFrame` 2개 루프**, 그리고 **배경 레이어의 전체 화면 `filter: blur()`**("블러 채우기"에서는 더 두꺼운 bleed 후광까지) — 마지막 항목이 가장 큰 비용인데, CSS가 아니라 JS가 인라인 스타일로 쓰기 때문에 CSS만 읽는 감사는 놓칩니다(저희 첫 버전이 정확히 그랬습니다). `tests/compositor_budget.test.cjs`가 이 숫자들을 붙잡고 있어, 패널을 늘리거나 반경을 키우려면 diff에서 예산표와 이유를 함께 고쳐야 합니다.
+출시되는 브라우저 절반의 실측: **`backdrop-filter` 패널 6개**(호스트 질문 카드 24px, 할 일/큐 독 20px, 우리 모달 14px, 입력창 14px, `/` 명령 메뉴 14px, 리퀴드 글래스 34px; 감사는 `none` 저전력 가드 2개를 더 세어 선언은 총 8개), **radial-gradient 40곳**, **`requestAnimationFrame` 2개 루프**, 그리고 **배경 레이어의 전체 화면 `filter: blur()`**("블러 채우기"에서는 더 두꺼운 bleed 후광까지) — 마지막 항목이 가장 큰 비용인데, CSS가 아니라 JS가 인라인 스타일로 쓰기 때문에 CSS만 읽는 감사는 놓칩니다(저희 첫 버전이 정확히 그랬습니다). `tests/compositor_budget.test.cjs`가 이 숫자들을 붙잡고 있어, 패널을 늘리거나 반경을 키우려면 diff에서 예산표와 이유를 함께 고쳐야 합니다.
 
 **증명하는 것**: 이 빌드가 *선언*한 패널 수와 두께, 그리고 저전력 스위치가 그것들을 정말 덮는지(의사 요소와 배경 레이어 포함).
 **증명하지 못하는 것**: 지금 당신의 기계에서 몇 개가 합성되는지 — 창 수, 외부 모니터, 드라이버, 현재 마운트된 면에 달려 있습니다.
@@ -353,7 +353,7 @@ DSH의 테마 시스템은 token 기반입니다: web shell이 `--dsw-*` 디자�
   3. wallpaper를 `z-index:-1` 고정 배경으로 렌더링하고 `ctx.theme.overrideTokens(...)`를 쌓아
      메인 캔버스(`--dsw-alias-bg-base`)와 사이드바(`--dsw-specific-sidebar-fill`)를 반투명하게 만듭니다;
   4. `theme/change`를 수신해 skin / scheme 전환 시 wallpaper wash를 다시 칠합니다;
-  5. 전용 **Settings → Theme / Appearance** 섹션(`settings.section`)을 등록하고 다섯 가지 기능 행을
+  5. 전용 **Settings → Theme / Appearance** 섹션(`settings.section`)을 등록하고 일곱 가지 기능 행을
      `settings.dreamSkin.item` 슬롯 아래에 마운트합니다.
 
 각 skin은 `colorScheme` (`light`/`dark`)을 지니고, 이 플러그인이 그것을 자신의 루트 요소 `<html>`에

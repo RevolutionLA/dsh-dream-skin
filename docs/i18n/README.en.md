@@ -83,7 +83,7 @@ The two ways are layered and independent: a preset decides the "material &amp; b
 
 | Capability | What you can do |
 |------|------|
-| 🖼️ **Wallpaper 2.0** | Local image / **image URL** / **gradient presets**; plus **opacity / blur**; each skin even **suggests** a gradient and can **auto-dim** (lower distraction when focusing) |
+| 🖼️ **Wallpaper 2.0** | Local image / **image URL** / **gradient presets**; plus **opacity / blur**; each skin even **suggests** a gradient and can **auto-dim** (caps wallpaper opacity at 45%) |
 | 🌈 **Per-user Accent** | Stack a custom brand-accent over the active skin (`overrideTokens` layer, the skin untouched): **12 one-click preset swatches**, color picker, randomize, and a clear/restore option |
 | 📦 **Theme-pack import / export / share** | A `*.dsh-theme.json` = manifest + full tokens. Import a file, one-click apply, or copy a **share link** (encoded in the URL hash) |
 | 🪟 **Popup opacity** | A slider that controls dropdown / overlay / dialog bottom-fill transparency, persisted; every surface painted from the popup-base token (Settings, the plugin manager, trajectory tooltips, floating cards) shares a readability floor at 92% opaque — the skin's own elevation fill — while the menu and scrim legs stay full-range |
@@ -171,7 +171,7 @@ npm run compositor:audit        # per site: line number / blur radius / selector
 
 (run it in the repository — the npm package ships only the runtime, not scripts/)
 
-Measured in the shipped browser half: **6 `backdrop-filter` panes** (the host's question card 24px and todo/queue dock 20px; our modal 14px, composer 14px, liquid glass 34px), **40 radial-gradient occurrences**, **2 `requestAnimationFrame` loops**, plus **one full-viewport `filter: blur()` on the wallpaper** (with a thicker bleed halo in "blurred fill" mode) — that last one is the largest pass of all, it is written inline from JS rather than in the stylesheet, and a CSS-only audit misses it (the first version of ours did exactly that). `tests/compositor_budget.test.cjs` holds these numbers: one more pane or one fatter radius means editing the budget table with a reason in the diff.
+Measured in the shipped browser half: **6 `backdrop-filter` panes** (the host's question card 24px and todo/queue dock 20px; our modal 14px, composer 14px, the `/` command menu 14px, liquid glass 34px; the audit also counts two `none` low-power guards, 8 declarations in total), **40 radial-gradient occurrences**, **2 `requestAnimationFrame` loops**, plus **one full-viewport `filter: blur()` on the wallpaper** (with a thicker bleed halo in "blurred fill" mode) — that last one is the largest pass of all, it is written inline from JS rather than in the stylesheet, and a CSS-only audit misses it (the first version of ours did exactly that). `tests/compositor_budget.test.cjs` holds these numbers: one more pane or one fatter radius means editing the budget table with a reason in the diff.
 
 **What it proves**: how many panes this build *declares*, how thick each is, and that the low-power switch really covers them (pseudo-elements and the wallpaper layer included).
 **What it does not prove**: how many your machine composites right now — that depends on your window count, external displays, driver and which surfaces are mounted.
@@ -354,7 +354,7 @@ plugins register themes that override the alias layer (`--dsw-alias-*`). This pa
   3. renders the wallpaper as a `z-index:-1` fixed backdrop and stacks `ctx.theme.overrideTokens(...)` making the
      main canvas (`--dsw-alias-bg-base`) and sidebar (`--dsw-specific-sidebar-fill`) translucent;
   4. listens for `theme/change` and re-shades the wallpaper wash on skin / scheme switch;
-  5. registers a dedicated **Settings → Theme / Appearance** section (`settings.section`) and mounts the five
+  5. registers a dedicated **Settings → Theme / Appearance** section (`settings.section`) and mounts the seven
      feature rows under the `settings.dreamSkin.item` slot.
 
 Each skin carries its `colorScheme` (`light`/`dark`); this plugin stamps it on its own root element `<html>`

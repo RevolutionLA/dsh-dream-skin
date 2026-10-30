@@ -84,7 +84,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 
 | Capacidad | Qué puedes hacer |
 |------|------|
-| 🖼️ **Wallpaper 2.0** | Imagen local / **URL de imagen** / **presets de gradiente**; además **opacidad / desenfoque**; cada skin incluso **sugiere** un gradiente y puede **atenuarse automáticamente** (reduce distracciones al enfocarte) |
+| 🖼️ **Wallpaper 2.0** | Imagen local / **URL de imagen** / **presets de gradiente**; además **opacidad / desenfoque**; cada skin incluso **sugiere** un gradiente y puede **atenuarse automáticamente** (limita la opacidad del fondo al 45%) |
 | 🌈 **Accent por usuario** | Superpone un acento de marca personalizado sobre la skin activa (capa `overrideTokens`, la skin intacta): **12 muestras de un clic**, selector de color, aleatorizar y una opción para limpiar/restaurar |
 | 📦 **Importar / exportar / compartir theme packs** | Un `*.dsh-theme.json` = manifest + tokens completos. Importa un archivo, aplícalo con un clic o copia un **enlace para compartir** (codificado en el hash de la URL) |
 | 🪟 **Opacidad de popups** | Un deslizador que controla la transparencia del relleno inferior de desplegables / overlays / diálogos, con persistencia; todas las superficies pintadas con el token de fondo emergente (Ajustes, el gestor de complementos, las ayudas de trayectoria, las tarjetas flotantes) comparten un suelo de legibilidad del 92 % de opacidad —la propia superficie elevada del tema—, y las vías de menú y velo mantienen el rango completo |
@@ -173,7 +173,7 @@ npm run compositor:audit        # por sitio: línea / radio de desenfoque / sele
 
 (ejecútalo en el repositorio — el paquete npm solo incluye el runtime, no scripts/)
 
-Medido en la mitad de navegador que se publica: **6 paneles `backdrop-filter`** (tarjeta de pregunta del host 24px, dock de tareas/cola 20px; nuestro modal 14px, entrada 14px, cristal líquido 34px), **40 apariciones de radial-gradient**, **2 bucles `requestAnimationFrame`**, y **un `filter: blur()` a pantalla completa sobre el fondo** (con un halo *bleed* más grueso en el modo "relleno desenfocado"): ese último es el paso más grande de todos, se escribe en línea desde JS y no en la hoja de estilos, así que una auditoría que solo lea CSS lo pierde (la primera versión de la nuestra hizo exactamente eso). `tests/compositor_budget.test.cjs` sujeta estos números: un panel más o un radio mayor obliga a editar la tabla de presupuesto con una razón en el diff.
+Medido en la mitad de navegador que se publica: **6 paneles `backdrop-filter`** (tarjeta de pregunta del host 24px, dock de tareas/cola 20px; nuestro modal 14px, entrada 14px, el menú de comandos `/` 14px, cristal líquido 34px; la auditoría cuenta además dos guardas `none` de bajo consumo, 8 declaraciones en total), **40 apariciones de radial-gradient**, **2 bucles `requestAnimationFrame`**, y **un `filter: blur()` a pantalla completa sobre el fondo** (con un halo *bleed* más grueso en el modo "relleno desenfocado"): ese último es el paso más grande de todos, se escribe en línea desde JS y no en la hoja de estilos, así que una auditoría que solo lea CSS lo pierde (la primera versión de la nuestra hizo exactamente eso). `tests/compositor_budget.test.cjs` sujeta estos números: un panel más o un radio mayor obliga a editar la tabla de presupuesto con una razón en el diff.
 
 **Qué demuestra**: cuántos paneles *declara* esta versión, qué grosor tiene cada uno, y que el interruptor de bajo consumo los cubre de verdad (pseudo-elementos y capa de fondo incluidas).
 **Qué no demuestra**: cuántos compone tu máquina ahora mismo — eso depende de tus ventanas, pantallas externas, driver y qué superficies estén montadas.
@@ -361,7 +361,7 @@ plugin estándar de doble cara:
   3. renderiza el wallpaper como fondo fijo `z-index:-1` y apila `ctx.theme.overrideTokens(...)` haciendo
      translúcidos el lienzo principal (`--dsw-alias-bg-base`) y la barra lateral (`--dsw-specific-sidebar-fill`);
   4. escucha `theme/change` y re-tiñe el lavado del wallpaper al cambiar de skin / esquema;
-  5. registra una sección dedicada **Settings → Theme / Appearance** (`settings.section`) y monta las cinco
+  5. registra una sección dedicada **Settings → Theme / Appearance** (`settings.section`) y monta las siete
      filas de funciones en el slot `settings.dreamSkin.item`.
 
 Cada skin lleva su `colorScheme` (`light`/`dark`); este plugin lo estampa en su propio elemento raíz `<html>`

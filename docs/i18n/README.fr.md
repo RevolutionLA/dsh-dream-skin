@@ -83,7 +83,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 
 | Capacité | Ce que vous pouvez faire |
 |------|------|
-| 🖼️ **Wallpaper 2.0** | Image locale / **URL d'image** / **presets de gradient** ; plus **opacité / flou** ; chaque skin **suggère** même un gradient et peut **s'assombrir automatiquement** (moins de distractions en mode concentration) |
+| 🖼️ **Wallpaper 2.0** | Image locale / **URL d'image** / **presets de gradient** ; plus **opacité / flou** ; chaque skin **suggère** même un gradient et peut **s'assombrir automatiquement** (plafonne l'opacité du fond à 45 %) |
 | 🌈 **Accent par utilisateur** | Empilez un accent de marque personnalisé par-dessus le skin actif (couche `overrideTokens`, le skin reste intact) : **12 nuanciers prédéfinis en un clic**, sélecteur de couleur, aléatoire, et une option d'effacement / restauration |
 | 📦 **Import / export / partage de packs de thèmes** | Un `*.dsh-theme.json` = manifest + tokens complets. Importez un fichier, appliquez-le en un clic, ou copiez un **lien de partage** (encodé dans le hash de l'URL) |
 | 🪟 **Opacité des popups** | Un curseur qui contrôle la transparence du fond des menus déroulants / overlays / boîtes de dialogue, persisté ; toutes les surfaces peintes avec le jeton de fond flottant (Réglages, gestionnaire d’extensions, infobulles de trajectoire, cartes flottantes) partagent un seuil de lisibilité à 92 % d’opacité —la surface surélevée du thème elle-même—, tandis que les voies menu et voile restent en pleine amplitude |
@@ -171,7 +171,7 @@ npm run compositor:audit        # par site : ligne / rayon de flou / sélecteur
 
 (à lancer dans le dépôt — le paquet npm ne contient que le runtime, pas scripts/)
 
-Mesuré dans la moitié navigateur livrée : **6 panneaux `backdrop-filter`** (carte de question de l'hôte 24px, dock tâches/file 20px ; notre modale 14px, zone de saisie 14px, verre liquide 34px), **40 occurrences de radial-gradient**, **2 boucles `requestAnimationFrame`**, plus **un `filter: blur()` plein écran sur le fond** (avec un halo *bleed* plus épais en mode « remplissage flou ») — ce dernier est le poste le plus coûteux, écrit en style inline depuis JS et non dans la feuille de styles, donc un audit qui ne lit que le CSS le manque (la première version du nôtre a fait exactement ça). `tests/compositor_budget.test.cjs` tient ces chiffres : un panneau de plus ou un rayon plus large impose de modifier le tableau de budget avec une raison dans le diff.
+Mesuré dans la moitié navigateur livrée : **6 panneaux `backdrop-filter`** (carte de question de l'hôte 24px, dock tâches/file 20px ; notre modale 14px, zone de saisie 14px, le menu de commandes `/` 14px, verre liquide 34px ; l'audit compte aussi deux gardes `none` basse consommation, 8 déclarations au total), **40 occurrences de radial-gradient**, **2 boucles `requestAnimationFrame`**, plus **un `filter: blur()` plein écran sur le fond** (avec un halo *bleed* plus épais en mode « remplissage flou ») — ce dernier est le poste le plus coûteux, écrit en style inline depuis JS et non dans la feuille de styles, donc un audit qui ne lit que le CSS le manque (la première version du nôtre a fait exactement ça). `tests/compositor_budget.test.cjs` tient ces chiffres : un panneau de plus ou un rayon plus large impose de modifier le tableau de budget avec une raison dans le diff.
 
 **Ce que cela prouve** : combien de panneaux cette version *déclare*, leur épaisseur, et que l'interrupteur basse consommation les couvre réellement (pseudo-éléments et couche de fond compris).
 **Ce que cela ne prouve pas** : combien votre machine en compose à l'instant — cela dépend du nombre de fenêtres, des écrans externes, du pilote et des surfaces montées.
@@ -354,7 +354,7 @@ tiers d'enregistrer des thèmes qui surchargent la couche d'alias (`--dsw-alias-
   3. rend le wallpaper comme un arrière-plan fixe en `z-index:-1` et empile `ctx.theme.overrideTokens(...)` pour rendre le
      canevas principal (`--dsw-alias-bg-base`) et la barre latérale (`--dsw-specific-sidebar-fill`) translucides ;
   4. écoute `theme/change` et réajuste la teinte du wallpaper lors du changement de skin / de schéma ;
-  5. enregistre une section dédiée **Paramètres → Thème / Apparence** (`settings.section`) et monte les cinq lignes de
+  5. enregistre une section dédiée **Paramètres → Thème / Apparence** (`settings.section`) et monte les sept lignes de
      fonctionnalités sous le slot `settings.dreamSkin.item`.
 
 Chaque skin porte son `colorScheme` (`light`/`dark`) ; ce plugin l'appose sur son propre élément racine `<html>`
