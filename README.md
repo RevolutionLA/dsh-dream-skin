@@ -335,9 +335,9 @@ dsh web   # 重启后恢复官方外观
 > **第三方目录（DSH-Store）现状**：`AI-Scarlett/DSH-Store#1411` 曾把本插件标为 catalog blocked。其中「`lib/client.js` 超过其审核面单文件上限」一条，已由对方 2026-10-15 的追评收回，原文与正文 sha256 存档在 [`docs/evidence/dsh-store-1411-followup-2026-10-15.md`](./docs/evidence/dsh-store-1411-followup-2026-10-15.md)；其追评留下的「扫描器证明不了 `require` 的有限调用集」由 10.16.0 处理（全文见 [docs/release-notes.md](https://github.com/RevolutionLA/dsh-dream-skin/blob/main/docs/release-notes.md)）。**本仓库不承诺收录状态会变绿**——是否放行取决于对方的审查流程。
 
 <details>
-<summary><b>📜 逐版本更新记录（10.30.2 → 9.9.0）</b></summary>
+<summary><b>📜 逐版本更新记录（10.31.0 → 9.9.0）</b></summary>
 
-**版本 10.30.2（2026-10-30）**：**修 #131 评审顺带发现的三处 README 参考数字。** 设置行 **5→7**（`settings.dreamSkin.item` 实际注册 7 处）；合成器面板仍是 **6 块**，但枚举补齐第 6 块「`/` 命令面板」，并写清「另有 2 条 `none` 低功耗守卫，审计合计 8 条声明」；自动弱化文案改为「壁纸不透明度最高 45%」（与 10.30.1 的 UI 一致）。新增 `tests/docs.reference_counts.test.cjs`（3 条）把行数与面板/声明数钉在 bundle 和审计上。回归门 **646/646**（643→646），质量审计 **229/229**（217 调色 + 12 工艺）。**边界**：填充方式在 main 上仍是「裁剪填满」，与 UI 一致；#131 分支把它改成「裁剪填充」，合并那条时再同步。发版用确切版本号：`dsh plugin --profile web add dsh-dream-skin@10.30.2`。
+**版本 10.31.0（2026-10-31）**：**修 #131 评审顺带发现的三处 README 参考数字。** 设置行 **5→7**（`settings.dreamSkin.item` 实际注册 7 处）；合成器面板仍是 **6 块**，但枚举补齐第 6 块「`/` 命令面板」，并写清「另有 2 条 `none` 低功耗守卫，审计合计 8 条声明」；自动弱化文案改为「壁纸不透明度最高 45%」（与 10.30.1 的 UI 一致）。新增 `tests/docs.reference_counts.test.cjs`（3 条）把行数与面板/声明数钉在 bundle 和审计上。回归门 **646/646**（643→646），质量审计 **229/229**（217 调色 + 12 工艺）。**边界**：填充方式在 main 上仍是「裁剪填满」，与 UI 一致；#131 分支把它改成「裁剪填充」，合并那条时再同步。发版用确切版本号：`dsh plugin --profile web add dsh-dream-skin@10.31.0`。
 
 **版本 10.30.1（2026-10-30）**：**修 #129 / #130 两条反馈。** #129 是标签误导：自动弱化的代码方向正确（滑杆是透明度，`Math.min(opacity, 0.45)` 把壁纸不透明度封顶在 45%），旧文案「聚焦任务时」与实际「始终生效」不符，8 种语言已改成「壁纸不透明度最高 45%」；不要改成 `Math.max`，那会让淡壁纸反而变浓。#130 给宿主新的插件管理页补上表面：官方 `@deepseek-ai/dsh-client-ui-plugin-manager@0.2.1-rc.5` 的 `data-plugin-group` / `-item-detail` / `-detail` / `-rows` 加入同一条弹窗玻璃规则（跟随「弹窗透明度」，不新增模糊声明），页面根在壁纸激活时透明。回归门 **643/643**（640→643：新文件 `tests/client.plugin_page.test.cjs` +3），质量审计 **229/229**（217 调色 + 12 工艺）。**边界**：#130 的视觉未在 0.2.1-rc.5 活页目视（本机 0.2.0-rc.1 没有该页），规则按官方包 DOM 编写，请报告者回填。发版用确切版本号：`dsh plugin --profile web add dsh-dream-skin@10.30.1`。
 
