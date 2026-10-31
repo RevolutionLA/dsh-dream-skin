@@ -31,7 +31,7 @@
 - 静态核对：`grep -c 'styles\.slider\b'` = 0、`(0, react_jsx_runtime.jsx)(Slider, {` = 8、`settings.dreamSkin.item` 注册 7 处、`lib/index.js` 26,703 B 一字未动、取景 / 文件夹图源 / 刷新 / 导出等旧功能的选择器仍在 JSX 里被调用。
 - **代价面一项没涨**：`compositor-audit` 仍是 8 条 `backdrop-filter` 声明 / 6 块面板 / 40 处 `radial-gradient` / 2 个 `requestAnimationFrame` / 2 处行内模糊；`craft:audit` 12/12、`skin:check` 同步。
 - 定时与监听的收支：`setTimeout` 15→16 对 `clearTimeout` 16→18、`addEventListener` 4→5 对 `removeEventListener` 5→6——新增的两处（提示卡退场、窄档监听）各自有出口。
-- 发包面：`npm pack --dry-run` = 14 个文件、解包 684,404 B、压缩包 222,031 B；`lib/client.js` 580,314 B。
+- 发包面：`npm pack --dry-run` = 14 个文件、解包 **686,492 B**、压缩包 **222,934 B**；`lib/client.js` 580,314 B。**这组字节数本来记的是 684,404 / 222,031**——那是"合并完、我还没动文档"时测的，之后 11 份文档的导航名同步把包又撑大 2,088 B；发布物是后面这一组。CHANGELOG 不在 `files` 白名单里（10.27.0 起随包文档撤出 npm 包），所以这处更正不需要重发包。
 - 文案改动是**逐条 diff 出来的**：用同一个提取脚本比较合并前后的 8 个语言块（新增 25 / 改名 34（zh）/ 删除 8），不是照抄 PR 描述。
 - `generate-skin-mockups.cjs --check` 指纹一致（8 skins，未重生成图片）；`docs.numbers` / `docs.reference_counts` / `docs.machine_readable` / `package.version` 共 28 条全绿。
 
