@@ -42,7 +42,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 
 ## 📸 Captures d'écran
 
-> De vraies captures d'écran, pas des maquettes. À gauche : DSH après application d'un skin ; à droite : la section dédiée **Thème / Apparence** dans les Paramètres.
+> De vraies captures d'écran, pas des maquettes. À gauche : DSH après application d'un skin ; à droite : la section dédiée **个性化皮肤** dans les Paramètres.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
@@ -54,7 +54,7 @@ Les deux voies sont superposables et indépendantes : un preset décide du « ma
 
 ## 🎨 Voie n°1 : 8 skins prédéfinis (série Mirage)
 
-> **Voie n°1 · élégant clé en main.** Basculez en un clic sous **Paramètres → Thème / Apparence**. Les 8 aperçus ci-dessous sont générés à partir des
+> **Voie n°1 · élégant clé en main.** Basculez en un clic sous **Paramètres → 个性化皮肤**. Les 8 aperçus ci-dessous sont générés à partir des
 > **vrais tokens + du fond diffused-glow dédié** de chaque skin — ce que vous voyez est ce que vous obtenez. Cliquez pour zoomer et admirer le détail du matériau.
 
 <table>
@@ -149,7 +149,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 | Capacité | Description |
 |------------|-------------|
-| 🎨 **8 presets inclus (Mirage)** | Changez instantanément sous **Paramètres → Thème / Apparence**, clair & sombre |
+| 🎨 **8 presets inclus (Mirage)** | Changez instantanément sous **Paramètres → 个性化皮肤**, clair & sombre |
 | 🖼️ **Wallpaper personnalisé** | Choisissez une image locale (compressée automatiquement ≤2 Mo), réglez **opacité / flou** |
 | 🧊 **Matériaux de verre (Dépoli / Liquide)** | Un clic change le caractère du verre ; les curseurs de transparence se lisent **droite = plus transparent** ; UN réglage de flou pilote le fond et toutes les surfaces de verre |
 | 🖼️ **Apparence prête à l'installation** | La première installation arrive déjà habillée : thème Nebula + fond intégré + valeurs ajustées — redémarrez et c'est prêt |
@@ -197,7 +197,7 @@ officiels** :
 
 - **Commande d'installation = celle officielle** : `dsh plugin --profile web add dsh-dream-skin`
 - **Utilise les points d'extension officiels** : `ctx.theme` (enregistrer des thèmes), `ctx.theme.overrideTokens` (couches de surcharge),
-  `ctx.slots` (monter l'UI dans une section dédiée **Paramètres → Thème / Apparence**).
+  `ctx.slots` (monter l'UI dans une section dédiée **Paramètres → 个性化皮肤**).
 - **Le contrat du manifest correspond aux packages officiels** : `dsh.bundle` + `dsh.client` + `exports["./client"]`.
 
 En d'autres termes : vous n'installez pas un script marginal — c'est un plugin de skin standard au sein du système de plugins
@@ -212,7 +212,7 @@ officiel de DSH.
 dsh plugin --profile web add dsh-dream-skin
 # 2. restart
 dsh web
-# 3. open Settings → Theme / Appearance → pick a skin → done.
+# 3. open Settings → 个性化皮肤 → pick a skin → done.
 ```
 
 > Installe le package npm publié — aucun clonage. Si `dsh plugin add` signale une erreur de workspace, ajoutez `-w`.
@@ -270,7 +270,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # a dream-skin loader entry should appear
 ```
 
-Ouvrez **Paramètres → Thème / Apparence** pour voir les lignes **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**, et **Theme Packs**.
+Ouvrez **Paramètres → 个性化皮肤** pour voir les lignes **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**, et **Theme Packs**.
 
 > Le flag `-w` (workspace) est nécessaire sur un `add` simple car chaque profil embarque un `pnpm-workspace.yaml` ; pnpm traite
 > le répertoire du profil comme une racine de workspace, donc un add simple échoue avec `ERR_PNPM_ADDING_TO_ROOT`. Si votre profil déjà
@@ -354,7 +354,7 @@ tiers d'enregistrer des thèmes qui surchargent la couche d'alias (`--dsw-alias-
   3. rend le wallpaper comme un arrière-plan fixe en `z-index:-1` et empile `ctx.theme.overrideTokens(...)` pour rendre le
      canevas principal (`--dsw-alias-bg-base`) et la barre latérale (`--dsw-specific-sidebar-fill`) translucides ;
   4. écoute `theme/change` et réajuste la teinte du wallpaper lors du changement de skin / de schéma ;
-  5. enregistre une section dédiée **Paramètres → Thème / Apparence** (`settings.section`) et monte les sept lignes de
+  5. enregistre une section dédiée **Paramètres → 个性化皮肤** (`settings.section`) et monte les sept lignes de
      fonctionnalités sous le slot `settings.dreamSkin.item`.
 
 Chaque skin porte son `colorScheme` (`light`/`dark`) ; ce plugin l'appose sur son propre élément racine `<html>`

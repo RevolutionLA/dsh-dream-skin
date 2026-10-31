@@ -42,7 +42,7 @@ Las dos formas se apilan y son independientes: un preset decide el «material y 
 
 ## 📸 Capturas de pantalla
 
-> Capturas reales, no maquetas. Izquierda: DSH tras aplicar una skin; derecha: la sección dedicada **Theme / Appearance** en Settings.
+> Capturas reales, no maquetas. Izquierda: DSH tras aplicar una skin; derecha: la sección dedicada **个性化皮肤** en Settings.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
@@ -151,7 +151,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 | Capacidad | Descripción |
 |------------|-------------|
-| 🎨 **8 presets incluidos (Mirage)** | Cambia al instante desde **Settings → Theme / Appearance**, claro y oscuro |
+| 🎨 **8 presets incluidos (Mirage)** | Cambia al instante desde **Settings → 个性化皮肤**, claro y oscuro |
 | 🖼️ **Wallpaper personalizado** | Elige una imagen local (autocomprimida ≤2MB), ajusta **opacidad / desenfoque** |
 | 🧊 **Materiales de cristal (Esmerilado / Líquido)** | Un clic cambia el carácter del vidrio; los controles de transparencia leen **derecha = más transparente**; UN mando de desenfoque guía el fondo y todas las superficies de cristal |
 | 🖼️ **Aspecto listo al instalar** | La primera instalación ya viene estilizada: piel Nebula + fondo incluido + valores ajustados; reinicia y listo |
@@ -199,7 +199,7 @@ e incluso el propio Agent Loop son plugins. `dsh-dream-skin` distribuye el skinn
 
 - **El comando de instalación = el oficial**: `dsh plugin --profile web add dsh-dream-skin`
 - **Usa puntos de extensión oficiales**: `ctx.theme` (registrar themes), `ctx.theme.overrideTokens` (capas de
-  sobrescritura), `ctx.slots` (montar la UI en una sección dedicada de **Settings → Theme / Appearance**).
+  sobrescritura), `ctx.slots` (montar la UI en una sección dedicada de **Settings → 个性化皮肤**).
 - **El contrato del manifest coincide con los paquetes oficiales**: `dsh.bundle` + `dsh.client` + `exports["./client"]`.
 
 En otras palabras: no estás instalando un script marginal — es un plugin de skin estándar dentro del sistema oficial de
@@ -214,7 +214,7 @@ plugins de DSH.
 dsh plugin --profile web add dsh-dream-skin
 # 2. reiniciar
 dsh web
-# 3. abre Settings → Theme / Appearance → elige una skin → listo.
+# 3. abre Settings → 个性化皮肤 → elige una skin → listo.
 ```
 
 > Instala el paquete npm publicado — sin clonar. Si `dsh plugin add` informa de un error de workspace, añade `-w`.
@@ -274,7 +274,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # debería aparecer una entrada del loader dream-skin
 ```
 
-Abre **Settings → Theme / Appearance** para ver las filas **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**
+Abre **Settings → 个性化皮肤** para ver las filas **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**
 y **Theme Packs**.
 
 > La bandera `-w` (workspace) es necesaria en un `add` simple porque cada profile incluye un `pnpm-workspace.yaml`;
@@ -361,7 +361,7 @@ plugin estándar de doble cara:
   3. renderiza el wallpaper como fondo fijo `z-index:-1` y apila `ctx.theme.overrideTokens(...)` haciendo
      translúcidos el lienzo principal (`--dsw-alias-bg-base`) y la barra lateral (`--dsw-specific-sidebar-fill`);
   4. escucha `theme/change` y re-tiñe el lavado del wallpaper al cambiar de skin / esquema;
-  5. registra una sección dedicada **Settings → Theme / Appearance** (`settings.section`) y monta las siete
+  5. registra una sección dedicada **Settings → 个性化皮肤** (`settings.section`) y monta las siete
      filas de funciones en el slot `settings.dreamSkin.item`.
 
 Cada skin lleva su `colorScheme` (`light`/`dark`); este plugin lo estampa en su propio elemento raíz `<html>`

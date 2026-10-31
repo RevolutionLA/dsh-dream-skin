@@ -41,19 +41,19 @@
 
 ## 📸 实机截图
 
-> 真机效果，非概念图。左：应用皮肤后的 DSH 界面；右：设置里的「外观 / Theme」分节。
+> 真机效果，非概念图。左：应用皮肤后的 DSH 界面；右：设置里的「个性化皮肤」分节。
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH 皮肤实机预览" width="46%"/>
   &nbsp;&nbsp;
-  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="设置中的外观分节" width="46%"/>
+  <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/settings.png" alt="设置中的「个性化皮肤」分节" width="46%"/>
 </p>
 
 ---
 
 ## 🎨 玩法一：8 套预设皮肤（Mirage 幻梦系列）
 
-> **开箱即用的优雅。** 在 **设置 → 外观（Theme）** 一键切换。下列预览由各皮肤的**真实 token + 专属弥散光背景**生成——所见即所得，点开可放大查看精致材质。
+> **开箱即用的优雅。** 在 **设置 → 个性化皮肤** 一键切换。下列预览由各皮肤的**真实 token + 专属弥散光背景**生成——所见即所得，点开可放大查看精致材质。
 
 <table>
   <tr>
@@ -148,7 +148,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 | 能力 | 说明 |
 |------|------|
-| 🎨 **8 套主题预设（Mirage 幻梦）** | 在 **设置 → 外观（Theme）** 一键切换，浅色 / 深色兼顾 |
+| 🎨 **8 套主题预设（Mirage 幻梦）** | 在 **设置 → 个性化皮肤** 一键切换，浅色 / 深色兼顾 |
 | 🖼️ **自定义壁纸** | 上传本地图（自动压缩 ≤2MB），调节**透明度 / 模糊 / 填充方式**（裁剪填充 / 完整显示 / 模糊填充）；选中图片后可再调**取景**（水平/垂直偏移 ±100%、缩放 50–300%，偏移以视口为单位，图片可以整张移出画面） |
 | 🧊 **玻璃材质（毛玻璃 / 液态玻璃）** | 一键切换玻璃质感，透明度滑杆**越右越透**；模糊一个旋钮同时驱动壁纸与玻璃表面 |
 | 🪫 **低功耗模式** | 设置 → 玻璃效果里一个勾选：关闭全部玻璃模糊与壁纸模糊，把大块半透明面变成平涂。给「两块窗口同开就掉帧 / GPU 占用高」的机器一个开关（issue #110）；**三态**：没动过勾选 = 自动跟随系统的「减少透明度」（macOS 辅助功能 → 显示 → 减少透明度），勾过 = 固定住你的选择，行上可「交还给自动」。#110 的 M4 实测：空闲 GPU 23% → 11%，快速滚动 75-80% → 60-65% |
@@ -201,7 +201,7 @@ DeepSeek Harness 的口号是「一切皆插件」：模型、工具、沙箱、
   `pnpm add dsh-dream-skin@<确切版本号>`（实测 2.3 秒通过，pnpm 会自行把该版本追加进 `minimumReleaseAgeExclude`）。
   **版本号必须写死**：老 profile 的 `^9.x` 按 semver 覆盖不到 10.x，而发布 24 小时内不带版本号的命令会被 pnpm 冷静期退回旧版。
 - **调用的是官方扩展点**：`ctx.theme`（注册主题）、`ctx.theme.overrideTokens`（叠加层）、
-  `ctx.slots`（把 UI 挂进独立的 **设置 → 外观 / Theme** 分节）。
+  `ctx.slots`（把 UI 挂进独立的 **设置 → 个性化皮肤** 分节）。
 - **manifest 契约与官方一致**：`dsh.bundle` + `dsh.client` + `exports["./client"]`。
 
 也就是说：**你装的不是一个旁门左道的脚本，而是 DSH 官方插件体系里的标准皮肤插件。**
@@ -215,7 +215,7 @@ DeepSeek Harness 的口号是「一切皆插件」：模型、工具、沙箱、
 dsh plugin --profile web add dsh-dream-skin
 # 2. 重启
 dsh web
-# 3. 打开 设置 → 外观（Theme）→ 皮肤，挑一套 → 完。
+# 3. 打开 设置 → 个性化皮肤 → 主题皮肤，挑一套 → 完。
 ```
 
 > 装的是 npm 已完成发布的正式包，无需 clone。若 `dsh plugin add` 报 workspace 相关错误，补一个 `-w` 即可。
@@ -275,7 +275,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # 应出现 dream-skin loader 条目
 ```
 
-打开 **设置 → 外观（Theme）**：自 11.1.0 起这一节分成四个分区——**主题与配色**（皮肤、强调色）、**玻璃效果**（材质、各面透明度、低功耗）、**背景与壁纸**（背景形式、图片来源、轮播、填充与取景）、**导入与导出**（主题包）。
+打开 **设置 → 个性化皮肤**：自 11.1.0 起这一节分成四个分区——**主题与配色**（皮肤、强调色）、**玻璃效果**（材质、各面透明度、低功耗）、**背景与壁纸**（背景形式、图片来源、轮播、填充与取景）、**导入与导出**（主题包）。
 
 > `-w` 标志在裸 `add` 时必需：每个 profile 自带 `pnpm-workspace.yaml`，pnpm 会把它当作 workspace 根，裸加报错
 > `ERR_PNPM_ADDING_TO_ROOT`。若已加过 `-w`，后续用现有 workspace 即无需重复。
@@ -406,7 +406,7 @@ DSH 的主题系统是 token 化的：web 外壳内置 `--dsw-*` 设计令牌，
      树顺序而非 z-index 压在图片层之下），叠加 `ctx.theme.overrideTokens(...)` 让主画布
      （`--dsw-alias-bg-base`）与侧边栏（`--dsw-specific-sidebar-fill`）半透明；
   4. 监听 `theme/change`，切皮肤 / 深浅色时自动重新着色壁纸洗色层；
-  5. 注册独立的 **设置 → 外观 / Theme** 分节（`settings.section`），7 个功能行挂在
+  5. 注册独立的 **设置 → 个性化皮肤** 分节（`settings.section`），7 个功能行挂在
      `settings.dreamSkin.item` 插槽下。
 
 每套皮肤携带自己的 `colorScheme`（`light`/`dark`）；本插件把它打在自己的根元素 `<html>` 上

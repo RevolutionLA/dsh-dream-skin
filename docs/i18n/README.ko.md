@@ -42,7 +42,7 @@
 
 ## 📸 스크린샷
 
-> 목업이 아닌 실제 스크린샷입니다. 왼쪽: skin을 적용한 DSH 화면; 오른쪽: Settings의 전용 **Theme / Appearance** 섹션.
+> 목업이 아닌 실제 스크린샷입니다. 왼쪽: skin을 적용한 DSH 화면; 오른쪽: Settings의 전용 **个性化皮肤** 섹션.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
@@ -54,7 +54,7 @@
 
 ## 🎨 방법 #1: preset skin 8종 (Mirage 시리즈)
 
-> **방법 #1 · 설치하자마자 우아하게.** **Settings → Theme / Appearance**에서 한 번의 클릭으로 전환합니다. 아래 8종의 미리보기는 각 skin의 **실제 tokens + 전용 diffused-glow 배경**으로
+> **방법 #1 · 설치하자마자 우아하게.** **Settings → 个性化皮肤**에서 한 번의 클릭으로 전환합니다. 아래 8종의 미리보기는 각 skin의 **실제 tokens + 전용 diffused-glow 배경**으로
 > 생성되었습니다 — 보이는 그대로입니다. 클릭하면 정교한 material 디테일을 확대해서 볼 수 있습니다.
 
 <table>
@@ -149,7 +149,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 | 기능 | 설명 |
 |------------|-------------|
-| 🎨 **기본 내장 preset 8종 (Mirage)** | **Settings → Theme / Appearance**에서 즉시 전환, light & dark |
+| 🎨 **기본 내장 preset 8종 (Mirage)** | **Settings → 个性化皮肤**에서 즉시 전환, light & dark |
 | 🖼️ **커스텀 wallpaper** | 로컬 이미지 선택 (자동 압축 ≤2MB), **opacity / blur** 조절 |
 | 🧊 **글래스 재질(새틴 / 리퀴드)** | 원클릭으로 유리 질감을 전환합니다. 투명도 슬라이더는 **오른쪽일수록 투명**, 흐림은 배경화면과 유리 표면을 함께 조절 |
 | 🖼️ **설치 즉시 완성된 모습** | 첫 설치부터 네뷸라 스킨 + 내장 배경화면 + 조정된 값이 적용되어 재시작만 하면 바로 사용 가능 |
@@ -196,7 +196,7 @@ DeepSeek Harness의 모토는 *everything is a plugin*입니다: models, tools, 
 
 - **설치 명령어 = 공식 명령어**: `dsh plugin --profile web add dsh-dream-skin`
 - **공식 확장 포인트 사용**: `ctx.theme` (테마 등록), `ctx.theme.overrideTokens` (오버라이드 레이어),
-  `ctx.slots` (전용 **Settings → Theme / Appearance** 섹션에 UI 마운트).
+  `ctx.slots` (전용 **Settings → 个性化皮肤** 섹션에 UI 마운트).
 - **Manifest 계약이 공식 패키지와 일치**: `dsh.bundle` + `dsh.client` + `exports["./client"]`.
 
 즉, 변두리 스크립트를 설치하는 것이 아닙니다 — DSH 공식 플러그인 시스템 안의 표준 skin 플러그인입니다.
@@ -210,7 +210,7 @@ DeepSeek Harness의 모토는 *everything is a plugin*입니다: models, tools, 
 dsh plugin --profile web add dsh-dream-skin
 # 2. restart
 dsh web
-# 3. open Settings → Theme / Appearance → pick a skin → done.
+# 3. open Settings → 个性化皮肤 → pick a skin → done.
 ```
 
 > 게시된 npm 패키지를 설치합니다 — 클론 없음. `dsh plugin add`가 workspace 오류를 보고하면 `-w`를 추가하세요.
@@ -268,7 +268,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # a dream-skin loader entry should appear
 ```
 
-**Settings → Theme / Appearance**를 열면 **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**, **Theme Packs** 행이 보입니다.
+**Settings → 个性化皮肤**를 열면 **Skins**, **Accent**, **Wallpaper** / **Advanced Wallpaper**, **Theme Packs** 행이 보입니다.
 
 > 단독 `add`에는 `-w` (workspace) 플래그가 필요합니다. 모든 profile이 `pnpm-workspace.yaml`을 포함하고 있어
 > pnpm이 profile 디렉터리를 workspace root로 취급하기 때문에, 단독 add는 `ERR_PNPM_ADDING_TO_ROOT` 오류로 실패합니다.
@@ -353,7 +353,7 @@ DSH의 테마 시스템은 token 기반입니다: web shell이 `--dsw-*` 디자�
   3. wallpaper를 `z-index:-1` 고정 배경으로 렌더링하고 `ctx.theme.overrideTokens(...)`를 쌓아
      메인 캔버스(`--dsw-alias-bg-base`)와 사이드바(`--dsw-specific-sidebar-fill`)를 반투명하게 만듭니다;
   4. `theme/change`를 수신해 skin / scheme 전환 시 wallpaper wash를 다시 칠합니다;
-  5. 전용 **Settings → Theme / Appearance** 섹션(`settings.section`)을 등록하고 일곱 가지 기능 행을
+  5. 전용 **Settings → 个性化皮肤** 섹션(`settings.section`)을 등록하고 일곱 가지 기능 행을
      `settings.dreamSkin.item` 슬롯 아래에 마운트합니다.
 
 각 skin은 `colorScheme` (`light`/`dark`)을 지니고, 이 플러그인이 그것을 자신의 루트 요소 `<html>`에

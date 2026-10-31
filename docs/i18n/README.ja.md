@@ -40,7 +40,7 @@
 
 ## 📸 スクリーンショット
 
-> モックアップではなく実際のスクリーンショットです。左：スキン適用後の DSH。右：設定内の専用 **テーマ / 外観** セクション。
+> モックアップではなく実際のスクリーンショットです。左：スキン適用後の DSH。右：設定内の専用 **个性化皮肤** セクション。
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/screenshots/preview.png" alt="DSH skin preview" width="46%"/>
@@ -52,7 +52,7 @@
 
 ## 🎨 方法 #1：プリセットスキン 8種（Mirage シリーズ）
 
-> **箱から出してすぐエレガント。** **設定 → テーマ / 外観** でワンクリック切替。下の 8 スキンは、各スキンの**実トークン + 専用の diffused-glow 背景**から生成しています — 見たままが得られます。クリックで拡大して、素材の細部をご確認ください。
+> **箱から出してすぐエレガント。** **設定 → 个性化皮肤** でワンクリック切替。下の 8 スキンは、各スキンの**実トークン + 専用の diffused-glow 背景**から生成しています — 見たままが得られます。クリックで拡大して、素材の細部をご確認ください。
 
 <table>
   <tr>
@@ -138,7 +138,7 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 
 | 機能 | 説明 |
 |------------|-------------|
-| 🎨 **プリセット8種を同梱（Mirage）** | **設定 → テーマ / 外観** で即座に切り替え、ライト & ダーク対応 |
+| 🎨 **プリセット8種を同梱（Mirage）** | **設定 → 个性化皮肤** で即座に切り替え、ライト & ダーク対応 |
 | 🖼️ **カスタム壁紙** | ローカル画像を選択（自動圧縮 ≤2MB）、**不透明度 / ぼかし** を調整 |
 | 🧊 **ガラス素材（すりガラス / リキッド）** | ワンクリックでガラスの質感を切替。透明度スライダーは**右ほど透け**、ぼかしは壁紙とガラス面をまとめて調整 |
 | 🖼️ **初回から完成された見た目** | インストール直後からネビュラスキン + 同梱壁紙 + 調整済みの数値で即使用可能 |
@@ -183,7 +183,7 @@ DeepSeek Harness のモットーは *everything is a plugin*（すべてがプ�
 ```
 
 - **インストールコマンドは公式と同じ**：`dsh plugin --profile web add dsh-dream-skin`
-- **公式の拡張ポイントを使用**：`ctx.theme`（テーマの登録）、`ctx.theme.overrideTokens`（オーバーレイレイヤー）、`ctx.slots`（専用の **設定 → テーマ / 外観** セクションへの UI のマウント）。
+- **公式の拡張ポイントを使用**：`ctx.theme`（テーマの登録）、`ctx.theme.overrideTokens`（オーバーレイレイヤー）、`ctx.slots`（専用の **設定 → 个性化皮肤** セクションへの UI のマウント）。
 - **マニフェスト契約は公式パッケージと一致**：`dsh.bundle` + `dsh.client` + `exports["./client"]`。
 
 言い換えれば：あなたは無名のスクリプトをインストールしているのではありません — これは DSH 公式のプラグインシステムの中の、標準的なスキンプラグインです。
@@ -197,7 +197,7 @@ DeepSeek Harness のモットーは *everything is a plugin*（すべてがプ�
 dsh plugin --profile web add dsh-dream-skin
 # 2. restart
 dsh web
-# 3. open Settings → Theme / Appearance → pick a skin → done.
+# 3. 設定 → 个性化皮肤 → 皮肤を 1 つ選択 → 完了。
 ```
 
 > 公開済みの npm パッケージをインストールします — クローン不要。`dsh plugin add` がワークスペースエラーを報告する場合は `-w` を追加してください。
@@ -248,7 +248,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # a dream-skin loader entry should appear
 ```
 
-**設定 → テーマ / 外観** を開くと、**スキン**、**アクセント**、**壁紙** / **詳細壁紙**、**テーマパック** の行が表示されます。
+**設定 → 个性化皮肤** を開くと、**スキン**、**アクセント**、**壁紙** / **詳細壁紙**、**テーマパック** の行が表示されます。
 
 > 素の `add` には `-w`（ワークスペース）フラグが必要です。すべてのプロファイルに `pnpm-workspace.yaml` が同梱されており、pnpm はプロファイルディレクトリをワークスペースルートとみなすため、素の add は `ERR_PNPM_ADDING_TO_ROOT` で失敗します。プロファイルがすでにワークスペースを使用している場合は、繰り返す必要はありません。
 
@@ -323,7 +323,7 @@ DSH のテーマシステムはトークンベースです：Web シェルは `-
   2. 保存済みのスキンを復元し、`ctx.theme.setTheme(...)` で適用；
   3. 壁紙を `z-index:-1` の固定バックドロップとして描画し、`ctx.theme.overrideTokens(...)` を重ねることで、メインキャンバス（`--dsw-alias-bg-base`）とサイドバー（`--dsw-specific-sidebar-fill`）を半透明に；
   4. `theme/change` をリッスンし、スキン / 配色の切り替え時に壁紙の色調を再調整；
-  5. 専用の **設定 → テーマ / 外観** セクション（`settings.section`）を登録し、`settings.dreamSkin.item` スロットに 7 つの機能行をマウントします。
+  5. 専用の **設定 → 个性化皮肤** セクション（`settings.section`）を登録し、`settings.dreamSkin.item` スロットに 7 つの機能行をマウントします。
 
 各スキンは `colorScheme`（`light`/`dark`）を持ち、本プラグインがそれを自分のルート要素 `<html>` に
 （`data-dsh-dream-skin-scheme` として）打ちます。ホストの `body[data-ds-dark-theme]` には**依存しません**——
