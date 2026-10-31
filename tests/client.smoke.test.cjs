@@ -1276,7 +1276,12 @@ test('all locale dictionaries are complete and keep placeholders', () => {
 	// hold is (a) all eight dictionaries are identical, (b) every key the code looks up
 	// exists, and (c) every key that exists is reachable — either literally, or through
 	// one of the two dynamic families below (skin.<id> / material.<id>[.desc]).
-	const literalUses = new Set([...src.matchAll(/\b(?:t|localeT)\(\s*"([a-zA-Z0-9.]+)"/g)].map((m) => m[1]));
+	// A call can also build its key from a literal PREFIX plus a value (W7a's material
+	// chips do: t("material." + preset.id)), and the prefix alone is not a key. Trailing
+	// dots are dropped here and the finished keys are covered by DYNAMIC_FAMILIES below —
+	// otherwise every derived lookup would be reported as "code looks up 'material.'".
+	const literalUses = new Set([...src.matchAll(/\b(?:t|localeT)\(\s*"([a-zA-Z0-9.]+)"/g)]
+		.map((m) => m[1]).filter((key) => !key.endsWith('.')));
 	const DYNAMIC_FAMILIES = [
 		{ prefix: 'skin.', ids: SHIPPED_SKINS.map((s) => s.id) },
 		{ prefix: 'material.', ids: ['frosted', 'liquid'] },
@@ -2136,8 +2141,18 @@ test('liquid-glass material CSS is injected on leaf cards only (no fixed-modal a
 	const ctx = makeApplyContext(h);
 	assert.doesNotThrow(() => e.apply(ctx), 'apply injects liquid-glass CSS without throwing');
 
-	assert.ok(appended && appended.textContent, 'a material <style> node was appended');
-	const css = appended.textContent;
+	// m06923: apply() injects a SECOND sheet now (the settings <select> list styling),
+	// so "last appended" is no longer the material sheet — locate it by the id it owns.
+	const materialSheet = headChildren.find((el) => el && String(el.id || '') === 'dsh-dream-skin:material:liquid-glass');
+	assert.ok(materialSheet && materialSheet.textContent, 'a material <style> node was appended');
+	const css = materialSheet.textContent;
+	// The <select> list is centred from its own sheet (m06923 / user: options were
+	// left-aligned and every inline attempt was ignored — ::picker() is a pseudo-element).
+	const selectSheet = headChildren.find((el) => el && String(el.id || '') === 'dsh-dream-skin-select');
+	assert.ok(selectSheet && selectSheet.textContent, 'the select list sheet is injected with apply()');
+	assert.ok(selectSheet.textContent.includes('::picker(select)'), 'the picker pseudo-element is addressed from the sheet');
+	assert.ok(selectSheet.textContent.includes('option::checkmark'), 'the empty check column is dropped so the option text centres');
+	assert.ok(selectSheet.textContent.includes('justify-content: center'), 'the option box centres its label');
 	assert.ok(css.includes('backdrop-filter'), 'uses backdrop-filter');
 	// The inline-warning card keeps the material blur — it hosts no fixed
 	// popover, so backdrop-filter cannot trap anything there.
@@ -2536,7 +2551,7 @@ test('10.5.0: the settings-nav icon hook is idempotent and self-reports through 
 	const foreignMarked = [];
 	const themeShopMarked = [];
 	// Labels measured live on host 0.2.0-rc.1: OUR row is the section WE register, with
-	// `label: "Theme / 外观"` — a string this repo declares. The bare 「皮肤」 row
+	// `label: "个性化皮肤"` — a string this repo declares. The bare 「皮肤」 row
 	// belongs to a THIRD-PARTY plugin (@linxin666/dsh-client-ui-skin-center), and marking
 	// it was the L1 walk-on: our palette over somebody else's icon. `Theme Shop` is the
 	// T7 walk-on: a plain substring test for "Theme" painted it even though this repo
@@ -2544,7 +2559,7 @@ test('10.5.0: the settings-nav icon hook is idempotent and self-reports through 
 	const buttons = [
 		{ textContent: '常规', setAttribute(k, v) { this[k] = v; }, removeAttribute(k) { delete this[k]; } },
 		{
-			textContent: 'Theme / 外观',
+			textContent: '个性化皮肤',
 			setAttribute(k, v) { this[k] = v; if (k === 'data-dsh-dream-skin-nav') marked.push(this); },
 			removeAttribute(k) { if (k === 'data-dsh-dream-skin-nav') { const i = marked.indexOf(this); if (i >= 0) marked.splice(i, 1); } delete this[k]; }
 		},
@@ -2598,7 +2613,7 @@ test('10.5.0: the settings-nav icon hook is idempotent and self-reports through 
 	assert.equal(liveSheets().length, 1, 'one icon sheet on the first evaluation');
 	assert.equal(navObservers.count, 1, 'one body observer on the first evaluation');
 	assert.equal(marked.length, 1, 'exactly one nav row is marked');
-	assert.equal(marked[0] && marked[0].textContent, 'Theme / 外观', 'and the row we marked is the section WE registered');
+	assert.equal(marked[0] && marked[0].textContent, '个性化皮肤', 'and the row we marked is the section WE registered');
 	assert.deepEqual(foreignMarked.map((b) => b.textContent), [], 'the third-party 皮肤 row is not marked');
 	assert.deepEqual(themeShopMarked.map((b) => b.textContent), [], 'T7: a `Theme Shop` row sharing a word with our label is not marked either');
 	const nav = h.window.__DSH_DREAM_SKIN_NAV__;
@@ -2666,7 +2681,7 @@ test('10.5.0: the nav hook stays live when the window gets no animation frames',
 	// __DSH_DREAM_SKIN_NAV__ cannot tell idle from dead. The timer below is what
 	// keeps the hook honest; this case pins it by never firing the frame.
 	const buttons = [{
-		textContent: 'Theme / 外观',
+		textContent: '个性化皮肤',
 		setAttribute(k, v) { this[k] = v; },
 		removeAttribute(k) { delete this[k]; }
 	}];
@@ -2718,9 +2733,9 @@ test('10.5.0: the nav hook stays live when the window gets no animation frames',
 		'adoption is not a no-op: the adopted sheet carries the marker CSS');
 	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.sheets, 1, 'and the self-report counts the one real sheet');
 
-	// A second "Theme / 外观" button appears while no frame will ever arrive.
+	// A second "个性化皮肤" button appears while no frame will ever arrive.
 	buttons.push({
-		textContent: 'Theme / 外观',
+		textContent: '个性化皮肤',
 		setAttribute(k, v) { this[k] = v; },
 		removeAttribute(k) { delete this[k]; }
 	});
@@ -2745,7 +2760,7 @@ test('10.5.0: a nav hook that ran before <body> existed arms itself on DOMConten
 	const observers = [];
 	const listeners = [];
 	const buttons = [
-		{ textContent: 'Theme / 外观', setAttribute(k, v) { this[k] = v; }, removeAttribute(k) { delete this[k]; } }
+		{ textContent: '个性化皮肤', setAttribute(k, v) { this[k] = v; }, removeAttribute(k) { delete this[k]; } }
 	];
 	const SHEET = 'dsh-dream-skin-nav-icon';
 	const doc = {
@@ -2779,7 +2794,7 @@ test('10.5.0: a nav hook that ran before <body> existed arms itself on DOMConten
 	listeners[0].fn();
 	assert.equal(observers.length, 1, 'the deferred arm installs the body observer');
 	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.armed, true, 'only now does the report say the hook is live');
-	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.marked, 1, 'the pending "Theme / 外观" button gets marked on the arm pass');
+	assert.equal(h.window.__DSH_DREAM_SKIN_NAV__.marked, 1, 'the pending "个性化皮肤" button gets marked on the arm pass');
 
 	// A second copy on the now-armed page must not double-observe.
 	h.rerun();
@@ -2796,7 +2811,7 @@ test('10.5.0: a nav hook that ran before <body> existed arms itself on DOMConten
 function makeNavHookDoc(SHEET) {
 	const marked = [];
 	const buttons = [{
-		textContent: 'Theme / 外观',
+		textContent: '个性化皮肤',
 		// Presence tracker, faithful to setAttribute semantics: setting the same
 		// attribute on an already-marked row does not duplicate anything. (An
 		// unconditional push here would grow with every sync pass and make
@@ -3004,14 +3019,16 @@ test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on th
 	// token and it is a plain, non-important class rule. The fix must re-inherit
 	// the token for that subtree in a way that outranks it, and must stay inert
 	// on plain DSH Web.
-	let appended = null;
+	// The select sheet is injected right after the material sheet, so append order no
+	// longer names the sheet under test: find it by its own rule set.
+	const appended = [];
 	const documentMock = {
 		body: { contains: () => false, getAttribute: () => null },
 		head: {
 			children: [],
 			contains() { return false; },
-			appendChild(el) { appended = el; },
-			append() { appended = el; }
+			appendChild(el) { appended.push(el); },
+			append() { appended.push(el); }
 		},
 		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
 		createTextNode: () => ({}),
@@ -3021,7 +3038,9 @@ test('issue #55: the material sheet un-shadows --dsw-specific-sidebar-fill on th
 	const h = buildSandbox({ document: documentMock });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
-	const css = appended.textContent;
+	const sheet = appended.find((el) => String(el.textContent || '').includes('--dsh-dream-skin-modal-fill'));
+	assert.ok(sheet, 'the material sheet was injected');
+	const css = sheet.textContent;
 
 	const rule = css.match(/\.dshDesktopSidebarSurface\s*\{[^}]*\}/);
 	assert.ok(rule, 'the shell sidebar surface is targeted by the material sheet');
@@ -3044,13 +3063,13 @@ test('issue #99: under a wash the desktop shell sidebar underlay stops eating th
 	// regression we caused. The reporter's own words are "窗口模式为增强模式下，侧边栏无法
 	// 调整不透明度" — the official sidebar inside does obey the slider, but what shows
 	// through it is the shell's layer-1, never the wallpaper.
-	let appended = null;
+	const appended = [];
 	const documentMock = {
 		body: { contains: () => false, getAttribute: () => null },
 		head: {
 			children: [],
 			contains() { return false; },
-			appendChild(el) { appended = el; }
+			appendChild(el) { appended.push(el); }
 		},
 		createElement() { return { style: {}, dataset: {}, textContent: '', remove() {} }; },
 		createTextNode: () => ({}),
@@ -3060,7 +3079,9 @@ test('issue #99: under a wash the desktop shell sidebar underlay stops eating th
 	const h = buildSandbox({ document: documentMock });
 	const e = h.factory(makeRequire(makeRuntime().RT));
 	assert.doesNotThrow(() => e.apply(makeApplyContext(h)));
-	const css = appended.textContent;
+	const sheet = appended.find((el) => String(el.textContent || '').includes('--dsh-dream-skin-modal-fill'));
+	assert.ok(sheet, 'the material sheet was injected');
+	const css = sheet.textContent;
 
 	const tokenRule = css.match(/\.dshDesktopSidebarSurface\s*\{[^}]*\}/);
 	assert.ok(tokenRule && /--dsw-specific-sidebar-fill:\s*inherit\s*!important/.test(tokenRule[0]),
@@ -3516,19 +3537,23 @@ test('issue #100 (adjudication R2): a wash flip re-renders BOTH opacity rows, no
 });
 
 test('issue #100: the slider says so when the floor is holding it (marker wired, 8 languages)', () => {
-	// String-level ON PURPOSE, and labelled as such: the marker lives in a JSX `format`
-	// closure that this sandbox cannot render, so what can be pinned here is that the branch
-	// exists, that it reads the SAME two facts the floor reads (the wash state and the floor
-	// constant — not a copied number), that a plain form still exists for the unclamped range,
-	// and that every shipped dictionary carries the key it prints. The visual behaviour needs a
-	// real page and is recorded as unverified in docs/desktop-support.md.
+	// String-level ON PURPOSE, and labelled as such: the marker lives in a JSX prop that this
+	// sandbox cannot render, so what can be pinned here is that the branch exists, that it reads
+	// the SAME two facts the floor reads (the wash state and the floor constant — not a copied
+	// number), that the value cell still prints a plain percentage (m01584: the marker is a note
+	// under the track, not a suffix on the number — it used to be the suffix and squeezed the
+	// row), and that every shipped dictionary carries the key it prints. The visual behaviour
+	// needs a real page and is recorded as unverified in docs/desktop-support.md.
 	const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'client.js'), 'utf8');
-	const branch = src.match(/format:\s*\(v\)\s*=>\s*\(([\s\S]{0,300}?)\)\s*,\n\s*onChange:\s*\(v\)\s*=>\s*setModalOpacity/);
-	assert.ok(branch, 'the modal slider must still carry its own format branch');
-	assert.match(branch[1], /washActive/, 'the marker is gated on the wash state, like the floor itself');
-	assert.match(branch[1], /DIALOG_ALPHA_FLOOR/, 'and on the floor constant — not on a literal 0.92');
-	assert.match(branch[1], /modal\.floorMark/, 'and it prints the translated marker');
-	assert.match(branch[1], /`\$\{v\}%`/, 'a plain form still exists for the unclamped range (the marker is conditional, not a suffix)');
+	const at = src.indexOf('label: t("modal.title")');
+	assert.ok(at !== -1, 'the modal slider is still where it was');
+	const branch = [src.slice(at, at + 1200)];
+	assert.match(branch[0], /format:\s*\(v\)\s*=>\s*`\$\{v\}%`/, 'the value cell prints the bare percentage again');
+	assert.doesNotMatch(branch[0], /% · /, 'and no longer glues the marker onto it');
+	assert.match(branch[0], /note:\s*washActive/, 'the marker is a note gated on the wash state, like the floor itself');
+	assert.match(branch[0], /DIALOG_ALPHA_FLOOR/, 'and on the floor constant — not on a literal 0.92');
+	assert.match(branch[0], /modal\.floorMark/, 'and it prints the translated marker');
+	assert.match(branch[0], /: null/, 'with no note at all while nothing is holding the slider');
 	for (const lang of ['zh', 'en', 'ja', 'ko', 'es', 'fr', 'de', 'ru']) {
 		const at = src.indexOf(`const ${lang} = {`);
 		assert.ok(at !== -1, `${lang} dictionary`);
@@ -7440,10 +7465,15 @@ function mkProbeImage(probes, mode) {
 	};
 }
 
+/**
+ * m02439: the log the bundle publishes its own toasts into. Kept mutable (never replaced) so the
+ * `r.alerts.length = 0` calls below still clear it when a case runs before any notice was raised.
+ */
+const EMPTY_NOTICES = [];
+
 /** Boot the plugin with a rotation config, a controllable preload and a capturable tick. */
 function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'url', rotation = {}, refresh = null, mode = 'ok', visibility, date, seed = {}, fetch: fetchOverride, setTimeout: timeoutOverride } = {}) {
 	const probes = [];
-	const alerts = [];
 	const listeners = {};
 	let tick = null;
 	const g = mkWallpaperDoc();
@@ -7465,8 +7495,7 @@ function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'u
 		...(timeoutOverride ? { setTimeout: timeoutOverride } : {}),
 		window: {
 			setInterval: (fn) => { tick = fn; return 11; },
-			clearInterval: () => { tick = null; },
-			alert: (m) => alerts.push(m)
+			clearInterval: () => { tick = null; }
 		}
 	});
 	const e = h.factory(makeRequire(makeRuntime().RT));
@@ -7474,7 +7503,11 @@ function bootRotation({ urls = [ROT_A, ROT_B, ROT_C], current = ROT_A, kind = 'u
 	e.apply(ctx);
 	const cfg = () => JSON.parse(h.localStorage.getItem(ROT_KEY));
 	return {
-		h, g, probes, alerts, listeners, ctx,
+		h, g, probes, listeners, ctx,
+		// m02439: the bundle raises its OWN toast (AGENTS.md §12 forbids window.alert), so the
+		// capture point is the log it publishes rather than a stubbed alert. The getter keeps every
+		// `r.alerts.length = 0` / `assert.deepEqual(r.alerts, [...])` below unchanged.
+		get alerts() { return h.window.__DSH_DREAM_SKIN_NOTICES__ || EMPTY_NOTICES; },
 		tick: () => tick && tick(),
 		hasTick: () => tick !== null,
 		adv: h.actionBags['dream-skin-wallpaper-advanced'],
@@ -7572,6 +7605,12 @@ test('rotation: every entry passes the gate on every path, and one bad entry nev
 	r.adv.setRotationList('javascript:alert(1)\n' + GOOD1 + '\n\n   \nftp://bad.example.com/x.jpg\n' + GOOD2 + '\n');
 	assert.deepEqual(r.cfg().urls, [GOOD1, GOOD2], 'the valid lines survive');
 	assert.deepEqual(r.alerts, ['bg2.rotationDropped'], 'the refusal is announced once');
+	// m02439 (user): the refusal reaches the user as the plugin's OWN card — the browser's native
+	// modal is what AGENTS.md §12 forbids, and it is what a user sees landing on top of the host.
+	const toast = r.g.doc.body.children.find((el) => el.attrs && 'data-dsh-dream-skin-notice' in el.attrs);
+	assert.ok(toast, 'the notice card is mounted on the page');
+	assert.equal(toast.getAttribute('role'), 'status', 'and it announces itself politely');
+	assert.equal(toast.textContent, 'bg2.rotationDropped', 'with the very wording the log holds');
 	// Nothing usable at all: refused whole, the saved list is untouched.
 	r.alerts.length = 0;
 	r.adv.setRotationList('javascript:alert(1)\ndata:image/png;base64,AAAAAAAAAAAA');
@@ -7772,7 +7811,8 @@ test('rotation: the list box ignores an empty save, switches rotation off when t
 	assert.equal(r.cfg().mode, 'random', 'a known mode is stored');
 	r.adv.setRotationMode('shuffle-all');
 	assert.equal(r.cfg().mode, 'random', 'an unknown mode leaves the stored one alone');
-	for (const [input, want] of [[1, 5], [4.4, 5], [90, 90], [99999, 10080], ['abc', 60], [NaN, 60]]) {
+	// m01852: the floor is one minute (the box offers 1..60 分钟), junk still reads as the default.
+	for (const [input, want] of [[1, 1], [0.4, 1], [90, 90], [99999, 10080], ['abc', 60], [NaN, 60]]) {
 		r.adv.setRotationMinutes(input);
 		assert.equal(r.cfg().minutes, want, `minutes ${String(input)} -> ${want}`);
 	}

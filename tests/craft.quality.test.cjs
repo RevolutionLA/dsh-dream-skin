@@ -105,6 +105,11 @@ test('mutation: painting a module with a token no skin ships reddens module-toke
 test('mutation: resizing a host box reddens layout-neutral', () => {
 	const broken = mutate(['"html[" + WASH_ACTIVE_ATTR + "] .qDHVXG_fade {",', '"html[" + WASH_ACTIVE_ATTR + "] .qDHVXG_fade { width: 100%;",']);
 	assert.equal(checkNamed(auditCraft(broken), 'layout-neutral').pass, false, 'layout gate can fail');
+	// The third exception is for the plugin's OWN control (m00460). Strip the marker
+	// and the same declarations land on every host dropdown — that must redden, or
+	// the exemption is a hole keyed to `select` rather than to us.
+	const unmarked = mutate(['"select[data-dream-skin-select] { display: inline-flex;', '"select { display: inline-flex;']);
+	assert.equal(checkNamed(auditCraft(unmarked), 'layout-neutral').pass, false, 'a marker-less select is not exempt');
 });
 
 test('mutation: an unexplained blur radius reddens blur-derived', () => {
@@ -257,7 +262,7 @@ test('mutation: a third injected stylesheet reddens sheet-reconciliation', () =>
 	]);
 	const c = checkNamed(auditCraft(broken), 'sheet-reconciliation');
 	assert.equal(c.pass, false, 'reconciliation gate can fail');
-	assert.match(c.detail, /injects 3 stylesheet/);
+	assert.match(c.detail, /injects 4 stylesheet/);
 });
 
 // ── issue #80: the glass scheme must follow the SKIN, not the host ─────────

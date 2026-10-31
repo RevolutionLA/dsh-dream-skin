@@ -100,7 +100,10 @@ function buildSandbox({ failWrite = null, seed = {}, code = null } = {}) {
 	};
 }
 
-const REACT = { useRef: () => ({ current: {} }), useMemo: (f) => (typeof f === 'function' ? f() : f), useState: (init) => [init, () => {}] };
+// `useEffect` is here because the settings rows subscribe to a media query (the responsive
+// tiers): a component this sandbox actually renders must be handed the same React surface the
+// browser does, or the render throws instead of the case failing on a fact.
+const REACT = { useRef: () => ({ current: {} }), useMemo: (f) => (typeof f === 'function' ? f() : f), useState: (init) => [init, () => {}], useEffect: () => {} };
 const RT = { defineStore: (d) => ({ spec: d, create() {} }) };
 
 /**
@@ -336,7 +339,7 @@ test('the empty image-link tab says why the background is blank, and stays quiet
 	assert.equal(hasText(seen, 'bg2.urlEmpty'), false, 'the local-image tab is not this tab and must stay silent');
 
 	// ① the row never renders (silent degradation restored)
-	const never = CODE.replace('kind === "url" && !url ? (0, react_jsx_runtime.jsx)("div", {', 'null ? (0, react_jsx_runtime.jsx)("div", {');
+	const never = CODE.replace('!url ? NoteLine({ text: t("bg2.urlEmpty")', 'false ? NoteLine({ text: t("bg2.urlEmpty")');
 	assert.notEqual(never, CODE, 'mutation ① has to change the bundle');
 	const h1 = buildSandbox({ code: never });
 	const n1 = [];
@@ -346,7 +349,7 @@ test('the empty image-link tab says why the background is blank, and stays quiet
 		'① with the guard forced false the row disappears — this is the failure the gate exists to see');
 
 	// ② the row always renders (a warning nobody can turn off)
-	const always = CODE.replace('kind === "url" && !url ? (0, react_jsx_runtime.jsx)("div", {', 'kind === "url" ? (0, react_jsx_runtime.jsx)("div", {');
+	const always = CODE.replace('!url ? NoteLine({ text: t("bg2.urlEmpty")', 'true ? NoteLine({ text: t("bg2.urlEmpty")');
 	assert.notEqual(always, CODE, 'mutation ② has to change the bundle');
 	const h2 = buildSandbox({ code: always });
 	const n2 = [];
@@ -395,7 +398,7 @@ test('the quota warning reaches the wallpaper row the user reads, in both direct
 });
 
 test('mutation: a hint line that never renders is a silent fallback again', async () => {
-	const mutated = mutate('lastStorageError ? (0, react_jsx_runtime.jsx)("div", {', 'null ? (0, react_jsx_runtime.jsx)("div", {');
+	const mutated = mutate('lastStorageError ? NoteLine({', 'null ? NoteLine({');
 	const h = buildSandbox({ failWrite: (k) => k === 'dsh-dream-skin:accent', code: mutated });
 	const nodes = [];
 	const e = h.factory(makeRequire({ nodes }));
@@ -411,7 +414,7 @@ test('mutation: a hint line that never renders is a silent fallback again', asyn
 });
 
 test('mutation: a hint line that always renders fails the healthy half', async () => {
-	const mutated = mutate('lastStorageError ? (0, react_jsx_runtime.jsx)("div", {', '({}) ? (0, react_jsx_runtime.jsx)("div", {');
+	const mutated = mutate('lastStorageError ? NoteLine({', '({}) ? NoteLine({');
 	const h = buildSandbox({ code: mutated });
 	const nodes = [];
 	const e = h.factory(makeRequire({ nodes }));
@@ -581,26 +584,33 @@ test('mutation: a byte budget of 999999999 keeps the five photos and the quota c
 // The behavior is pinned in client.smoke.test.cjs through the action bag; this case pins the
 // other half, what the settings page shows and which action each control calls, in the same
 // JSX-recording harness as the empty-state case above.
-test('the rotation controls show on the link kind only, and each control calls its own action', async () => {
+test('the two picture forms show their own controls, and each control calls its own action', async () => {
 	const h = buildSandbox();
 	const nodes = [];
 	h.factory(makeRequire({ nodes })).apply(makeApplyContext(h));
 	await flush();
 	const calls = [];
 	const props = {
+		setUrl: (v) => calls.push(['setUrl', v]),
 		setRotation: (v) => calls.push(['setRotation', v]),
 		setRotationList: (v) => calls.push(['setRotationList', v]),
 		setRotationMode: (v) => calls.push(['setRotationMode', v]),
 		setRotationMinutes: (v) => calls.push(['setRotationMinutes', v]),
+		setRefresh: (on, hours) => calls.push(['setRefresh', on, hours]),
+		setAutodim: (v) => calls.push(['setAutodim', v]),
 		rotateNow: () => calls.push(['rotateNow'])
 	};
 	const state = (over) => ({ kind: 'url', url: 'https://example.com/a.jpg', gradient: null, history: [],
-		rotation: { on: true, mode: 'random', minutes: 30, urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'] }, ...over });
+		refreshOn: false, refreshHours: 24,
+		rotation: { on: true, mode: 'random', minutes: 30, urls: ['https://example.com/a.jpg', 'https://example.com/b.jpg'], source: 'links' }, ...over });
 	const find = (seen, pred) => seen.find(pred);
+	const switchesIn = (seen) => seen.filter((n) => n.type === 'input' && n.props && n.props.type === 'checkbox');
+	const buttonWith = (seen, text) => find(seen, (n) => n.type === 'button' && (n.props.children === text || (Array.isArray(n.props.children) && n.props.children[0] === text)));
 
-	// Sample 1: a link wallpaper with two saved links shows the whole control set.
+	// Sample 1: 图片轮播 (the rotation switch is what arms the form) shows the pool editor
+	// and its own interval.
 	let seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state(), props);
-	for (const key of ['bg2.rotation', 'bg2.rotationList', 'bg2.rotationSave', 'bg2.rotationNow', 'bg2.rotationMinutes', 'bg2.rotationSequential', 'bg2.rotationRandom']) {
+	for (const key of ['bg2.rotationList', 'bg2.rotationSave', 'bg2.rotationNow', 'bg2.rotationMinutes', 'bg2.rotationSequential', 'bg2.rotationRandom']) {
 		assert.ok(hasText(seen, key), `${key} is on the page`);
 	}
 	const box = find(seen, (n) => n.type === 'textarea');
@@ -608,32 +618,55 @@ test('the rotation controls show on the link kind only, and each control calls i
 	assert.equal(box.props.defaultValue, 'https://example.com/a.jpg\nhttps://example.com/b.jpg', 'it shows the saved list, one link per line');
 	const random = find(seen, (n) => n.props && n.props['aria-pressed'] === true && n.props.children && n.props.children[0] === 'bg2.rotationRandom');
 	assert.ok(random, 'the stored mode is the pressed one');
-	const interval = find(seen, (n) => n.type === 'input' && n.props.type === 'number' && n.props.min === 5);
-	assert.equal(interval.props.value, 30, 'the interval box shows the stored value');
+	// The box is bounded by the unit it is showing (m01852): 30 minutes opens on 分钟, 1..60.
+	const interval = find(seen, (n) => n.type === 'input' && n.props.type === 'number' && n.props.min === 1);
+	assert.deepEqual([interval.props.min, interval.props.max, interval.props.value], [1, 60, 30],
+		'the interval box shows the stored value, bounded by its unit');
 
-	// Each control reaches its own action.
-	const buttonWith = (text) => find(seen, (n) => n.type === 'button' && (n.props.children === text || (Array.isArray(n.props.children) && n.props.children[0] === text)));
-	buttonWith('bg2.rotationSave').props.onClick();
-	buttonWith('bg2.rotationNow').props.onClick();
-	buttonWith('bg2.rotationSequential').props.onClick();
-	find(seen, (n) => n.type === 'input' && n.props.type === 'checkbox' && n.props.checked === true).props.onChange({ target: { checked: false } });
-	assert.deepEqual(calls.map((c) => c[0]), ['setRotationList', 'rotateNow', 'setRotationMode', 'setRotation'], 'one action per control');
+	// Each control reaches its own action. 保存列表 hands the box's draft to the action —
+	// this harness has no live input state, so the draft is still empty and nothing arms;
+	// the row-side arming is a case-file assertion, where a cell can be pinned.
+	buttonWith(seen, 'bg2.rotationSave').props.onClick();
+	buttonWith(seen, 'bg2.rotationNow').props.onClick();
+	buttonWith(seen, 'bg2.rotationSequential').props.onClick();
+	// W11: 图片轮播 carries the shared auto-dim switch and NOT the scheduled-refresh one —
+	// that switch belongs to 固定图片, the form the selector is not on here.
+	const switches = switchesIn(seen);
+	assert.equal(switches.length, 1, '图片轮播 carries the auto-dim switch only, not the refresh one');
+	switches[0].props.onChange({ target: { checked: true } });
+	assert.deepEqual(calls.map((c) => c[0]), ['setRotationList', 'rotateNow', 'setRotationMode', 'setAutodim'],
+		'one action per control, and 保存列表 arms nothing while the box is empty');
 	assert.deepEqual(calls[2], ['setRotationMode', 'sequential'], 'the mode button passes its mode');
-	assert.deepEqual(calls[3], ['setRotation', false], 'the checkbox passes its state');
+	assert.deepEqual(calls[3], ['setAutodim', true], 'the auto-dim switch passes the state it was clicked into');
 
-	// Sample 2 (reverse legs): fewer than two links hides the controls that need two; other kinds hide everything.
-	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ rotation: { on: false, mode: 'sequential', minutes: 60, urls: ['https://example.com/a.jpg'] } }), props);
-	assert.ok(hasText(seen, 'bg2.rotationList'), 'the list box is still there to fill in');
-	assert.equal(hasText(seen, 'bg2.rotationNow'), false, 'one link: no "next now"');
-	assert.equal(hasText(seen, 'bg2.rotationMinutes'), false, 'one link: no interval');
+	// Sample 2: 固定图片 — the same link kind with the rotation switch off. The pool editor
+	// and every slideshow control are gone, and the refresh pair is what this form owns.
+	calls.length = 0;
+	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ refreshOn: true, refreshHours: 12, rotation: { on: false, mode: 'sequential', minutes: 60, urls: ['https://example.com/a.jpg'], source: 'links' } }), props);
+	assert.equal(hasText(seen, 'bg2.rotationList'), false, '固定图片 has no link list: that box edits the slideshow pool');
+	assert.equal(hasText(seen, 'bg2.rotationNow'), false, 'nor a "next now" action');
+	assert.equal(hasText(seen, 'bg2.rotationMinutes'), false, 'nor a slideshow interval');
+	assert.ok(hasText(seen, 'bg2.refresh'), 'the scheduled-refresh switch is 固定图片\'s own');
+	const hours = find(seen, (n) => n.type === 'input' && n.props.type === 'number');
+	assert.deepEqual([hours.props.min, hours.props.max, hours.props.value], [1, 720, 12], 'and its hours box shows the stored interval');
+	// The link box has ONE 保存 entry and it hands the box's draft to `setUrl` — the draft is
+	// empty in this harness (no live input), which is why the assertion is about the ACTION
+	// rather than the value.
+	buttonWith(seen, 'bg2.apply').props.onClick();
+	assert.deepEqual(calls, [['setUrl', '']], 'the link box\'s one 保存 entry reaches the action that writes the link');
+
+	// Other kinds own neither pair: the refresh switch is 图片链接's, and 图片轮播's pool is not a picture kind.
 	for (const kind of ['image', 'gradient']) {
 		seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ kind }), props);
 		assert.equal(hasText(seen, 'bg2.rotation'), false, `${kind}: no rotation checkbox`);
 		assert.equal(hasText(seen, 'bg2.rotationList'), false, `${kind}: no list box`);
+		assert.equal(hasText(seen, 'bg2.refresh'), false, `${kind}: no scheduled-refresh switch either`);
 	}
-	// A state from before the field existed renders as "never configured", not as a crash.
+	// A state from before the rotation field existed renders as "never configured", not as a crash —
+	// and reads back as the 固定图片 form, because a link with no rotation is a fixed picture.
 	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', { kind: 'url', url: null, gradient: null, history: [] }, props);
-	assert.ok(hasText(seen, 'bg2.rotation'), 'an old state still renders the rotation checkbox');
+	assert.equal(hasText(seen, 'bg2.rotation'), false, 'the rotation switch is gone: the 背景形式 selector carries it');
+	assert.equal(find(seen, (n) => n.type === 'select').props.value, 'fixed', 'an old state with no rotation field reads as 固定图片');
 });
 
 // ── every rotation string the page asks for is defined ────────────────────────────────────────
@@ -645,6 +678,11 @@ test('every rotation string the page and its alerts use is defined in the dictio
 	const used = [...new Set([...CODE.matchAll(/(?:\bt|localeT)\("(bg2\.rotation[A-Za-z]*)"/g)].map((m) => m[1]))];
 	assert.ok(used.length >= 10, 'the rotation strings the page and its alerts use were found: ' + used.join(', '));
 	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
+	// m02439 (user): the page raises its OWN toast — AGENTS.md §12 forbids browser-native modals in a
+	// web front end, so no rotation path may reach for one any more (it lands on top of the host's own
+	// dialogs and ignores the active skin).
+	assert.equal(/window\.alert\s*\(/.test(CODE), false, 'the bundle opens no native alert');
+	assert.ok(/function announceNotice\(/.test(CODE), 'the toast helper is the one channel left');
 });
 
 // ── the rotation source switch and the folder controls ─────────────────────────────────────────
@@ -676,7 +714,7 @@ test('the folder controls show for the folder source only, explain each failure 
 	assert.equal(hasText(seen, 'bg2.rotationList'), false, 'the link list is not shown for the folder source');
 	assert.equal(find(seen, (n) => n.type === 'textarea'), undefined, 'and neither is its text box');
 	const box = find(seen, (n) => n.type === 'input' && n.props.type === 'text');
-	assert.equal(box.props.defaultValue, '/Users/me/Pictures', 'the path box shows the saved folder');
+	assert.equal(box.props.defaultValue, '/Users/me/Pictures', 'the path box holds the saved folder, keyed by it');
 	const pressed = find(seen, (n) => n.type === 'button' && n.props['aria-pressed'] === true && n.props.children && n.props.children[0] === 'bg2.rotationSourceFolder');
 	assert.ok(pressed, 'the stored source is the pressed one');
 	buttonWith(seen, 'bg2.rotationFolderSave').props.onClick();
@@ -696,7 +734,8 @@ test('the folder controls show for the folder source only, explain each failure 
 	assert.ok(hasText(seen, 'bg2.rotationList'), 'links source: the list box is back');
 	assert.equal(find(seen, (n) => n.type === 'input' && n.props.type === 'text'), undefined, 'links source: no path box');
 	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ folder: '', folderCount: null }), props);
-	assert.equal(hasText(seen, 'bg2.rotationNow'), false, 'a folder source with no folder saved has no "next now" yet');
+	assert.ok(hasText(seen, 'bg2.rotationNow'), '轮播设置 keeps 切换到下一张 even before a folder is saved — settings-theme-ui.md line 61 puts it in the group, not behind a count');
+	assert.ok(hasText(seen, 'bg2.rotationFolderSave'), 'and the box that fixes it survives the empty state — the branch is not a dead end');
 	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', { ...state({}), kind: 'gradient' }, props);
 	assert.equal(hasText(seen, 'bg2.rotationSourceFolder'), false, 'other wallpaper kinds show no source switch');
 });
@@ -712,11 +751,13 @@ test('every string the folder error map points at is defined in the dictionaries
 	for (const key of used) assert.ok(zh.includes(key), `${key} is defined`);
 });
 
-test('a folder source calls its in-order mode "by folder name"; a link list keeps "in order"', async () => {
+test('the order chips are the design\'s two, and both pool sources read the same', async () => {
 	const h = buildSandbox();
 	const nodes = [];
 	h.factory(makeRequire({ nodes })).apply(makeApplyContext(h));
 	await flush();
+	assert.equal(CODE.indexOf('bg2.rotationByFolder'), -1,
+		'the third order label is gone from the bundle — settings-theme-ui.md line 58 draws 按顺序轮播 / 随机顺序 and nothing else');
 	const calls = [];
 	const props = {
 		setRotation() {}, setRotationList() {}, setRotationSource() {}, setRotationFolder() {}, setRotationMinutes() {}, rotateNow() {},
@@ -725,14 +766,14 @@ test('a folder source calls its in-order mode "by folder name"; a link list keep
 	const rot = (over) => ({ on: true, mode: 'sequential', minutes: 30, urls: ['https://a.example/1.jpg', 'https://a.example/2.jpg'], source: 'folder', folder: '/Users/me/Pictures', folderCount: 12, folderError: null, ...over });
 	const state = (over) => ({ kind: 'url', url: null, gradient: null, history: [], rotation: rot(over) });
 	const buttonWith = (seen, text) => seen.find((n) => n.type === 'button' && Array.isArray(n.props.children) && n.props.children[0] === text);
+	const orderChips = (seen) => seen
+		.filter((n) => n.type === 'button' && Array.isArray(n.props.children) && (n.props.children[0] === 'bg2.rotationSequential' || n.props.children[0] === 'bg2.rotationRandom'))
+		.map((n) => n.props.children[0]);
 
 	let seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({}), props);
-	assert.ok(buttonWith(seen, 'bg2.rotationByFolder'), 'folder source: the in-order mode reads "by folder name"');
-	assert.equal(buttonWith(seen, 'bg2.rotationSequential'), undefined, 'and the plain "in order" label is not there too');
-	assert.ok(buttonWith(seen, 'bg2.rotationRandom'), 'random stays');
-	buttonWith(seen, 'bg2.rotationByFolder').props.onClick();
+	assert.deepEqual(orderChips(seen), ['bg2.rotationSequential', 'bg2.rotationRandom'], 'folder source: 按顺序轮播 then 随机顺序');
+	buttonWith(seen, 'bg2.rotationSequential').props.onClick();
 	assert.deepEqual(calls, [['setRotationMode', 'sequential']], 'it is the stored sequential mode, no new value');
 	seen = render(h, nodes, 'dream-skin-wallpaper-advanced', state({ source: 'links' }), props);
-	assert.ok(buttonWith(seen, 'bg2.rotationSequential'), 'links source: the plain "in order" label');
-	assert.equal(buttonWith(seen, 'bg2.rotationByFolder'), undefined, 'links have no folders to name');
+	assert.deepEqual(orderChips(seen), ['bg2.rotationSequential', 'bg2.rotationRandom'], 'links source reads the same two chips: the design has ONE settings group for both');
 });

@@ -101,8 +101,11 @@ function walkNodes(node, out) {
 /**
  * @param opts.failWrite  (key) => true to make that key's setItem throw, like a full quota
  * @param opts.code       replacement bundle source, for mutation cases
+ * @param opts.matchMedia (query) => boolean, the engine's answer for a media query; omitted means
+ *                        "no preference", which is what every case that predates the responsive
+ *                        tiers expects
  */
-function buildSandbox({ failWrite = null, seed = {}, code = null, storeMissing = false } = {}) {
+function buildSandbox({ failWrite = null, seed = {}, code = null, storeMissing = false, matchMedia = null } = {}) {
 	const body = makeEl('body');
 	const head = makeEl('head');
 	const documentElement = makeEl('html');
@@ -235,7 +238,30 @@ function buildSandbox({ failWrite = null, seed = {}, code = null, storeMissing =
 	sandbox.window.clearTimeout = clearTimeout;
 	sandbox.window.setInterval = setIntervalMock;
 	sandbox.window.clearInterval = clearIntervalMock;
-	sandbox.window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
+	// The media-query surface, ONE cached list per query: the engine hands back the same object
+	// for the same query and the settings rows key their listener on it, so a fresh object per call
+	// would make "the subscription was released" unknowable. Every list records its listeners.
+	const mediaQueries = [];
+	const mediaLists = new Map();
+	sandbox.window.matchMedia = (query) => {
+		const cached = mediaLists.get(query);
+		if (cached) return cached;
+		const list = {
+			media: query,
+			matches: typeof matchMedia === 'function' ? matchMedia(query) === true : false,
+			listeners: [],
+			addEventListener(type, fn) { if (type === 'change') this.listeners.push(fn); },
+			removeEventListener(type, fn) {
+				const at = this.listeners.indexOf(fn);
+				if (at >= 0) this.listeners.splice(at, 1);
+			},
+			/** Test-only: flip the answer and notify, the way the engine does on a resize. */
+			change(next) { this.matches = next; for (const fn of this.listeners.slice()) fn({ media: query, matches: next }); }
+		};
+		mediaLists.set(query, list);
+		mediaQueries.push(list);
+		return list;
+	};
 	// Window listeners are recorded too: a test that asserts "nothing leaked on unload" has to be
 	// able to see the ones attached to `window`, not only the ones on `document`.
 	const windowListeners = [];
@@ -273,6 +299,8 @@ function buildSandbox({ failWrite = null, seed = {}, code = null, storeMissing =
 		/** Test cleanup only: the poll above runs for ~24s if a case forgets to tear down. */
 		releaseIntervals: () => { for (const id of Array.from(intervals)) clearIntervalMock(id); },
 		getItem: (k) => store.get(k),
+		/** Every media query list the bundle asked for, in request order (`media` / `matches` / `listeners`). */
+		mediaQueries,
 		/** Every <style> node this page has ever been handed, in insertion order. */
 		sheets: () => head.children.filter((n) => n.tagName === 'style' && !n.removed),
 		materialSheets: () => head.children.filter((n) => n.tagName === 'style'

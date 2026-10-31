@@ -48,7 +48,12 @@ const BUDGETS = [
 	// style-only repaint path and 5 strings in each of the 8 dictionaries) took it from 498 KB to
 	// 511 KB — 1 KB under the old line, i.e. the next one-line change would have been the "pass"
 	// nobody decided. The headroom is deliberate, not an achieved ceiling.
-	{ rel: 'lib/client.js', ceiling: 544 * 1024, reason: 'browser half; one combo-served file by host design' },
+	// 544 -> 576 KiB on purpose: the settings page rework (the zoned section layout, the shared
+	// Range slider that replaces six bespoke ones, the notice surface, the colour well and the
+	// compact tier's restacking rows) took the bundle from 526 KB to 567 KB. The step is the same
+	// 32 KiB one as the three raises above; the file stays unminified because it is the audit
+	// surface. 567 KB used, the rest is headroom.
+	{ rel: 'lib/client.js', ceiling: 576 * 1024, reason: 'browser half; one combo-served file by host design' },
 	{ rel: 'lib/index.js', ceiling: 40 * 1024, reason: 'host half' }
 ];
 

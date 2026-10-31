@@ -365,7 +365,8 @@ function collectConsts(source) {
  */
 const REGISTERED_SHEETS = [
 	{ id: 'material', marker: /\.uV2eYG_card|--dsh-dream-skin-glass-rim/ },
-	{ id: 'nav-icon', marker: /\[data-dsh-dream-skin-nav\]/ }
+	{ id: 'nav-icon', marker: /\[data-dsh-dream-skin-nav\]/ },
+	{ id: 'select', marker: /\[data-dream-skin-select\]/ }
 ];
 
 /**
@@ -617,14 +618,23 @@ const MODULES = [
 ];
 
 /**
- * Layout exceptions, both deliberate and both documented in the bundle:
+ * Layout exceptions, each deliberate and each documented in the bundle:
  *  - the sidebar list/footer seam pare (a padding nudge that closes a 1px gap);
  *  - the nav-icon swap, which HIDES the host's 16px glyph and paints a 16px
- *    mask in its place — net box-neutral, but it necessarily writes a size.
+ *    mask in its place — net box-neutral, but it necessarily writes a size;
+ *  - our OWN <select> in the settings row (m00460). This gate exists so the
+ *    plugin never resizes or repositions a HOST box; that control is built by
+ *    the plugin and carries `data-dream-skin-select` precisely so the
+ *    exemption cannot reach a host dropdown. Centring the label against the
+ *    arrow is `display: inline-flex` + `align-items`, resetting the UA
+ *    ::picker-icon margin, and a little padding on the picker — all inside a
+ *    box we own. craft.quality.test.cjs mutates the marker away and the gate
+ *    reddens, so the exemption is keyed to us and not to `select`.
  */
 const LAYOUT_ALLOWLIST = [
 	/\[class\$="_footArea"\]/,
-	/\[data-dsh-dream-skin-nav\]/
+	/\[data-dsh-dream-skin-nav\]/,
+	/\[data-dream-skin-select\]/
 ];
 
 // Documented material blur constants (thick glass / dock panel).
@@ -884,7 +894,7 @@ function auditCraft(source) {
 		}
 	}
 	push('layout-neutral', layoutHits.length === 0,
-		layoutHits.length ? layoutHits.join(' | ') : 'no host box is resized or repositioned (two allowlisted exceptions)');
+		layoutHits.length ? layoutHits.join(' | ') : `no host box is resized or repositioned (${LAYOUT_ALLOWLIST.length} allowlisted exceptions)`);
 
 	// ---- 5. blur radii are documented ---------------------------------------
 	const strayBlur = [];
