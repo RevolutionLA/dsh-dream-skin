@@ -2,6 +2,50 @@
 
 记录 `dsh-dream-skin` 的可观变更。格式遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。从 `8.28.0` 起，版本号启用**日期式规则**：`M.D.X`（月.日.当日第几个版本），例如 8 月 28 日首个版本 `8.28.0`，当日再发 `8.28.1`，次日则为 `8.29.0`，以取代旧的 `0.4.x` 语义化版本（日期按维护者本地时区 UTC+8 计）。
 
+## [11.1.0] - 2026-11-01
+
+> **采纳 @JularDepick 的 PR #132：设置页从一条扁平长栏重做成四个分区（主题与配色 / 玻璃效果 / 背景与壁纸 / 导入与导出），8 个滑杆收敛到一套 `Range`，并第一次把整节渲染进测试（70 条用例，其中 25 条变异腿）。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺），全套 `npm test` 646→**716**（714 pass / 0 fail / 2 条按预期跳过：Windows chmod；本机宿主 `0.2.0-rc.1` 早于 `data-composer-overlay` 锚点）。
+
+### 一、这条 PR 是怎么进来的
+
+- #131 我们公开要求拆分（79 条用例落在 `tests/*.test.cjs` 的 glob 之外、夹带一个自制文件夹选择器、又重复实现了一遍滑杆）。作者关掉 #131，重新开出 #132：只留设置页这一件事，脚手架自己删掉，用例接进默认 glob。
+- **核对靠跑，不靠读**：在 PR 自己的树上跑全套 = 713 条，红只有 4 条且全在 `tests/docs.numbers.test.cjs`——作者按约定一行文档没改，把数字留给我们，与 PR 描述逐条相符。
+- **与 #128 的真 delta**：`function Range(` 起连续 66 行与 main 上 10.30.0 合入的那份**逐字节相同**（`diff` 输出为空），`beginWallpaperPreview` 亦然 ⇒ 本 PR 改的只有 `Slider` 这一层。
+- 两笔提交：`32b56fc`（重构本体）+ `9d46764`（删掉用例携带的文件夹选择器脚手架）。
+
+### 二、改了什么
+
+- **四个分区**（新增 `SectionHeading` / `ZoneHeading` / `blockStyle`）：7 个设置行一个没增减，只是按区归位；store 接线与动作 helper 保持原形。
+- **一个滑杆**：`Slider` 不再自己画滑轨，交给 `Range`；新增 `note` 参数让说明文字独占一行。8 个调用点共用一套。
+- **窄屏档** `useCompactLayout`（`(max-width: 680px)`）：`matchMedia` 缺席 ⇒ 落回宽档（= 出厂版式），监听器按 fiber 归属卸载，遗留 Safari 走 `addListener` 成对回收。
+- **提示面** `announceNotice` / `dismissNotice`：同一时刻只有一张卡（复用，不排队），日志封顶 8 条、2.9 s 退场，并镜像进 `window.__DSH_DREAM_SKIN_NOTICES__` 供审计读取。
+- **色井草稿** `ColorField`：拖动色板只更新草稿，按「应用」才写 token——此前每帧写一次主题。**这是行为变更不是纯重构**：自定义强调色比原来多点一下才生效。
+- **行级原语** `NoteLine` / `CheckRow` / `Choose`：复选框与文案合成一个 `<label>`（点文案也能切），`trailing` 挂在 label 外面（label 里的按钮不属于它的激活区）。
+- **工艺门**：`craft-audit` 的 layout 例外加第三条，键在自家标记 `[data-dream-skin-select]` 上而不是标签名 `select` 上；`craft.quality` 新增一条变异——把标记摘掉 ⇒ 同一批声明落到宿主每个下拉框上，必须翻红。例外条数改成从列表长度推导，不再手抄。
+- **文案与词典**：作者顺手重写了 8 种语言的说明文字（zh 侧实测 **34 条**值有变：长提示压短、若干按钮与选项改名）。新增 25 个键 × 8 种语言实测各 8 处；同时清掉 8 个不再被调用的旧键（`bg2.title`、`packs.title` 等），词典里没有留下死字符串。README / `docs/PROJECT.md` / `docs/themes-spec.md` 里引用到的 UI 名字逐条跟着改：`裁剪填满`→`裁剪填充`、`午夜黑`→`子夜黑`、`换一个试试`→`随机换一个`、`应用链接`→`保存`、`立即换下一张`→`切换到下一张`、`链接列表`→`图片链接`，并把「高级壁纸」这种已经不存在的块标题改成「背景与壁纸」区。
+
+### 三、我这一轮自己验证了什么
+
+- 合进 main 后全套：**716 / 714 pass / 0 fail / 2 skipped**（两条跳过与 10.31.0 同样原因，已具名）。
+- 静态核对：`grep -c 'styles\.slider\b'` = 0、`(0, react_jsx_runtime.jsx)(Slider, {` = 8、`settings.dreamSkin.item` 注册 7 处、`lib/index.js` 26,703 B 一字未动、取景 / 文件夹图源 / 刷新 / 导出等旧功能的选择器仍在 JSX 里被调用。
+- **代价面一项没涨**：`compositor-audit` 仍是 8 条 `backdrop-filter` 声明 / 6 块面板 / 40 处 `radial-gradient` / 2 个 `requestAnimationFrame` / 2 处行内模糊；`craft:audit` 12/12、`skin:check` 同步。
+- 定时与监听的收支：`setTimeout` 15→16 对 `clearTimeout` 16→18、`addEventListener` 4→5 对 `removeEventListener` 5→6——新增的两处（提示卡退场、窄档监听）各自有出口。
+- 发包面：`npm pack --dry-run` = 14 个文件、解包 684,404 B、压缩包 222,031 B；`lib/client.js` 580,314 B。
+- 文案改动是**逐条 diff 出来的**：用同一个提取脚本比较合并前后的 8 个语言块（新增 25 / 改名 34（zh）/ 删除 8），不是照抄 PR 描述。
+- `generate-skin-mockups.cjs --check` 指纹一致（8 skins，未重生成图片）；`docs.numbers` / `docs.reference_counts` / `docs.machine_readable` / `package.version` 共 28 条全绿。
+
+### 四、诚实边界
+
+- **没有活页目视**：本机宿主 `0.2.0-rc.1` 当前没在跑，也没装这一版。四个分区的实际版式、窄屏档、提示面的观感**只有渲染级证据**。作者在自己的实例里目视过并附了截图，那是他的读数，不记成我的。
+- **渲染级 ≠ 浏览器级**：`tests/fixtures/settings-render.cjs` 自己写明没有 React 协调器——`useState` 只记录、`useEffect` 不运行（用例可手动 invoke 那条 effect 与它的 cleanup）、点击后才出现的控件与定时器行为不在射程内。70 条钉的是结构与可达性，不是像素与命中。
+- **余量只剩 9,510 B（1.6%）**：天花板 544 → 576 KiB 是本 PR 里唯一一处抬高代价预算的决定，理由与档位写在 `tests/package.runtime_size.test.cjs` 的注释里；下一次加功能前必须先量，或者先瘦身。
+- **触屏与高对比度**：`touchAction: "none"` 仍在滑杆上（触屏从滑杆区域起手的纵向滚动会被吞）；`forced-colors` 兜底仍然没有。这两条 10.30.0 就记过，本次把整个面板版式换掉，风险面没有变小。
+- **README 的 `docs/screenshots/settings.png` 现在是过期图**：它拍的还是重构前的扁平长栏。等一次活页截图再换，换之前它在 README 里说的是上一代版式。
+- **提示面是一块新的固定定位卡片**，底色是实色而非跟随壁纸/皮肤的水洗面；它不进合成器预算表（没有 `backdrop-filter`），但它是页面上多出来的一块不透明面。
+- **两处改名我们持保留意见，本版不改回、已回给作者**：① `bg2.apply` 从「应用链接 / Apply link」改成「保存 / Save」，而它的 handler 是 `setUrl(urlValue)`——点下去立即拉图并应用、重复点还会强制绕过缓存（#61 就是为这件事修的），"保存"读起来像只落库；② `background.opacity` 只把中文从「壁纸透明度」改成「壁纸能见度」，其余 7 种语言仍是 transparency/透明度 一族——方向语义上"能见度"其实更准（值越大壁纸越可见，与 #129 的困惑同源），但一个概念在 8 种语言里换了 1 种的说法，是我们要不要统一的问题。
+- **说明文字被压短**：`modal.hint` 原来那条长解释（哪些面吃 92% 可读性下限、下拉菜单与遮罩始终全量程）现在只剩一句「壁纸在场时部分面有 92% 可读性下限」。#67 当初就是因为读者不理解地板才提的，这条我们观察一段时间，若又长出同样的 issue 就把长版恢复回来。
+- **预览图与 UI 名字不一致**：`skin.midnight` 中文改名「子夜黑」，但 `scripts/skin-data.cjs` 的预览投影与 `docs/previews/midnight.png` 里印的仍是「午夜黑 · 极简 OLED」；重生成 8 张 PNG 是另一件事，本轮只做文字面同步。
+
 ## [10.31.0] - 2026-10-31
 
 > **修 #131 评审顺带发现的三处 README 参考数字：设置行 5→7、合成器面板枚举补齐第 6 块（`/` 命令面板）、自动弱化文案改为「壁纸不透明度最高 45%」；新增一条门把这些数字钉在 bundle 与审计上。** 质量审计：**229 项质量门全过**（217 调色 + 12 工艺），全套 `npm test` 643→**646 全绿**（2 条按预期跳过：Windows chmod；本机宿主 `0.2.0-rc.1` 早于 `data-composer-overlay` 锚点）。

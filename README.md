@@ -63,7 +63,7 @@
     <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ember.png" width="230" alt="ember"/></a><br/><b>ember</b> · 🔥 余烬橙<br/><sub>唯一暖色暗皮肤：焦琥珀 + 深可可底，暖而不脏</sub></td>
   </tr>
   <tr>
-    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 午夜黑<br/><sub>刻意消色差的 OLED 纯黑，最克制的沉浸</sub></td>
+    <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/midnight.png" width="230" alt="midnight"/></a><br/><b>midnight</b> · 🌚 子夜黑<br/><sub>刻意消色差的 OLED 纯黑，最克制的沉浸</sub></td>
     <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/ivory.png" width="230" alt="ivory"/></a><br/><b>ivory</b> · 📐 iOS 扁平<br/><sub>暖纸感画布 + iOS 蓝，白阶梯精排不刺眼</sub></td>
     <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/mist.png" width="230" alt="mist"/></a><br/><b>mist</b> · 🧊 干净明亮<br/><sub>唯一真半透明液态玻璃：六层 alpha 表面，模糊 8px</sub></td>
     <td align="center"><a href="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png"><img src="https://raw.githubusercontent.com/RevolutionLA/dsh-dream-skin/main/docs/previews/rose.png" width="230" alt="rose"/></a><br/><b>rose</b> · 🌸 Material 粉<br/><sub>玫瑰纸感 + 品牌洋红，红色信号仍归红色</sub></td>
@@ -85,12 +85,12 @@
 
 | 能力 | 玩法二 · 你能做什么 |
 |------|------|
-| 🖼️ **自定义壁纸 2.0** | 本地图 / **图片 URL** / **渐变预设**；附带**透明度 / 模糊 / 填充方式**（裁剪填满 · 完整显示 · 模糊填充；后两档里竖图自动并排平铺），每套皮肤还**自动建议**一张渐变，可**自动弱化**（壁纸不透明度最高 45%） |
+| 🖼️ **自定义壁纸 2.0** | 本地图 / **图片 URL** / **渐变预设**；附带**透明度 / 模糊 / 填充方式**（裁剪填充 · 完整显示 · 模糊填充；后两档里竖图自动并排平铺），每套皮肤还**自动建议**一张渐变，可**自动弱化**（壁纸不透明度最高 45%） |
 | 🌈 **每用户强调色 Accent** | 为当前皮肤叠加自定义品牌强调色（`overrideTokens` 层，不动皮肤本身），**12 个典型色块一键选色** + 选色盘 + 随机 + 恢复主题色 |
 | 📦 **主题包导入 / 导出 / 分享** | 一个 `*.dsh-theme.json` = manifest + 全套 tokens，可**导入文件**、**一键应用**、**复制分享链接**（编码进 URL hash） |
 | 🪟 **弹窗不透明度** | 滑块控制下拉菜单 / 浮层 / 弹窗的底填充透明度，跟随持久化保存；凡用「弹层底色」令牌铺底的面（设置面板、插件管理、轨迹图 tooltip、卡片浮层等）共享一层 92% 可读性下限，滑杆拉到底也不读穿；下拉菜单与遮罩两条腿仍是全量程 |
 | 🧩 **本地主题包库** | 导入的主题包集中展示，**应用 / 收藏 / 移除** 一键完成 |
-| 🎲 **换一个试试（surprise me）** | 随机换一个和你当前不同的主题；**收藏**喜欢的皮肤快速切换 |
+| 🎲 **随机换一个（surprise me）** | 随机换一个和你当前不同的主题；**收藏**喜欢的皮肤快速切换 |
 | ✅ **校验 + 回滚** | 导入时校验格式 / 必填 token / 颜色合法性；失败或移除时安全回退，不做破坏性更改 |
 
 > 一切都叠加在预设之上，**随开随关、一键还原**到 DSH 内置外观——大胆去试，不会弄坏什么。
@@ -149,12 +149,12 @@ dsh plugin --profile web add dsh-dream-skin && dsh web
 | 能力 | 说明 |
 |------|------|
 | 🎨 **8 套主题预设（Mirage 幻梦）** | 在 **设置 → 外观（Theme）** 一键切换，浅色 / 深色兼顾 |
-| 🖼️ **自定义壁纸** | 上传本地图（自动压缩 ≤2MB），调节**透明度 / 模糊 / 填充方式**（裁剪填满 / 完整显示 / 模糊填充）；选中图片后可再调**取景**（水平/垂直偏移 ±100%、缩放 50–300%，偏移以视口为单位，图片可以整张移出画面） |
+| 🖼️ **自定义壁纸** | 上传本地图（自动压缩 ≤2MB），调节**透明度 / 模糊 / 填充方式**（裁剪填充 / 完整显示 / 模糊填充）；选中图片后可再调**取景**（水平/垂直偏移 ±100%、缩放 50–300%，偏移以视口为单位，图片可以整张移出画面） |
 | 🧊 **玻璃材质（毛玻璃 / 液态玻璃）** | 一键切换玻璃质感，透明度滑杆**越右越透**；模糊一个旋钮同时驱动壁纸与玻璃表面 |
 | 🪫 **低功耗模式** | 设置 → 玻璃效果里一个勾选：关闭全部玻璃模糊与壁纸模糊，把大块半透明面变成平涂。给「两块窗口同开就掉帧 / GPU 占用高」的机器一个开关（issue #110）；**三态**：没动过勾选 = 自动跟随系统的「减少透明度」（macOS 辅助功能 → 显示 → 减少透明度），勾过 = 固定住你的选择，行上可「交还给自动」。#110 的 M4 实测：空闲 GPU 23% → 11%，快速滚动 75-80% → 60-65% |
 | 🖼️ **开箱即用的出厂配置** | 首次安装即带完整美化配置：星云皮肤 + 内置壁纸 + 调好的玻璃数值，装完重启就能用 |
-| 🌤️ **必应每日壁纸（预置）** | 高级壁纸预填必应每日一图接口，点「应用链接」即可（重复点会**强制重新拉图**，不会被浏览器缓存挡回旧图）；也支持任意图片 URL + 定时自动更新 |
-| 🔁 **壁纸轮换** | 高级壁纸选「图片链接」后，可在**链接列表**（最多 20 条 http/https 图片链接，每行一条）或**本地文件夹**（填文件夹路径，读这一层和往下最多三层真实子文件夹里的 jpg / png / webp / gif / avif / bmp，不含 HEIC、SVG、隐藏文件夹和符号链接；新放进去的照片自动加入）之间选一个图源，按 5 分钟到 7 天的间隔顺序或随机切换（文件夹图源下顺序即「按目录名字」：先播文件夹自己的图，再按名字逐个子文件夹播完），也可点「立即换下一张」。文件夹由插件的宿主部分读取，只能读到所选文件夹里的图片。坏链接或打不开的图片只丢它自己；窗口隐藏时不切换，回到前台补上；默认关闭（issue #61） |
+| 🌤️ **必应每日壁纸（预置）** | 「背景与壁纸」选「固定图片 → 图片链接」时预填必应每日一图接口，点「保存」即可（重复点会**强制重新拉图**，不会被浏览器缓存挡回旧图）；也支持任意图片 URL + 定时更新缓存 |
+| 🔁 **壁纸轮换** | 「背景形式」选「图片轮播」后，图片来源可在**图片链接**（最多 20 条 http/https 图片链接，每行一条）或**本地文件夹**（填文件夹路径，读这一层和往下最多三层真实子文件夹里的 jpg / png / webp / gif / avif / bmp，不含 HEIC、SVG、隐藏文件夹和符号链接；新放进去的照片自动加入）之间选一个图源，按 5 分钟到 7 天的间隔顺序或随机切换（文件夹图源下顺序即「按目录名字」：先播文件夹自己的图，再按名字逐个子文件夹播完），也可点「切换到下一张」。文件夹由插件的宿主部分读取，只能读到所选文件夹里的图片。坏链接或打不开的图片只丢它自己；窗口隐藏时不切换，回到前台补上；默认关闭（issue #61） |
 | 🔤 **内层不透明** | 卡片、输入框、消息气泡不被壁纸盖住，可读性优先 |
 | ↩️ **默认还原** | 一键回到 DSH 内置外观（跟随系统） |
 | 💾 **三层持久化** | 皮肤与壁纸存 `localStorage` **+ 宿主侧 `dream-skin.json`**，刷新不丢；**桌面版每次换端口、重启也不丢** |
@@ -275,7 +275,7 @@ dsh web
 dsh --profile web --dump-config | grep -A2 dream-skin   # 应出现 dream-skin loader 条目
 ```
 
-打开 **设置 → 外观（Theme）**，即可看到「皮肤」「强调色」「壁纸 / 高级壁纸」与「主题包」等行。
+打开 **设置 → 外观（Theme）**：自 11.1.0 起这一节分成四个分区——**主题与配色**（皮肤、强调色）、**玻璃效果**（材质、各面透明度、低功耗）、**背景与壁纸**（背景形式、图片来源、轮播、填充与取景）、**导入与导出**（主题包）。
 
 > `-w` 标志在裸 `add` 时必需：每个 profile 自带 `pnpm-workspace.yaml`，pnpm 会把它当作 workspace 根，裸加报错
 > `ERR_PNPM_ADDING_TO_ROOT`。若已加过 `-w`，后续用现有 workspace 即无需重复。
@@ -335,7 +335,9 @@ dsh web   # 重启后恢复官方外观
 > **第三方目录（DSH-Store）现状**：`AI-Scarlett/DSH-Store#1411` 曾把本插件标为 catalog blocked。其中「`lib/client.js` 超过其审核面单文件上限」一条，已由对方 2026-10-15 的追评收回，原文与正文 sha256 存档在 [`docs/evidence/dsh-store-1411-followup-2026-10-15.md`](./docs/evidence/dsh-store-1411-followup-2026-10-15.md)；其追评留下的「扫描器证明不了 `require` 的有限调用集」由 10.16.0 处理（全文见 [docs/release-notes.md](https://github.com/RevolutionLA/dsh-dream-skin/blob/main/docs/release-notes.md)）。**本仓库不承诺收录状态会变绿**——是否放行取决于对方的审查流程。
 
 <details>
-<summary><b>📜 逐版本更新记录（10.31.0 → 9.9.0）</b></summary>
+<summary><b>📜 逐版本更新记录（11.1.0 → 9.9.0）</b></summary>
+
+**版本 11.1.0（2026-11-01）**：**采纳 @JularDepick 的 PR #132——设置页从一条扁平长栏重做成四个分区（主题与配色 / 玻璃效果 / 背景与壁纸 / 导入与导出），8 个滑杆共用一套 `Range`，窄窗口（≤680px）把行式重排，另加提示面、色井草稿与三个行级原语。** 这正是我们在 #131 要求拆分后回来的那一半：滑杆本体与 10.30.0 合入的 #128 逐字节相同（实测 `function Range(` 起 66 行 diff 为 0），改的只有 `Slider` 把画滑轨的职责交出去；#131 夹带的文件夹选择器脚手架已由作者自己删掉。新增 `tests/client.settings_ui.test.cjs`（**70 条，其中 25 条变异腿**）+ `tests/fixtures/settings-render.cjs`——本仓库第一次把设置整节渲染成可遍历的树来测（此前所有 UI 用例都把 `jsx` 桩成 `() => 0`）。文案：`裁剪填满`→`裁剪填充`、`Cover`→`Crop to fill`，README 两处同步。回归门 **716/716**（646→716），质量审计 **229/229**（217 调色 + 12 工艺），合成器预算一项没涨（6 块面板 / 8 条声明 / 40 渐变 / 2 个 rAF / 2 处行内模糊）。**边界**：`lib/client.js` 539,026 → **580,314 B**，天花板按 32 KiB 一档抬到 576 KiB，余量只剩 **9,510 B（1.6%）**；新用例是渲染级不是浏览器级（fixture 自己写明没有 React 协调器，点击后才出现的控件与定时器行为测不到）；窄屏档与整页外观**未做活页目视**；README 的 `docs/screenshots/settings.png` 仍是重构前的扁平版式。发版用确切版本号：`dsh plugin --profile web add dsh-dream-skin@11.1.0`。
 
 **版本 10.31.0（2026-10-31）**：**修 #131 评审顺带发现的三处 README 参考数字。** 设置行 **5→7**（`settings.dreamSkin.item` 实际注册 7 处）；合成器面板仍是 **6 块**，但枚举补齐第 6 块「`/` 命令面板」，并写清「另有 2 条 `none` 低功耗守卫，审计合计 8 条声明」；自动弱化文案改为「壁纸不透明度最高 45%」（与 10.30.1 的 UI 一致）。新增 `tests/docs.reference_counts.test.cjs`（3 条）把行数与面板/声明数钉在 bundle 和审计上。回归门 **646/646**（643→646），质量审计 **229/229**（217 调色 + 12 工艺）。**边界**：填充方式在 main 上仍是「裁剪填满」，与 UI 一致；#131 分支把它改成「裁剪填充」，合并那条时再同步。发版用确切版本号：`dsh plugin --profile web add dsh-dream-skin@10.31.0`。
 

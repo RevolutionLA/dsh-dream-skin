@@ -38,7 +38,7 @@ GitHub 上 [Fei-Away/Codex-Dream-Skin](https://github.com/Fei-Away/Codex-Dream-S
 - **主题包格式 + 导入 / 导出 / 分享链接**（JSON + manifest + 校验）。
 - **每用户强调色 Accent**（`overrideTokens` 叠加层）+ 随机 / 恢复。
 - **壁纸 2.0**：URL / 渐变 / 每皮肤建议 / 自动弱化。
-- **本地主题包库**（导入的自定义包）、一键应用 / 收藏 /「换一个试试」。
+- **本地主题包库**（导入的自定义包）、一键应用 / 收藏 /「随机换一个」。
 - 冒烟测试 `npm test`、示例主题包、`docs/themes-spec.md`。
 
 > Codex-Dream-Skin 的「桌面托盘 / 主题库在线一键换肤 / 一键恢复」依赖桌面端 CDP 与原生托盘，DSH 是浏览器
